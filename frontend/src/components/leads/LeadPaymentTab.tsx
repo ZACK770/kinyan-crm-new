@@ -2,14 +2,14 @@ import { useState, useEffect } from 'react'
 import { api } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
 import { CreditCard, CheckCircle2, XCircle, Copy, Calculator, Tag } from 'lucide-react'
-import type { Lead, Product, Payment } from '@/types'
+import type { Lead, Course, Payment } from '@/types'
 import { formatCurrency, formatDateTime } from '@/lib/status'
 import s from '@/styles/shared.module.css'
 import ps from './LeadPaymentTab.module.css'
 
 interface LeadPaymentTabProps {
   lead: Lead
-  products: Product[]
+  courses: Course[]
   onUpdate: () => void
 }
 
@@ -31,11 +31,11 @@ interface PaymentStatus {
 /* ══════════════════════════════════════════════════════════════
    Main Payment Tab Component - Merged & Enhanced
    ══════════════════════════════════════════════════════════════ */
-export function LeadPaymentTab({ lead, products, onUpdate }: LeadPaymentTabProps) {
+export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps) {
   const toast = useToast()
   
-  // Product selection state
-  const [selectedProductId, setSelectedProductId] = useState<number | ''>(lead.selected_product_id ?? '')
+  // Course selection state
+  const [selectedCourseId, setSelectedCourseId] = useState<number | ''>(lead.selected_course_id ?? '')
   const [price, setPrice] = useState('')
   const [paymentsCount, setPaymentsCount] = useState('1')
   const [paymentDay, setPaymentDay] = useState('15')
@@ -54,17 +54,20 @@ export function LeadPaymentTab({ lead, products, onUpdate }: LeadPaymentTabProps
   // Errors
   const [error, setError] = useState<string | null>(null)
 
-  const selectedProduct = products.find(p => p.id === selectedProductId)
+  const selectedCourse = courses.find(c => c.id === selectedCourseId)
 
-  // Load product defaults when selected
+  // Load course defaults when selected
   useEffect(() => {
-    if (selectedProduct) {
-      setPrice(String(selectedProduct.price ?? ''))
-      setPaymentsCount(String(selectedProduct.payments_count ?? '1'))
+    if (selectedCourse) {
+      console.log('Selected course:', selectedCourse)
+      console.log('Course price:', selectedCourse.price)
+      console.log('Course payments_count:', selectedCourse.payments_count)
+      setPrice(String(selectedCourse.price ?? ''))
+      setPaymentsCount(String(selectedCourse.payments_count ?? 1))
       setPaymentDay('15') // Default
       setDiscountAmount('0')
     }
-  }, [selectedProduct])
+  }, [selectedCourse])
 
   // Fetch payment status
   useEffect(() => {
@@ -82,7 +85,7 @@ export function LeadPaymentTab({ lead, products, onUpdate }: LeadPaymentTabProps
   // Real-time pricing calculation
   useEffect(() => {
     const calculatePricing = async () => {
-      if (!selectedProductId || !price) {
+      if (!selectedCourseId || !price) {
         setPricing(null)
         return
       }
@@ -90,7 +93,7 @@ export function LeadPaymentTab({ lead, products, onUpdate }: LeadPaymentTabProps
       setIsCalculating(true)
       try {
         const data = await api.post<PricingCalculation>(`/leads/${lead.id}/calculate-pricing`, {
-          product_id: selectedProductId,
+          course_id: selectedCourseId,
           discount_amount: Number(discountAmount) || 0,
         })
         setPricing(data)
@@ -105,19 +108,19 @@ export function LeadPaymentTab({ lead, products, onUpdate }: LeadPaymentTabProps
 
     const timer = setTimeout(calculatePricing, 300) // Debounce
     return () => clearTimeout(timer)
-  }, [selectedProductId, price, discountAmount, lead.id])
+  }, [selectedCourseId, price, discountAmount, lead.id])
 
-  // Save product selection
-  const handleSelectProduct = async () => {
-    if (!selectedProductId) {
-      setError('יש לבחור מוצר')
+  // Save course selection
+  const handleSelectCourse = async () => {
+    if (!selectedCourseId) {
+      setError('יש לבחור קורס')
       return
     }
     
     setError(null)
     try {
-      await api.post(`/leads/${lead.id}/select-product`, {
-        product_id: selectedProductId,
+      await api.post(`/leads/${lead.id}/select-course`, {
+        course_id: selectedCourseId,
         price: Number(price),
         payments_count: Number(paymentsCount),
         payment_day: Number(paymentDay),
@@ -131,18 +134,18 @@ export function LeadPaymentTab({ lead, products, onUpdate }: LeadPaymentTabProps
         })
       }
       
-      toast.success('מוצר ותמחור נשמרו בהצלחה')
+      toast.success('קורס ותמחור נשמרו בהצלחה')
       onUpdate()
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'שגיאה בשמירת מוצר'
+      const message = err instanceof Error ? err.message : 'שגיאה בשמירת קורס'
       setError(message)
     }
   }
 
   // Create payment link
   const handleCreateLink = async () => {
-    if (!lead.selected_product_id) {
-      setError('יש לבחור ולשמור מוצר קודם')
+    if (!lead.selected_course_id) {
+      setError('יש לבחור ולשמור קורס קודם')
       return
     }
 
@@ -173,11 +176,11 @@ export function LeadPaymentTab({ lead, products, onUpdate }: LeadPaymentTabProps
 
   return (
     <div className={ps.paymentTab}>
-      {/* Product Selection & Pricing */}
+      {/* Course Selection & Pricing */}
       <div className={ps.card}>
         <h3 className={ps.cardTitle}>
           <Tag size={16} />
-          בחירת מוצר ותמחור
+          בחירת קורס ותמחור
         </h3>
         
         {error && (
@@ -188,18 +191,18 @@ export function LeadPaymentTab({ lead, products, onUpdate }: LeadPaymentTabProps
         )}
 
         <div className={s['form-group']}>
-          <label className={s['form-label']}>מוצר</label>
+          <label className={s['form-label']}>קורס</label>
           <select
             className={s.select}
-            value={selectedProductId}
-            onChange={e => setSelectedProductId(Number(e.target.value))}
+            value={selectedCourseId}
+            onChange={e => setSelectedCourseId(Number(e.target.value))}
           >
-            <option value="">— בחר מוצר —</option>
-            {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            <option value="">— בחר קורס —</option>
+            {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
 
-        {selectedProduct && (
+        {selectedCourse && (
           <>
             {/* Pricing Section */}
             <div className={ps.pricingSection}>
@@ -267,10 +270,10 @@ export function LeadPaymentTab({ lead, products, onUpdate }: LeadPaymentTabProps
 
             <button
               className={`${s.btn} ${s['btn-primary']}`}
-              onClick={handleSelectProduct}
-              disabled={!selectedProductId}
+              onClick={handleSelectCourse}
+              disabled={!selectedCourseId}
             >
-              שמור מוצר ותמחור
+              שמור קורס ותמחור
             </button>
           </>
         )}
@@ -302,7 +305,7 @@ export function LeadPaymentTab({ lead, products, onUpdate }: LeadPaymentTabProps
           <button
             className={`${s.btn} ${s['btn-primary']}`}
             onClick={handleCreateLink}
-            disabled={isCreatingLink || !lead.selected_product_id}
+            disabled={isCreatingLink || !lead.selected_course_id}
           >
             <CreditCard size={16} /> {isCreatingLink ? 'יוצר לינק...' : 'צור לינק תשלום'}
           </button>

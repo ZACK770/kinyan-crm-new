@@ -1,11 +1,17 @@
 # Kinyan CRM — כללי ברזל לכל AI
 
-## 1. אסור ליצור קבצי MD בלי אישור מפורש מהמשתמש
+## 1. אסור לגעת ב-Alembic migrations בלי אישור מפורש מהמשתמש
+- לא להריץ `alembic revision`, `alembic upgrade`, `alembic downgrade`, `alembic stamp` או כל פקודת alembic אחרת — בלי אישור מפורש מהמשתמש
+- לא ליצור, לערוך או למחוק קבצי migration ב-`alembic/versions/`
+- גם אם יש אישור כללי להרצת פקודות (auto-run) — זה לא חל על migrations
+- אם צריך migration — להציע את הפקודה ולחכות לאישור מפורש
+
+## 2. אסור ליצור קבצי MD בלי אישור מפורש מהמשתמש
 - לא ליצור README, GUIDE, PROPOSAL, CHECKLIST או כל קובץ .md אחר
 - אם צריך לתעד משהו — לשאול קודם
 - תיעוד קיים נמצא ב-`docs/` — לקרוא משם, לא ליצור חדש
 
-## 2. תהליך Deploy ל-Render
+## 3. תהליך Deploy ל-Render
 כל push ל-main עושה auto-deploy. לפני push:
 
 ### שינוי בפרונטאנד (frontend/src):
@@ -27,7 +33,7 @@ git commit -m "תיאור"
 git push
 ```
 
-## 3. סביבת עבודה
+## 4. סביבת עבודה
 - Python venv: `.venv311`
 - DB: PostgreSQL בלבד (asyncpg). אין SQLite, אין MySQL
 - Frontend: React + TypeScript + Vite → build ל-`frontend/dist`
@@ -35,7 +41,7 @@ git push
 - Dev mode: `DEV_SKIP_AUTH=true` (מ-`dev.ps1`)
 - Render URL: https://kinyan-crm-new-1.onrender.com/
 
-## 4. מבנה הפרויקט
+## 5. מבנה הפרויקט
 ```
 app.py              → FastAPI entry point (API + frontend)
 db/models.py        → כל המודלים
@@ -48,7 +54,7 @@ alembic/versions/   → Migration files (tracked in git)
 docs/               → כל התיעוד (MD files)
 ```
 
-## 5. כללים נוספים
+## 6. כללים נוספים
 - לא לשנות DB ידנית — רק דרך Alembic migrations
 - לא למחוק טסטים או להחליש אותם בלי הוראה
 - לא ליצור קבצים זמניים בשורש הפרויקט — להשתמש ב-`scripts/`

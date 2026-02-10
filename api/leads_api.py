@@ -226,7 +226,7 @@ class CreatePaymentLinkRequest(BaseModel):
     currency: str = "ILS"
     installments: int = 1
     payment_method: str = "credit_card"
-    product_id: int | None = None
+    course_id: int | None = None
     redirect_url: str | None = None
 
 
@@ -252,7 +252,7 @@ async def create_lead_payment_link(
             currency=data.currency,
             payment_method=data.payment_method,
             installments=data.installments,
-            product_id=data.product_id,
+            course_id=data.course_id,
             redirect_url=data.redirect_url,
         )
         await db.commit()
@@ -272,29 +272,29 @@ async def create_lead_payment_link(
         raise HTTPException(400, str(e))
 
 
-class SelectProductRequest(BaseModel):
-    product_id: int
+class SelectCourseRequest(BaseModel):
+    course_id: int
+    track_id: int | None = None
     price: float | None = None
     payments_count: int = 1
-    monthly_payment: float | None = None
     payment_day: int | None = None
     payment_type: str = "הוראת קבע"
     coupon_id: int | None = None
 
 
-@router.post("/{lead_id}/select-product")
-async def select_product_for_lead(
+@router.post("/{lead_id}/select-course")
+async def select_course_for_lead(
     lead_id: int,
-    data: SelectProductRequest,
+    data: SelectCourseRequest,
     request: Request,
     user = Depends(require_entity_access("leads", "edit")),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Select/change the product for a lead.
-    Creates a LeadProduct record and sets it as the selected product.
+    Select/change the course for a lead.
+    Updates lead with selected course and pricing details.
     """
-    from db.models import Lead, LeadProduct, Product
+    from db.models import Lead, Course, CourseTrack
     from sqlalchemy import select
     
     # Get lead
@@ -304,54 +304,60 @@ async def select_product_for_lead(
     if not lead:
         raise HTTPException(404, "Lead not found")
     
-    # Get product for price if not provided
-    stmt = select(Product).where(Product.id == data.product_id)
+    # Get course for price if not provided
+    stmt = select(Course).where(Course.id == data.course_id)
     result = await db.execute(stmt)
-    product = result.scalar_one_or_none()
-    if not product:
-        raise HTTPException(404, "Product not found")
+    course = result.scalar_one_or_none()
+    if not course:
+        raise HTTPException(404, "Course not found")
     
-    price = data.price or (float(product.price) if product.price else 0)
-    monthly = data.monthly_payment or (price / data.payments_count if data.payments_count > 1 else price)
+    # Get track if specified
+    track = None
+    if data.track_id:
+        stmt = select(CourseTrack).where(CourseTrack.id == data.track_id)
+        result = await db.execute(stmt)
+        track = result.scalar_one_or_none()
+        if not track:
+            raise HTTPException(404, "Track not found")
     
-    # Create LeadProduct
-    lead_product = LeadProduct(
-        lead_id=lead_id,
-        product_id=data.product_id,
-        price=price,
-        payments_count=data.payments_count,
-        monthly_payment=monthly,
-        payment_day=data.payment_day,
-        payment_type=data.payment_type,
-        coupon_id=data.coupon_id,
-        final_price=price,  # TODO: Apply coupon discount
-    )
-    db.add(lead_product)
-    await db.flush()
+    # Determine price (track price > course price > provided price)
+    price = data.price
+    if not price and track and track.price:
+        price = float(track.price)
+    if not price and course.price:
+        price = float(course.price)
+    if not price:
+        price = 0
     
-    # Set as selected product
-    lead.selected_product_id = lead_product.id
+    # Update lead with selection
+    lead.selected_course_id = data.course_id
+    lead.selected_price = price
+    lead.selected_payments_count = data.payments_count
+    lead.selected_payment_day = data.payment_day
+    if data.track_id:
+        lead.interested_track_id = data.track_id
     
     await db.commit()
     
-    # Log product selection
+    # Log course selection
     await audit_logs.log_update(
         db=db,
         user=user,
         entity_type="leads",
         entity_id=lead_id,
-        description=f"נבחר מוצר לליד: {product.name}",
-        changes={"product_id": data.product_id, "price": price},
+        description=f"נבחר קורס לליד: {course.name}" + (f" - מסלול {track.name}" if track else ""),
+        changes={"course_id": data.course_id, "track_id": data.track_id, "price": price},
         request=request,
     )
     
     return {
         "lead_id": lead_id,
-        "lead_product_id": lead_product.id,
-        "product_name": product.name,
+        "course_id": data.course_id,
+        "course_name": course.name,
+        "track_id": data.track_id,
+        "track_name": track.name if track else None,
         "price": price,
         "payments_count": data.payments_count,
-        "monthly_payment": monthly,
     }
 
 
@@ -382,7 +388,9 @@ async def get_lead_payment_status(
         "first_payment": lead.first_payment,
         "first_payment_id": lead.first_payment_id,
         "nedarim_payment_link": lead.nedarim_payment_link,
-        "selected_product_id": lead.selected_product_id,
+        "selected_course_id": lead.selected_course_id,
+        "selected_price": float(lead.selected_price) if lead.selected_price else None,
+        "selected_payments_count": lead.selected_payments_count,
         "payments": [
             {
                 "id": p.id,
@@ -415,7 +423,7 @@ async def update_lead_discount(
     מחשב אוטומטית את המחיר הסופי והתשלום החודשי.
     """
     try:
-        result = await lead_svc.update_lead_product_discount(
+        result = await lead_svc.update_lead_discount(
             db=db,
             lead_id=lead_id,
             discount_amount=data.discount_amount,
@@ -444,7 +452,8 @@ async def update_lead_discount(
 
 
 class GetPricingRequest(BaseModel):
-    product_id: int
+    course_id: int
+    track_id: int | None = None
     discount_amount: float = 0
 
 
@@ -459,25 +468,40 @@ async def calculate_lead_pricing(
     חישוב מקדים של מחיר סופי עם הנחה (ללא שמירה).
     שימושי לתצוגה בזמן אמת בממשק.
     """
-    from db.models import Product
+    from db.models import Course, CourseTrack
     from sqlalchemy import select
     
-    # Get product
-    stmt = select(Product).where(Product.id == data.product_id)
+    # Get course
+    stmt = select(Course).where(Course.id == data.course_id)
     result = await db.execute(stmt)
-    product = result.scalar_one_or_none()
-    if not product:
-        raise HTTPException(404, "Product not found")
+    course = result.scalar_one_or_none()
+    if not course:
+        raise HTTPException(404, "Course not found")
     
-    original_price = float(product.price or 0)
+    # Get track if specified
+    track = None
+    if data.track_id:
+        stmt = select(CourseTrack).where(CourseTrack.id == data.track_id)
+        result = await db.execute(stmt)
+        track = result.scalar_one_or_none()
+    
+    # Determine price (track > course)
+    original_price = 0
+    if track and track.price:
+        original_price = float(track.price)
+    elif course.price:
+        original_price = float(course.price)
+    
     _, final_price = lead_svc.calculate_discount(original_price, data.discount_amount)
     
-    payments_count = product.payments_count or 1
+    payments_count = course.payments_count or 1
     monthly_payment = final_price / payments_count if payments_count > 0 else final_price
     
     return {
-        "product_id": data.product_id,
-        "product_name": product.name,
+        "course_id": data.course_id,
+        "course_name": course.name,
+        "track_id": data.track_id,
+        "track_name": track.name if track else None,
         "original_price": original_price,
         "discount_amount": data.discount_amount,
         "final_price": final_price,

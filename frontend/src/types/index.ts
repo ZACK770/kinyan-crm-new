@@ -28,9 +28,13 @@ export interface Lead {
   student_id?: number
   campaign_id?: number
   course_id?: number  // Interested course
+  interested_track_id?: number
   active_task_id?: number
-  // Payment tracking
-  selected_product_id?: number
+  // Payment tracking (selected course for sale)
+  selected_course_id?: number
+  selected_price?: number
+  selected_payments_count?: number
+  selected_payment_day?: number
   first_payment_id?: number
   nedarim_payment_link?: string
   created_at: string
@@ -91,6 +95,8 @@ export interface Course {
   start_date?: string
   end_date?: string
   semester?: string
+  price?: number
+  payments_count: number
   is_active: boolean
   total_sessions?: number
   created_at: string
@@ -294,23 +300,20 @@ export interface CreatePaymentLinkResponse {
   status: string
 }
 
-export interface SelectProductRequest {
-  product_id: number
+export interface SelectCourseRequest {
+  course_id: number
   price?: number
   payments_count?: number
-  monthly_payment?: number
   payment_day?: number
-  payment_type?: string
-  coupon_id?: number
 }
 
-export interface SelectProductResponse {
+export interface SelectCourseResponse {
   lead_id: number
-  lead_product_id: number
-  product_name: string
+  course_id: number
+  course_name: string
   price: number
   payments_count: number
-  monthly_payment: number
+  payment_day: number
 }
 
 export interface LeadPaymentStatus {
@@ -318,7 +321,7 @@ export interface LeadPaymentStatus {
   first_payment: boolean
   first_payment_id?: number
   nedarim_payment_link?: string
-  selected_product_id?: number
+  selected_course_id?: number
   payments: Payment[]
 }
 
@@ -332,7 +335,7 @@ export interface CollectionSummary {
 export interface LeadProduct {
   id: number
   lead_id: number
-  product_id?: number
+  course_id?: number
   price?: number
   payments_count?: number
   monthly_payment?: number
@@ -347,16 +350,5 @@ export interface LeadProduct {
   entry_date?: string
   sessions_remaining?: number
   estimated_finish?: string
-  created_at: string
-}
-
-export interface Product {
-  id: number
-  name: string
-  product_number?: string
-  product_number_en?: string
-  price?: number
-  payments_count: number
-  is_active: boolean
   created_at: string
 }

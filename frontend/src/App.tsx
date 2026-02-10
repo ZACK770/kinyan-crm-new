@@ -17,7 +17,10 @@ import { LecturersPage } from '@/pages/Lecturers'
 import { ExpensesPage } from '@/pages/Expenses'
 import { AuditLogsPage } from '@/pages/AuditLogs'
 import { UsersManagePage } from '@/pages/UsersManagePage'
+import { SalesAssignmentRulesPage } from '@/pages/SalesAssignmentRules'
 import { PlaceholderPage } from '@/pages/Placeholder'
+import { TracksPage } from '@/pages/TracksPage'
+import { EntryPointsPage } from '@/pages/EntryPointsPage'
 
 export function App() {
   return (
@@ -41,6 +44,8 @@ export function App() {
                 <Route path="/leads" element={<ViewerRoute><LeadsPage /></ViewerRoute>} />
                 <Route path="/students" element={<ViewerRoute><StudentsPage /></ViewerRoute>} />
                 <Route path="/courses" element={<ViewerRoute><CoursesPage /></ViewerRoute>} />
+                <Route path="/tracks" element={<ViewerRoute><TracksPage /></ViewerRoute>} />
+                <Route path="/entry-points" element={<ViewerRoute><EntryPointsPage /></ViewerRoute>} />
                 <Route path="/payments" element={<ViewerRoute><PaymentsPage /></ViewerRoute>} />
                 <Route path="/collections" element={<ViewerRoute><CollectionsPage /></ViewerRoute>} />
                 <Route path="/commitments" element={<ViewerRoute><CommitmentsPage /></ViewerRoute>} />
@@ -52,6 +57,7 @@ export function App() {
                 <Route path="/expenses" element={<ViewerRoute><ExpensesPage /></ViewerRoute>} />
                 <Route path="/admin/users" element={<AdminRoute><UsersManagePage /></AdminRoute>} />
                 <Route path="/admin/audit-logs" element={<ManagerRoute><AuditLogsPage /></ManagerRoute>} />
+                <Route path="/admin/sales-assignment" element={<ManagerRoute><SalesAssignmentRulesPage /></ManagerRoute>} />
                 <Route path="*" element={<PlaceholderPage title="הדף לא נמצא" />} />
               </Routes>
             </AppLayout>

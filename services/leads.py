@@ -407,14 +407,14 @@ def calculate_discount(
     return discount_amount, final_price
 
 
-async def update_lead_product_discount(
+async def update_lead_discount(
     db: AsyncSession,
     lead_id: int,
     discount_amount: float,
     installments_override: int | None = None,
 ) -> dict:
     """
-    עדכון הנחה ומחיר סופי של מוצר לליד.
+    עדכון הנחה ומחיר סופי לליד.
     
     Args:
         lead_id: מזהה ליד
@@ -424,40 +424,28 @@ async def update_lead_product_discount(
     Returns:
         dict עם המחירים המעודכנים
     """
-    from db.models import LeadProduct
-    
-    # Get lead with selected product
+    # Get lead
     lead = await get_lead_with_history(db, lead_id)
     if not lead:
         raise ValueError(f"Lead {lead_id} not found")
     
-    if not lead.selected_product_id:
-        raise ValueError("No product selected for this lead")
-    
-    # Get the selected product
-    stmt = select(LeadProduct).where(LeadProduct.id == lead.selected_product_id)
-    result = await db.execute(stmt)
-    lead_product = result.scalar_one_or_none()
-    
-    if not lead_product:
-        raise ValueError("Selected product not found")
+    if not lead.selected_course_id or not lead.selected_price:
+        raise ValueError("No course selected for this lead")
     
     # Calculate final price
-    original_price = float(lead_product.price or 0)
+    original_price = float(lead.selected_price)
     _, final_price = calculate_discount(original_price, discount_amount)
     
-    # Update LeadProduct
-    lead_product.discount_type = "סכום קבוע"
-    lead_product.discount_amount = discount_amount
-    lead_product.final_price = final_price
+    # Update lead pricing
+    lead.selected_price = final_price
     
     # Update installments if provided
     if installments_override is not None:
-        lead_product.payments_count = installments_override
+        lead.selected_payments_count = installments_override
     
-    # Recalculate monthly payment
-    payments_count = lead_product.payments_count or 1
-    lead_product.monthly_payment = final_price / payments_count if payments_count > 0 else final_price
+    # Calculate monthly payment
+    payments_count = lead.selected_payments_count or 1
+    monthly_payment = final_price / payments_count if payments_count > 0 else final_price
     
     await db.flush()
     
@@ -466,5 +454,5 @@ async def update_lead_product_discount(
         "discount_amount": discount_amount,
         "final_price": final_price,
         "payments_count": payments_count,
-        "monthly_payment": float(lead_product.monthly_payment),
+        "monthly_payment": monthly_payment,
     }

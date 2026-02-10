@@ -14,6 +14,7 @@ import { getStatus, formatDateTime } from '@/lib/status'
 import { EditableField, type SelectOption } from '@/components/ui/EditableField'
 import { useModal } from '@/components/ui/Modal'
 import type { Lead, LeadInteraction, Salesperson, Course, Campaign } from '@/types'
+import { LeadPaymentTab } from './LeadPaymentTab'
 import s from '@/styles/shared.module.css'
 
 /* ══════════════════════════════════════════════════════════════
@@ -589,7 +590,7 @@ export function LeadWorkspace({
             <TasksTab leadId={lead!.id} />
           )}
           {activeTab === 'payments' && (
-            <PaymentsTab leadId={lead!.id} />
+            <PaymentsTab lead={lead!} courses={courses} onUpdate={onUpdate} />
           )}
           {activeTab === 'inquiries' && (
             <InquiriesTab leadId={lead!.id} />
@@ -712,15 +713,9 @@ function TasksTab({ leadId: _leadId }: { leadId: number }) {
   )
 }
 
-// Payments Tab (placeholder - to be expanded)
-function PaymentsTab({ leadId: _leadId }: { leadId: number }) {
-  return (
-    <div className={s['empty-state']}>
-      <CreditCard size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
-      <div>אין תשלומים</div>
-      <div style={{ fontSize: 12, marginTop: 4 }}>תשלומים קשורים לליד יופיעו כאן</div>
-    </div>
-  )
+// Payments Tab - uses LeadPaymentTab component
+function PaymentsTab({ lead, courses, onUpdate }: { lead: Lead; courses: Course[]; onUpdate: () => void }) {
+  return <LeadPaymentTab lead={lead} courses={courses} onUpdate={onUpdate} />
 }
 
 // Inquiries Tab (placeholder - to be expanded)

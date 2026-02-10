@@ -161,18 +161,17 @@ async def create_lead_payment_link(
     payment_day: int = None,
     redirect_url: Optional[str] = None,
     course_id: Optional[int] = None,
-    product_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Create a payment link for a Lead (before conversion to student).
     Used by sales team to charge leads directly.
     
-    If amount/installments/payment_day not provided, will use values from selected LeadProduct.
+    If amount/installments/payment_day not provided, will use values from Lead's selected course.
     
     Returns:
         dict with: payment_id, nedarim_donation_id, payment_link, lead_id
     """
-    from db.models import Lead, LeadProduct
+    from db.models import Lead, Course
     
     # Get the lead
     stmt = select(Lead).where(Lead.id == lead_id)
@@ -181,25 +180,25 @@ async def create_lead_payment_link(
     if not lead:
         raise ValueError(f"Lead {lead_id} not found")
     
-    # Get selected product details if not provided
-    lead_product = None
-    if lead.selected_product_id:
-        stmt = select(LeadProduct).where(LeadProduct.id == lead.selected_product_id)
+    # Get selected course details if not provided
+    selected_course = None
+    if lead.selected_course_id:
+        stmt = select(Course).where(Course.id == lead.selected_course_id)
         result = await db.execute(stmt)
-        lead_product = result.scalar_one_or_none()
+        selected_course = result.scalar_one_or_none()
     
-    # Use LeadProduct values as defaults
-    if lead_product:
+    # Use Lead's selected course values as defaults
+    if selected_course:
         if amount is None:
-            amount = float(lead_product.final_price or lead_product.price or 0)
+            amount = float(lead.selected_price or selected_course.price or 0)
         if installments is None:
-            installments = lead_product.payments_count or 1
+            installments = lead.selected_payments_count or selected_course.payments_count or 1
         if payment_day is None:
-            payment_day = lead_product.payment_day
+            payment_day = lead.selected_payment_day
     
     # Fallback defaults
     if amount is None:
-        raise ValueError("Amount must be provided or product must be selected")
+        raise ValueError("Amount must be provided or course must be selected")
     if installments is None:
         installments = 1
     
@@ -248,7 +247,7 @@ async def create_lead_payment_link(
         "webhook_url": webhook_url,
         "metadata": {
             "lead_id": lead_id,
-            "product_id": product_id or (lead_product.product_id if lead_product else None),
+            "course_id": course_id or lead.selected_course_id,
             "payment_day": payment_day,
         }
     }

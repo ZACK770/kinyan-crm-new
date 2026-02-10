@@ -18,6 +18,8 @@ import {
   PanelRightOpen,
   Shield,
   ScrollText,
+  Calendar,
+  MapPin,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import clsx from 'clsx'
@@ -43,6 +45,8 @@ const NAV_SECTIONS: { items: NavItem[] }[] = [
       { to: '/leads', label: 'לידים', icon: Users },
       { to: '/students', label: 'תלמידים', icon: GraduationCap },
       { to: '/courses', label: 'קורסים', icon: BookOpen },
+      { to: '/tracks', label: 'מסלולים', icon: Calendar },
+      { to: '/entry-points', label: 'נקודות כניסה', icon: MapPin },
     ],
   },
   {

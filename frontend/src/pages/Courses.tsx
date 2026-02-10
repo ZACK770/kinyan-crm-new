@@ -1,176 +1,20 @@
-import { useEffect, useState, useCallback, type FormEvent } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { BookOpen, Eye, Plus, Pencil, ArrowRight } from 'lucide-react'
+import { BookOpen, Plus, ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatDate } from '@/lib/status'
-import { useModal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
-import { DataTable, type Column } from '@/components/ui/DataTable'
-import type { Course, CourseModule } from '@/types'
+import { SmartTable, type SmartColumn } from '@/components/ui/SmartTable'
+import { CourseWorkspace } from '@/components/courses'
+import type { Course } from '@/types'
 import s from '@/styles/shared.module.css'
 
-/* ── Course Form ── */
-function CourseForm({
-  initial,
-  onSubmit,
-  onCancel,
-}: {
-  initial?: Partial<Course>
-  onSubmit: (data: Record<string, unknown>) => void
-  onCancel?: () => void
-}) {
-  const [form, setForm] = useState({
-    name: initial?.name ?? '',
-    description: initial?.description ?? '',
-    semester: initial?.semester ?? '',
-    total_sessions: initial?.total_sessions ?? '',
-    start_date: initial?.start_date?.split('T')[0] ?? '',
-    end_date: initial?.end_date?.split('T')[0] ?? '',
-    is_active: initial?.is_active ?? true,
-  })
-
-  const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-    setForm(prev => ({ ...prev, [key]: e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value }))
-
-  const handle = (e: FormEvent) => {
-    e.preventDefault()
-    const data: Record<string, unknown> = { ...form }
-    if (data.total_sessions) data.total_sessions = Number(data.total_sessions)
-    else delete data.total_sessions
-    Object.keys(data).forEach(k => { if (data[k] === '') delete data[k] })
-    onSubmit(data)
-  }
-
+/* ── Badge helper ── */
+function Badge({ value }: { value: boolean }) {
   return (
-    <form onSubmit={handle} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div className={s['form-group']}>
-        <label className={s['form-label']}>שם הקורס *</label>
-        <input className={s.input} value={form.name} onChange={set('name')} required />
-      </div>
-      <div className={s['form-group']}>
-        <label className={s['form-label']}>תיאור</label>
-        <textarea className={s.textarea} value={form.description} onChange={set('description')} rows={2} />
-      </div>
-      <div className={s['form-row']}>
-        <div className={s['form-group']}>
-          <label className={s['form-label']}>סמסטר</label>
-          <input className={s.input} value={form.semester} onChange={set('semester')} />
-        </div>
-        <div className={s['form-group']}>
-          <label className={s['form-label']}>סה"כ שיעורים</label>
-          <input className={s.input} type="number" value={form.total_sessions} onChange={set('total_sessions')} dir="ltr" />
-        </div>
-      </div>
-      <div className={s['form-row']}>
-        <div className={s['form-group']}>
-          <label className={s['form-label']}>תאריך התחלה</label>
-          <input className={s.input} type="date" value={form.start_date} onChange={set('start_date')} dir="ltr" />
-        </div>
-        <div className={s['form-group']}>
-          <label className={s['form-label']}>תאריך סיום</label>
-          <input className={s.input} type="date" value={form.end_date} onChange={set('end_date')} dir="ltr" />
-        </div>
-      </div>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-        <input type="checkbox" checked={form.is_active} onChange={set('is_active')} />
-        <span>פעיל</span>
-      </label>
-      <div style={{ display: 'flex', gap: 8, paddingTop: 8 }}>
-        <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>
-          {initial?.id ? 'עדכן' : 'צור קורס'}
-        </button>
-        {onCancel && (
-          <button type="button" className={`${s.btn} ${s['btn-secondary']}`} onClick={onCancel}>
-            ביטול
-          </button>
-        )}
-      </div>
-    </form>
-  )
-}
-
-/* ── Course Detail (modules table) ── */
-function CourseDetail({ course }: { course: Course & { modules?: CourseModule[] } }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div>
-        <div className={s['detail-row']}>
-          <span className={s['detail-key']}>שם הקורס</span>
-          <span className={s['detail-value']}>{course.name}</span>
-        </div>
-        {course.description && (
-          <div className={s['detail-row']}>
-            <span className={s['detail-key']}>תיאור</span>
-            <span className={s['detail-value']}>{course.description}</span>
-          </div>
-        )}
-        <div className={s['detail-row']}>
-          <span className={s['detail-key']}>סמסטר</span>
-          <span className={s['detail-value']}>{course.semester ?? '—'}</span>
-        </div>
-        <div className={s['detail-row']}>
-          <span className={s['detail-key']}>סה"כ שיעורים</span>
-          <span className={s['detail-value']}>{course.total_sessions ?? '—'}</span>
-        </div>
-        <div className={s['detail-row']}>
-          <span className={s['detail-key']}>תאריך התחלה</span>
-          <span className={s['detail-value']}>{formatDate(course.start_date)}</span>
-        </div>
-        <div className={s['detail-row']}>
-          <span className={s['detail-key']}>תאריך סיום</span>
-          <span className={s['detail-value']}>{formatDate(course.end_date)}</span>
-        </div>
-        <div className={s['detail-row']}>
-          <span className={s['detail-key']}>פעיל</span>
-          <span className={s['detail-value']}>
-            <span className={`${s.badge} ${course.is_active ? s['badge-green'] : s['badge-gray']}`}>
-              {course.is_active ? 'פעיל' : 'לא פעיל'}
-            </span>
-          </span>
-        </div>
-      </div>
-
-      {/* Modules */}
-      <div>
-        <h4 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600 }}>מודולים</h4>
-        {course.modules?.length ? (
-          <div className={s['table-wrapper']}>
-            <table className={s.table}>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>שם</th>
-                  <th>מס׳ שיעורים</th>
-                  <th>שעות</th>
-                  <th>תאריך התחלה</th>
-                  <th>שעות</th>
-                </tr>
-              </thead>
-              <tbody>
-                {course.modules
-                  .sort((a, b) => a.module_order - b.module_order)
-                  .map(m => (
-                    <tr key={m.id}>
-                      <td>{m.module_order}</td>
-                      <td>{m.name}</td>
-                      <td>{m.sessions_count ?? '—'}</td>
-                      <td>{m.hours_estimate ?? '—'}</td>
-                      <td className={s.muted}>{formatDate(m.start_date)}</td>
-                      <td className={s.muted}>
-                        {m.start_time && m.end_time ? `${m.start_time}–${m.end_time}` : '—'}
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className={s.empty} style={{ padding: 20 }}>
-            <span className={s['empty-text']}>לא הוגדרו מודולים</span>
-          </div>
-        )}
-      </div>
-    </div>
+    <span className={`${s.badge} ${value ? s['badge-green'] : s['badge-gray']}`}>
+      {value ? 'פעיל' : 'לא פעיל'}
+    </span>
   )
 }
 
@@ -178,13 +22,12 @@ function CourseDetail({ course }: { course: Course & { modules?: CourseModule[] 
    Courses Page
    ══════════════════════════════════════════════════════════════ */
 export function CoursesPage() {
-  const { openModal } = useModal()
   const toast = useToast()
 
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
   
-  // Workspace view state
+  // Workspace view state: 'list' | 'create' | Course object (edit mode)
   type ViewMode = 'list' | 'create'
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
@@ -213,102 +56,95 @@ export function CoursesPage() {
 
   useEffect(() => { fetchCourses() }, [fetchCourses])
 
-  /* ── Back to list ── */
+  /* ── Navigation ── */
   const backToList = () => {
     setSelectedCourse(null)
     setViewMode('list')
   }
 
-  /* ── Create ── */
   const openCreate = () => {
     setSelectedCourse(null)
     setViewMode('create')
   }
 
-  /* ── Edit ── */
   const openEdit = (course: Course) => {
     setSelectedCourse(course)
-    setViewMode('list')
   }
 
-  const openDetail = async (course: Course) => {
+  const handleCreatedCourse = (course: Course) => {
+    setCourses(prev => [course, ...prev])
+    backToList()
+  }
+
+  const refreshSelectedCourse = async () => {
+    if (!selectedCourse) return
     try {
-      const full = await api.get<Course & { modules?: CourseModule[] }>(`courses/${course.id}`)
-      openModal({
-        title: full.name,
-        size: 'lg',
-        content: <CourseDetail course={full} />,
-      })
+      const updated = await api.get<Course>(`courses/${selectedCourse.id}`)
+      setSelectedCourse(updated)
+      setCourses(prev => prev.map(c => c.id === updated.id ? updated : c))
     } catch {
       toast.error('שגיאה בטעינת קורס')
     }
   }
 
-  const columns: Column<Course>[] = [
-    { key: 'name', header: 'שם הקורס' },
-    { key: 'semester', header: 'סמסטר', render: r => r.semester ?? '—' },
-    { key: 'total_sessions', header: 'שיעורים', render: r => r.total_sessions ?? '—' },
+  const columns: SmartColumn<Course>[] = [
+    { key: 'name', header: 'שם הקורס', type: 'text', sortable: true },
+    { key: 'semester', header: 'סמסטר', type: 'text', render: r => r.semester ?? '—' },
+    { key: 'price', header: 'מחיר', type: 'text', render: r => r.price ? `₪${r.price}` : '—', className: s.muted },
+    { key: 'payments_count', header: 'תשלומים', type: 'text', render: r => r.payments_count || '—', className: s.muted },
+    { key: 'total_sessions', header: 'שיעורים', type: 'text', render: r => r.total_sessions ?? '—' },
     {
       key: 'is_active',
       header: 'סטטוס',
-      render: r => (
-        <span className={`${s.badge} ${r.is_active ? s['badge-green'] : s['badge-gray']}`}>
-          {r.is_active ? 'פעיל' : 'לא פעיל'}
-        </span>
-      ),
+      type: 'text',
+      render: r => <Badge value={r.is_active} />,
     },
-    { key: 'start_date', header: 'התחלה', render: r => formatDate(r.start_date), className: s.muted },
-    {
-      key: '_actions',
-      header: '',
-      render: r => (
-        <div style={{ display: 'flex', gap: 4 }}>
-          <button className={`${s.btn} ${s['btn-ghost']} ${s['btn-xs']}`} onClick={e => { e.stopPropagation(); openDetail(r) }} title="פרטים">
-            <Eye size={14} strokeWidth={1.5} />
-          </button>
-          <button className={`${s.btn} ${s['btn-ghost']} ${s['btn-xs']}`} onClick={e => { e.stopPropagation(); openEdit(r) }} title="עריכה">
-            <Pencil size={14} strokeWidth={1.5} />
-          </button>
-        </div>
-      ),
-    },
+    { key: 'start_date', header: 'התחלה', type: 'text', render: r => formatDate(r.start_date), className: s.muted },
   ]
 
   // Show workspace for create or edit
-  if (viewMode === 'create' || selectedCourse) {
+  if (viewMode === 'create') {
     return (
       <div>
         <div className={s['page-header']}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button className={`${s.btn} ${s['btn-ghost']}`} onClick={backToList} style={{ padding: '6px 10px' }}>
-              <ArrowRight size={18} /> חזרה לרשימה
+            <button className={`${s.btn} ${s['btn-ghost']}`} onClick={backToList}>
+              <ArrowRight size={18} /> חזרה
+            </button>
+            <h1 className={s['page-title']} style={{ fontSize: '1.2rem' }}>קורס חדש</h1>
+          </div>
+        </div>
+        
+        <CourseWorkspace
+          course={null}
+          onClose={backToList}
+          onUpdate={() => {}}
+          onCreate={handleCreatedCourse}
+        />
+      </div>
+    )
+  }
+
+  // Show workspace in EDIT mode (selectedCourse exists)
+  if (selectedCourse) {
+    return (
+      <div>
+        <div className={s['page-header']}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button className={`${s.btn} ${s['btn-ghost']}`} onClick={backToList}>
+              <ArrowRight size={18} /> חזרה
             </button>
             <h1 className={s['page-title']} style={{ fontSize: '1.2rem' }}>
-              {selectedCourse ? `עריכת קורס — ${selectedCourse.name}` : 'קורס חדש'}
+              {selectedCourse.name}
             </h1>
           </div>
         </div>
-        <div className={s.card} style={{ padding: 24, maxWidth: 600 }}>
-          <CourseForm
-            initial={selectedCourse ?? undefined}
-            onSubmit={async data => {
-              try {
-                if (selectedCourse) {
-                  await api.patch(`courses/${selectedCourse.id}`, data)
-                  toast.success('קורס עודכן')
-                } else {
-                  await api.post('courses', data)
-                  toast.success('קורס נוצר בהצלחה')
-                }
-                fetchCourses()
-                backToList()
-              } catch (err: unknown) {
-                toast.error((err as { message?: string }).message ?? 'שגיאה')
-              }
-            }}
-            onCancel={backToList}
-          />
-        </div>
+        
+        <CourseWorkspace
+          course={selectedCourse}
+          onClose={backToList}
+          onUpdate={refreshSelectedCourse}
+        />
       </div>
     )
   }
@@ -323,13 +159,13 @@ export function CoursesPage() {
       </div>
 
       <div className={s.card}>
-        <DataTable
+        <SmartTable
           columns={columns}
           data={courses}
           loading={loading}
           emptyText="לא נמצאו קורסים"
           emptyIcon={<BookOpen size={40} strokeWidth={1.5} />}
-          onRowClick={openDetail}
+          onRowClick={openEdit}
           keyExtractor={r => r.id}
         />
       </div>

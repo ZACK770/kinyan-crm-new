@@ -171,19 +171,8 @@ class CampaignLandingLink(Base):
 
 
 # ============================================================
-# Products (מוצרים)
+# Products table removed - pricing moved to Course model
 # ============================================================
-class Product(Base):
-    __tablename__ = "products"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(300), nullable=False)
-    product_number: Mapped[Optional[str]] = mapped_column(String(50))
-    product_number_en: Mapped[Optional[str]] = mapped_column(String(50))
-    price: Mapped[Optional[Numeric]] = mapped_column(Numeric(10, 2))
-    payments_count: Mapped[int] = mapped_column(Integer, default=1)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 # ============================================================
@@ -202,11 +191,17 @@ class Course(Base):
     website_url: Mapped[Optional[str]] = mapped_column(String(500))
     zoom_url: Mapped[Optional[str]] = mapped_column(String(500))
     total_sessions: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    
+    # Pricing (was in Product table)
+    price: Mapped[Optional[Numeric]] = mapped_column(Numeric(10, 2))
+    payments_count: Mapped[int] = mapped_column(Integer, default=1)
+    
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # Relations
     modules: Mapped[List["CourseModule"]] = relationship(back_populates="course", order_by="CourseModule.module_order")
+    tracks: Mapped[List["CourseTrack"]] = relationship(back_populates="course", cascade="all, delete-orphan")
     enrollments: Mapped[List["Enrollment"]] = relationship(back_populates="course")
     campaigns: Mapped[List["Campaign"]] = relationship(back_populates="course")
     exams: Mapped[List["Exam"]] = relationship(back_populates="course")
@@ -260,7 +255,87 @@ class Lecturer(Base):
 
     # Relations
     modules: Mapped[List["CourseModule"]] = relationship(back_populates="lecturer")
+    tracks: Mapped[List["CourseTrack"]] = relationship(back_populates="lecturer")
     exams: Mapped[List["Exam"]] = relationship(back_populates="lecturer")
+
+
+# ============================================================
+# CourseTrack (מסלול/מערך שיעורים) — מסלול ספציפי עם מרצה, יום, שעה ועיר
+# ============================================================
+class CourseTrack(Base):
+    __tablename__ = "course_tracks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"), nullable=False)
+    lecturer_id: Mapped[int] = mapped_column(ForeignKey("lecturers.id"), nullable=False)
+    
+    name: Mapped[str] = mapped_column(String(300), nullable=False)
+    day_of_week: Mapped[str] = mapped_column(String(20), nullable=False)  # ראשון/שני/שלישי/רביעי/חמישי/שישי
+    start_time: Mapped[str] = mapped_column(String(10), nullable=False)  # HH:MM
+    city: Mapped[str] = mapped_column(String(200), nullable=False)
+    
+    zoom_url: Mapped[Optional[str]] = mapped_column(String(500))
+    price: Mapped[Optional[Numeric]] = mapped_column(Numeric(10, 2))
+    
+    # Current progress tracking
+    current_module_id: Mapped[Optional[int]] = mapped_column(ForeignKey("course_modules.id"))
+    current_session_number: Mapped[int] = mapped_column(Integer, default=1)
+    last_session_date: Mapped[Optional[date]] = mapped_column(Date)
+    next_entry_date: Mapped[Optional[date]] = mapped_column(Date)  # Computed: when next module starts
+    
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_tracks_course", "course_id"),
+        Index("idx_tracks_lecturer", "lecturer_id"),
+        Index("idx_tracks_city", "city"),
+        Index("idx_tracks_active", "is_active"),
+    )
+
+    # Relations
+    course: Mapped["Course"] = relationship(back_populates="tracks")
+    lecturer: Mapped["Lecturer"] = relationship(back_populates="tracks")
+    current_module: Mapped[Optional["CourseModule"]] = relationship(foreign_keys=[current_module_id])
+    sessions: Mapped[List["CourseSession"]] = relationship(back_populates="track", cascade="all, delete-orphan", order_by="CourseSession.session_date")
+    enrollments: Mapped[List["Enrollment"]] = relationship(back_populates="track")
+
+
+# ============================================================
+# CourseSession (שיעור מתוזמן) — שיעור ספציפי במסלול
+# ============================================================
+class CourseSession(Base):
+    __tablename__ = "course_sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    track_id: Mapped[int] = mapped_column(ForeignKey("course_tracks.id", ondelete="CASCADE"), nullable=False)
+    module_id: Mapped[int] = mapped_column(ForeignKey("course_modules.id"), nullable=False)
+    
+    session_number: Mapped[int] = mapped_column(Integer, nullable=False)  # Session number within module (1-N)
+    session_date: Mapped[date] = mapped_column(Date, nullable=False)
+    
+    actual_start_time: Mapped[Optional[str]] = mapped_column(String(10))  # HH:MM
+    actual_end_time: Mapped[Optional[str]] = mapped_column(String(10))  # HH:MM
+    recording_url: Mapped[Optional[str]] = mapped_column(String(500))
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    
+    status: Mapped[str] = mapped_column(String(50), default="מתוכנן")  # מתוכנן / התקיים / בוטל
+    is_entry_point: Mapped[bool] = mapped_column(Boolean, default=False)  # True if session_number == 1
+    
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_sessions_track", "track_id"),
+        Index("idx_sessions_module", "module_id"),
+        Index("idx_sessions_date", "session_date"),
+        Index("idx_sessions_entry_point", "is_entry_point"),
+    )
+
+    # Relations
+    track: Mapped["CourseTrack"] = relationship(back_populates="sessions")
+    module: Mapped["CourseModule"] = relationship()
+    attendance_records: Mapped[List["Attendance"]] = relationship(back_populates="session", cascade="all, delete-orphan")
 
 
 # ============================================================
@@ -333,10 +408,14 @@ class Lead(Base):
     student_id: Mapped[Optional[int]] = mapped_column(ForeignKey("students.id"))
     campaign_id: Mapped[Optional[int]] = mapped_column(ForeignKey("campaigns.id"))
     course_id: Mapped[Optional[int]] = mapped_column(ForeignKey("courses.id"))  # Interested course
+    interested_track_id: Mapped[Optional[int]] = mapped_column(ForeignKey("course_tracks.id"))  # Interested track
     active_task_id: Mapped[Optional[int]] = mapped_column(ForeignKey("sales_tasks.id", use_alter=True))
     
-    # Selected product for sale (from LeadProduct)
-    selected_product_id: Mapped[Optional[int]] = mapped_column(ForeignKey("lead_products.id", use_alter=True))
+    # Selected course for sale (pricing comes from Course)
+    selected_course_id: Mapped[Optional[int]] = mapped_column(ForeignKey("courses.id"))
+    selected_price: Mapped[Optional[Numeric]] = mapped_column(Numeric(10, 2))  # Override price if needed
+    selected_payments_count: Mapped[Optional[int]] = mapped_column(Integer)  # Override payments if needed
+    selected_payment_day: Mapped[Optional[int]] = mapped_column(Integer)  # Day of month for payment
     
     # Payment tracking (before conversion)
     first_payment_id: Mapped[Optional[int]] = mapped_column(ForeignKey("payments.id", use_alter=True))
@@ -357,11 +436,12 @@ class Lead(Base):
     # Relations
     salesperson: Mapped[Optional["Salesperson"]] = relationship(back_populates="leads")
     campaign: Mapped[Optional["Campaign"]] = relationship(back_populates="leads")
-    course: Mapped[Optional["Course"]] = relationship()  # Interested course
+    course: Mapped[Optional["Course"]] = relationship(foreign_keys=[course_id])  # Interested course
+    interested_track: Mapped[Optional["CourseTrack"]] = relationship(foreign_keys=[interested_track_id])  # Interested track
     student: Mapped[Optional["Student"]] = relationship(foreign_keys=[student_id])  # Lead converted to this student
     interactions: Mapped[List["LeadInteraction"]] = relationship(back_populates="lead", order_by="LeadInteraction.interaction_date.desc()")
     products: Mapped[List["LeadProduct"]] = relationship(back_populates="lead", foreign_keys="LeadProduct.lead_id")
-    selected_product: Mapped[Optional["LeadProduct"]] = relationship(foreign_keys=[selected_product_id])
+    selected_course: Mapped[Optional["Course"]] = relationship(foreign_keys=[selected_course_id])
     first_payment_rel: Mapped[Optional["Payment"]] = relationship(foreign_keys=[first_payment_id])
     payments: Mapped[List["Payment"]] = relationship(back_populates="lead", foreign_keys="Payment.lead_id")
 
@@ -415,7 +495,7 @@ class LeadProduct(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     lead_id: Mapped[int] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"), nullable=False)
 
-    product_id: Mapped[Optional[int]] = mapped_column(ForeignKey("products.id"))
+    course_id: Mapped[Optional[int]] = mapped_column(ForeignKey("courses.id"))
     price: Mapped[Optional[Numeric]] = mapped_column(Numeric(10, 2))
     payments_count: Mapped[Optional[int]] = mapped_column(Integer)
     monthly_payment: Mapped[Optional[Numeric]] = mapped_column(Numeric(10, 2))
@@ -429,7 +509,9 @@ class LeadProduct(Base):
     final_price: Mapped[Optional[Numeric]] = mapped_column(Numeric(10, 2))
 
     # Course placement
+    track_id: Mapped[Optional[int]] = mapped_column(ForeignKey("course_tracks.id"))
     entry_module_id: Mapped[Optional[int]] = mapped_column(ForeignKey("course_modules.id"))
+    entry_session_id: Mapped[Optional[int]] = mapped_column(ForeignKey("course_sessions.id"))
     entry_date: Mapped[Optional[date]] = mapped_column(Date)
     sessions_remaining: Mapped[Optional[int]] = mapped_column(Integer)
     estimated_finish: Mapped[Optional[date]] = mapped_column(Date)
@@ -437,9 +519,11 @@ class LeadProduct(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     lead: Mapped["Lead"] = relationship(back_populates="products", foreign_keys=[lead_id])
-    product: Mapped[Optional["Product"]] = relationship()
+    course: Mapped[Optional["Course"]] = relationship()
     coupon: Mapped[Optional["Coupon"]] = relationship()
+    track: Mapped[Optional["CourseTrack"]] = relationship()
     entry_module: Mapped[Optional["CourseModule"]] = relationship()
+    entry_session: Mapped[Optional["CourseSession"]] = relationship()
 
 
 # ============================================================
@@ -500,11 +584,12 @@ class Enrollment(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     student_id: Mapped[int] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
 
-    product_id: Mapped[Optional[int]] = mapped_column(ForeignKey("products.id"))
     course_id: Mapped[Optional[int]] = mapped_column(ForeignKey("courses.id"))
+    track_id: Mapped[Optional[int]] = mapped_column(ForeignKey("course_tracks.id"))
 
     enrollment_date: Mapped[date] = mapped_column(Date, server_default=func.current_date())
     entry_module_id: Mapped[Optional[int]] = mapped_column(ForeignKey("course_modules.id"))
+    entry_session_id: Mapped[Optional[int]] = mapped_column(ForeignKey("course_sessions.id"))
     start_date: Mapped[Optional[date]] = mapped_column(Date)
 
     current_module: Mapped[int] = mapped_column(Integer, default=1)
@@ -519,12 +604,14 @@ class Enrollment(Base):
     __table_args__ = (
         Index("idx_enrollments_student", "student_id"),
         Index("idx_enrollments_course", "course_id"),
+        Index("idx_enrollments_track", "track_id"),
     )
 
     student: Mapped["Student"] = relationship(back_populates="enrollments")
     course: Mapped[Optional["Course"]] = relationship(back_populates="enrollments")
-    product: Mapped[Optional["Product"]] = relationship()
+    track: Mapped[Optional["CourseTrack"]] = relationship(back_populates="enrollments")
     entry_module: Mapped[Optional["CourseModule"]] = relationship()
+    entry_session: Mapped[Optional["CourseSession"]] = relationship()
 
 
 # ============================================================
@@ -732,6 +819,7 @@ class Attendance(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     student_id: Mapped[int] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
+    session_id: Mapped[Optional[int]] = mapped_column(ForeignKey("course_sessions.id", ondelete="CASCADE"))
     module_id: Mapped[int] = mapped_column(ForeignKey("course_modules.id", ondelete="CASCADE"), nullable=False)
     lecturer_id: Mapped[Optional[int]] = mapped_column(ForeignKey("lecturers.id"))
     attendance_date: Mapped[date] = mapped_column(Date, server_default=func.current_date())
@@ -742,10 +830,12 @@ class Attendance(Base):
 
     __table_args__ = (
         Index("idx_attendance_student", "student_id"),
+        Index("idx_attendance_session", "session_id"),
         Index("idx_attendance_module", "module_id"),
     )
 
     student: Mapped["Student"] = relationship(back_populates="attendance_records")
+    session: Mapped[Optional["CourseSession"]] = relationship(back_populates="attendance_records")
     module: Mapped["CourseModule"] = relationship()
     lecturer: Mapped[Optional["Lecturer"]] = relationship()
 

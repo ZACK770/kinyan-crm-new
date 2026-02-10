@@ -21,6 +21,8 @@ class CourseCreate(BaseModel):
     end_date: str | None = None
     semester: str | None = None
     total_sessions: int | None = None
+    price: float | None = None
+    payments_count: int = 1
     is_active: bool = True
 
 
@@ -31,6 +33,8 @@ class CourseUpdate(BaseModel):
     end_date: str | None = None
     semester: str | None = None
     total_sessions: int | None = None
+    price: float | None = None
+    payments_count: int | None = None
     is_active: bool | None = None
 
 
