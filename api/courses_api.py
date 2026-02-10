@@ -46,7 +46,14 @@ async def list_courses(
 ):
     items = await course_svc.get_courses(db)
     return [
-        {"id": c.id, "name": c.name, "total_sessions": c.total_sessions, "is_active": c.is_active}
+        {
+            "id": c.id,
+            "name": c.name,
+            "total_sessions": c.total_sessions,
+            "price": float(c.price) if c.price else None,
+            "payments_count": c.payments_count,
+            "is_active": c.is_active
+        }
         for c in items
     ]
 
@@ -63,7 +70,14 @@ async def get_course(
     return {
         "id": course.id,
         "name": course.name,
+        "description": course.description,
+        "semester": course.semester,
+        "start_date": course.start_date.isoformat() if course.start_date else None,
+        "end_date": course.end_date.isoformat() if course.end_date else None,
         "total_sessions": course.total_sessions,
+        "price": float(course.price) if course.price else None,
+        "payments_count": course.payments_count,
+        "is_active": course.is_active,
         "modules": [
             {
                 "id": m.id,
@@ -127,10 +141,15 @@ async def update_course(
     user = Depends(require_entity_access("courses", "edit")),
     db: AsyncSession = Depends(get_db)
 ):
-    course = await course_svc.update_course(db, course_id, **data.model_dump(exclude_unset=True))
+    update_data = data.model_dump(exclude_unset=True)
+    print(f"[DEBUG] Updating course {course_id} with data: {update_data}")
+    
+    course = await course_svc.update_course(db, course_id, **update_data)
     if not course:
         raise HTTPException(404, "Course not found")
     await db.commit()
+    
+    print(f"[DEBUG] Course after update - price: {course.price}, payments_count: {course.payments_count}")
     
     await audit_logs.log_update(
         db=db,
@@ -138,11 +157,11 @@ async def update_course(
         entity_type="courses",
         entity_id=course_id,
         description=f"עודכן קורס: {course.name}",
-        changes=data.model_dump(exclude_unset=True),
+        changes=update_data,
         request=request,
     )
     
-    return {"id": course.id, "name": course.name}
+    return {"id": course.id, "name": course.name, "price": float(course.price) if course.price else None, "payments_count": course.payments_count}
 
 
 @router.delete("/{course_id}")

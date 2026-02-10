@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { BookOpen, Plus, ArrowRight } from 'lucide-react'
+import { BookOpen, Plus } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatDate } from '@/lib/status'
 import { useToast } from '@/components/ui/Toast'
@@ -105,47 +105,23 @@ export function CoursesPage() {
   // Show workspace for create or edit
   if (viewMode === 'create') {
     return (
-      <div>
-        <div className={s['page-header']}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button className={`${s.btn} ${s['btn-ghost']}`} onClick={backToList}>
-              <ArrowRight size={18} /> חזרה
-            </button>
-            <h1 className={s['page-title']} style={{ fontSize: '1.2rem' }}>קורס חדש</h1>
-          </div>
-        </div>
-        
-        <CourseWorkspace
-          course={null}
-          onClose={backToList}
-          onUpdate={() => {}}
-          onCreate={handleCreatedCourse}
-        />
-      </div>
+      <CourseWorkspace
+        course={null}
+        onClose={backToList}
+        onUpdate={() => {}}
+        onCreate={handleCreatedCourse}
+      />
     )
   }
 
   // Show workspace in EDIT mode (selectedCourse exists)
   if (selectedCourse) {
     return (
-      <div>
-        <div className={s['page-header']}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button className={`${s.btn} ${s['btn-ghost']}`} onClick={backToList}>
-              <ArrowRight size={18} /> חזרה
-            </button>
-            <h1 className={s['page-title']} style={{ fontSize: '1.2rem' }}>
-              {selectedCourse.name}
-            </h1>
-          </div>
-        </div>
-        
-        <CourseWorkspace
-          course={selectedCourse}
-          onClose={backToList}
-          onUpdate={refreshSelectedCourse}
-        />
-      </div>
+      <CourseWorkspace
+        course={selectedCourse}
+        onClose={backToList}
+        onUpdate={refreshSelectedCourse}
+      />
     )
   }
 

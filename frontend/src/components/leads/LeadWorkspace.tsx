@@ -8,6 +8,7 @@ import {
   MessageCircle,
   History,
   Save,
+  ChevronDown,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, formatDateTime } from '@/lib/status'
@@ -196,12 +197,28 @@ export function LeadWorkspace({
   const salesperson = lead ? salespersons.find(sp => sp.id === lead.salesperson_id) : null
   const campaign = lead ? campaigns.find(c => c.id === lead.campaign_id) : null
 
-  // Section header helper
-  const SectionHeader = ({ children }: { children: string }) => (
-    <h4 style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>
-      {children}
-    </h4>
-  )
+  // Collapsible section with toggle
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
+  const toggleSection = (key: string) => {
+    setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }))
+  }
+  const CollapsibleSection = ({ id, title, children: content, divider = false }: { id: string; title: string; children: ReactNode; divider?: boolean }) => {
+    const isCollapsed = !!collapsedSections[id]
+    return (
+      <div className={divider ? s['section-divider'] : undefined}>
+        <h4 className={s['section-header']} onClick={() => toggleSection(id)}>
+          <ChevronDown
+            size={14}
+            className={`${s['section-header__chevron']} ${isCollapsed ? s['section-header__chevron--collapsed'] : ''}`}
+          />
+          {title}
+        </h4>
+        <div className={`${s['section-content']} ${isCollapsed ? s['section-content--collapsed'] : ''}`}>
+          {content}
+        </div>
+      </div>
+    )
+  }
 
   // ═══════════════════════════════════════════════════════════
   // CREATE MODE — Same layout as edit mode, fields start empty
@@ -224,8 +241,7 @@ export function LeadWorkspace({
           </div>
 
           {/* Contact Info */}
-          <div>
-            <SectionHeader>פרטי קשר</SectionHeader>
+          <CollapsibleSection id="create-contact" title="פרטי קשר">
             <div className={s['field-grid']}>
               <EditableField label="שם פרטי *" value={form.full_name} onSave={v => { updateForm('full_name', String(v ?? '')); return Promise.resolve() }} />
               <EditableField label="שם משפחה" value={form.family_name} onSave={v => { updateForm('family_name', String(v ?? '')); return Promise.resolve() }} />
@@ -238,11 +254,10 @@ export function LeadWorkspace({
               <EditableField label="כתובת" value={form.address} onSave={v => { updateForm('address', String(v ?? '')); return Promise.resolve() }} />
               <EditableField label="תעודת זהות" value={form.id_number} dir="ltr" onSave={v => { updateForm('id_number', String(v ?? '')); return Promise.resolve() }} />
             </div>
-          </div>
+          </CollapsibleSection>
 
           {/* Sales Info */}
-          <div>
-            <SectionHeader>שיוך מכירות</SectionHeader>
+          <CollapsibleSection id="create-sales" title="שיוך מכירות" divider>
             <div className={`${s['field-grid']} ${s['field-grid--single']}`}>
               <EditableField
                 label="סטטוס"
@@ -262,11 +277,10 @@ export function LeadWorkspace({
                 entityCreatePath="/leads"
               />
             </div>
-          </div>
+          </CollapsibleSection>
 
           {/* Source Info */}
-          <div>
-            <SectionHeader>מקור הגעה</SectionHeader>
+          <CollapsibleSection id="create-source" title="מקור הגעה" divider>
             <div className={`${s['field-grid']} ${s['field-grid--single']}`}>
               <EditableField
                 label="מקור"
@@ -287,11 +301,10 @@ export function LeadWorkspace({
               <EditableField label="שם מקור" value={form.source_name} onSave={v => { updateForm('source_name', String(v ?? '')); return Promise.resolve() }} />
               <EditableField label="הודעה מהמקור" value={form.source_message} type="textarea" onSave={v => { updateForm('source_message', String(v ?? '')); return Promise.resolve() }} />
             </div>
-          </div>
+          </CollapsibleSection>
 
           {/* Course Interest */}
-          <div>
-            <SectionHeader>התעניינות</SectionHeader>
+          <CollapsibleSection id="create-course" title="התעניינות" divider>
             <div className={`${s['field-grid']} ${s['field-grid--single']}`}>
               <EditableField
                 label="קורס מבוקש"
@@ -303,13 +316,12 @@ export function LeadWorkspace({
                 entityCreatePath="/courses"
               />
             </div>
-          </div>
+          </CollapsibleSection>
 
           {/* Notes */}
-          <div>
-            <SectionHeader>הערות</SectionHeader>
+          <CollapsibleSection id="create-notes" title="הערות" divider>
             <EditableField label="הערות" value={form.notes} type="textarea" onSave={v => { updateForm('notes', String(v ?? '')); return Promise.resolve() }} />
-          </div>
+          </CollapsibleSection>
 
           {/* Submit button */}
           <div style={{ display: 'flex', gap: 12, paddingTop: 16, borderTop: '1px solid var(--color-border-light)' }}>
@@ -391,8 +403,7 @@ export function LeadWorkspace({
         </div>
 
         {/* Contact Info */}
-        <div>
-          <SectionHeader>פרטי קשר</SectionHeader>
+        <CollapsibleSection id="edit-contact" title="פרטי קשר">
           <div className={s['field-grid']}>
             <EditableField
               label="שם פרטי"
@@ -441,11 +452,10 @@ export function LeadWorkspace({
               onSave={v => saveField('id_number', v)}
             />
           </div>
-        </div>
+        </CollapsibleSection>
 
         {/* Sales Info */}
-        <div>
-          <SectionHeader>שיוך מכירות</SectionHeader>
+        <CollapsibleSection id="edit-sales" title="שיוך מכירות" divider>
           <div className={`${s['field-grid']} ${s['field-grid--single']}`}>
             <EditableField
               label="סטטוס"
@@ -466,11 +476,10 @@ export function LeadWorkspace({
               entityCreatePath="/leads"
             />
           </div>
-        </div>
+        </CollapsibleSection>
 
         {/* Source Info */}
-        <div>
-          <SectionHeader>מקור הגעה</SectionHeader>
+        <CollapsibleSection id="edit-source" title="מקור הגעה" divider>
           <div className={`${s['field-grid']} ${s['field-grid--single']}`}>
             <EditableField
               label="מקור"
@@ -500,11 +509,10 @@ export function LeadWorkspace({
               onSave={v => saveField('source_message', v)}
             />
           </div>
-        </div>
+        </CollapsibleSection>
 
         {/* Course Interest */}
-        <div>
-          <SectionHeader>התעניינות</SectionHeader>
+        <CollapsibleSection id="edit-course" title="התעניינות" divider>
           <div className={`${s['field-grid']} ${s['field-grid--single']}`}>
             <EditableField
               label="קורס מבוקש"
@@ -516,18 +524,17 @@ export function LeadWorkspace({
               entityCreatePath="/courses"
             />
           </div>
-        </div>
+        </CollapsibleSection>
 
         {/* Notes */}
-        <div>
-          <SectionHeader>הערות</SectionHeader>
+        <CollapsibleSection id="edit-notes" title="הערות" divider>
           <EditableField
             label="הערות"
             value={lead!.notes}
             type="textarea"
             onSave={v => saveField('notes', v)}
           />
-        </div>
+        </CollapsibleSection>
 
         {/* Meta info */}
         <div style={{ 

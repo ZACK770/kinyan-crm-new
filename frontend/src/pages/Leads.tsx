@@ -7,7 +7,6 @@ import {
   Pencil,
   MessageSquarePlus,
   UserCheck,
-  ArrowRight,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, getSourceLabel, formatDate, formatDateTime } from '@/lib/status'
@@ -720,14 +719,12 @@ export function LeadsPage() {
         { value: 'converted', label: 'הומר' },
         { value: 'irrelevant', label: 'לא רלוונטי' },
       ],
-      renderView: r => <Badge entity="lead" value={r.status} />
     },
     { 
       key: 'salesperson_id', 
       header: 'איש מכירות', 
       type: 'select',
       options: salespersons.map(sp => ({ value: sp.id, label: sp.name })),
-      renderView: r => salespersons.find(sp => sp.id === r.salesperson_id)?.name ?? '—'
     },
     { 
       key: 'source_type', 
@@ -740,7 +737,6 @@ export function LeadsPage() {
         { value: 'referral', label: 'הפניה' },
         { value: 'other', label: 'אחר' },
       ],
-      renderView: r => getSourceLabel(r.source_type)
     },
     { 
       key: 'created_at', 
@@ -788,69 +784,31 @@ export function LeadsPage() {
   // Show workspace in CREATE mode
   if (viewMode === 'create') {
     return (
-      <div>
-        {/* Back button header */}
-        <div className={s['page-header']}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button 
-              className={`${s.btn} ${s['btn-ghost']}`} 
-              onClick={backToList}
-              style={{ padding: '6px 10px' }}
-            >
-              <ArrowRight size={18} />
-              חזרה לרשימה
-            </button>
-            <h1 className={s['page-title']} style={{ fontSize: '1.2rem' }}>ליד חדש</h1>
-          </div>
-        </div>
-        
-        {/* Lead Workspace in create mode */}
-        <LeadWorkspace
-          lead={null}
-          salespersons={salespersons}
-          campaigns={campaigns}
-          courses={courses}
-          onClose={backToList}
-          onUpdate={() => {}}
-          onCreate={handleCreatedLead}
-        />
-      </div>
+      <LeadWorkspace
+        lead={null}
+        salespersons={salespersons}
+        campaigns={campaigns}
+        courses={courses}
+        onClose={backToList}
+        onUpdate={() => {}}
+        onCreate={handleCreatedLead}
+      />
     )
   }
 
   // Show workspace in EDIT mode (selectedLead exists)
   if (selectedLead) {
     return (
-      <div>
-        {/* Back button header */}
-        <div className={s['page-header']}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button 
-              className={`${s.btn} ${s['btn-ghost']}`} 
-              onClick={backToList}
-              style={{ padding: '6px 10px' }}
-            >
-              <ArrowRight size={18} />
-              חזרה לרשימה
-            </button>
-            <h1 className={s['page-title']} style={{ fontSize: '1.2rem' }}>
-              פרטי ליד — {selectedLead.full_name} {selectedLead.family_name ?? ''}
-            </h1>
-          </div>
-        </div>
-        
-        {/* Lead Workspace */}
-        <LeadWorkspace
-          lead={selectedLead}
-          salespersons={salespersons}
-          campaigns={campaigns}
-          courses={courses}
-          onClose={backToList}
-          onUpdate={refreshSelectedLead}
-          onAddInteraction={() => openAddInteraction(selectedLead.id)}
-          onConvert={() => openConvert(selectedLead)}
-        />
-      </div>
+      <LeadWorkspace
+        lead={selectedLead}
+        salespersons={salespersons}
+        campaigns={campaigns}
+        courses={courses}
+        onClose={backToList}
+        onUpdate={refreshSelectedLead}
+        onAddInteraction={() => openAddInteraction(selectedLead.id)}
+        onConvert={() => openConvert(selectedLead)}
+      />
     )
   }
 

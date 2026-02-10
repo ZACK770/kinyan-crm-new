@@ -6,12 +6,12 @@
 }
 
 .card {
-  background: var(--bg-default);
+  background: var(--color-surface, #fff);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: 20px;
   box-shadow: var(--shadow-sm);
-  transition: box-shadow var(--transition-med);
+  transition: box-shadow var(--transition-fast, 150ms ease);
 }
 
 .card:hover {
@@ -46,4 +46,73 @@
 
 .pending {
   color: var(--color-warning);
+}
+
+/* --- Pricing Section --- */
+.pricingSection {
+  background: var(--color-border-light, #f8fafc);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.priceRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.priceLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.priceValue {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.priceFinal {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: 4px 0;
+}
+
+.monthlyPayment {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  background: var(--color-accent-light, #eff6ff);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  margin: 8px 0;
+}
+
+.errorBox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-error);
+  background: var(--color-error-bg, #fef2f2);
+  border: 1px solid var(--color-error, #ef4444);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  margin-bottom: 12px;
 }

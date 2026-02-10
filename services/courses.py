@@ -55,7 +55,7 @@ async def update_course(db: AsyncSession, course_id: int, **kwargs) -> Course | 
         return None
 
     for key, value in kwargs.items():
-        if value is not None and hasattr(course, key):
+        if hasattr(course, key):
             setattr(course, key, value)
 
     await db.flush()

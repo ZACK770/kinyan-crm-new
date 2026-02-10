@@ -405,7 +405,7 @@ class Lead(Base):
     approval_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))  # תאריך אישור תקנון
 
     # Links
-    student_id: Mapped[Optional[int]] = mapped_column(ForeignKey("students.id"))
+    student_id: Mapped[Optional[int]] = mapped_column(ForeignKey("students.id", use_alter=True, name="fk_lead_student"))
     campaign_id: Mapped[Optional[int]] = mapped_column(ForeignKey("campaigns.id"))
     course_id: Mapped[Optional[int]] = mapped_column(ForeignKey("courses.id"))  # Interested course
     interested_track_id: Mapped[Optional[int]] = mapped_column(ForeignKey("course_tracks.id"))  # Interested track
