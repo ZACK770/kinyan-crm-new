@@ -218,3 +218,180 @@ async def add_interaction(
     interaction = await lead_svc.add_interaction(db, lead_id, **data.model_dump())
     await db.commit()
     return {"id": interaction.id}
+
+
+# ── Lead Payment Endpoints ────────────────────────────────
+class CreatePaymentLinkRequest(BaseModel):
+    amount: float
+    currency: str = "ILS"
+    installments: int = 1
+    payment_method: str = "credit_card"
+    product_id: int | None = None
+    redirect_url: str | None = None
+
+
+@router.post("/{lead_id}/create-payment-link")
+async def create_lead_payment_link(
+    lead_id: int,
+    data: CreatePaymentLinkRequest,
+    request: Request,
+    user = Depends(require_entity_access("leads", "edit")),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Create a payment link for a lead via Nedarim Plus.
+    Used by sales team to charge leads before conversion.
+    """
+    from services import nedarim_plus
+    
+    try:
+        result = await nedarim_plus.create_lead_payment_link(
+            db=db,
+            lead_id=lead_id,
+            amount=data.amount,
+            currency=data.currency,
+            payment_method=data.payment_method,
+            installments=data.installments,
+            product_id=data.product_id,
+            redirect_url=data.redirect_url,
+        )
+        await db.commit()
+        
+        # Log payment link creation
+        await audit_logs.log_create(
+            db=db,
+            user=user,
+            entity_type="payments",
+            entity_id=result["payment_id"],
+            description=f"נוצר לינק תשלום לליד #{lead_id} - {data.amount} ש\"ח",
+            request=request,
+        )
+        
+        return result
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+class SelectProductRequest(BaseModel):
+    product_id: int
+    price: float | None = None
+    payments_count: int = 1
+    monthly_payment: float | None = None
+    payment_day: int | None = None
+    payment_type: str = "הוראת קבע"
+    coupon_id: int | None = None
+
+
+@router.post("/{lead_id}/select-product")
+async def select_product_for_lead(
+    lead_id: int,
+    data: SelectProductRequest,
+    request: Request,
+    user = Depends(require_entity_access("leads", "edit")),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Select/change the product for a lead.
+    Creates a LeadProduct record and sets it as the selected product.
+    """
+    from db.models import Lead, LeadProduct, Product
+    from sqlalchemy import select
+    
+    # Get lead
+    stmt = select(Lead).where(Lead.id == lead_id)
+    result = await db.execute(stmt)
+    lead = result.scalar_one_or_none()
+    if not lead:
+        raise HTTPException(404, "Lead not found")
+    
+    # Get product for price if not provided
+    stmt = select(Product).where(Product.id == data.product_id)
+    result = await db.execute(stmt)
+    product = result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(404, "Product not found")
+    
+    price = data.price or (float(product.price) if product.price else 0)
+    monthly = data.monthly_payment or (price / data.payments_count if data.payments_count > 1 else price)
+    
+    # Create LeadProduct
+    lead_product = LeadProduct(
+        lead_id=lead_id,
+        product_id=data.product_id,
+        price=price,
+        payments_count=data.payments_count,
+        monthly_payment=monthly,
+        payment_day=data.payment_day,
+        payment_type=data.payment_type,
+        coupon_id=data.coupon_id,
+        final_price=price,  # TODO: Apply coupon discount
+    )
+    db.add(lead_product)
+    await db.flush()
+    
+    # Set as selected product
+    lead.selected_product_id = lead_product.id
+    
+    await db.commit()
+    
+    # Log product selection
+    await audit_logs.log_update(
+        db=db,
+        user=user,
+        entity_type="leads",
+        entity_id=lead_id,
+        description=f"נבחר מוצר לליד: {product.name}",
+        changes={"product_id": data.product_id, "price": price},
+        request=request,
+    )
+    
+    return {
+        "lead_id": lead_id,
+        "lead_product_id": lead_product.id,
+        "product_name": product.name,
+        "price": price,
+        "payments_count": data.payments_count,
+        "monthly_payment": monthly,
+    }
+
+
+@router.get("/{lead_id}/payment-status")
+async def get_lead_payment_status(
+    lead_id: int,
+    user = Depends(require_entity_access("leads", "view")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get payment status for a lead."""
+    from db.models import Lead, Payment
+    from sqlalchemy import select
+    
+    # Get lead
+    stmt = select(Lead).where(Lead.id == lead_id)
+    result = await db.execute(stmt)
+    lead = result.scalar_one_or_none()
+    if not lead:
+        raise HTTPException(404, "Lead not found")
+    
+    # Get payments for this lead
+    stmt = select(Payment).where(Payment.lead_id == lead_id).order_by(Payment.created_at.desc())
+    result = await db.execute(stmt)
+    payments = result.scalars().all()
+    
+    return {
+        "lead_id": lead_id,
+        "first_payment": lead.first_payment,
+        "first_payment_id": lead.first_payment_id,
+        "nedarim_payment_link": lead.nedarim_payment_link,
+        "selected_product_id": lead.selected_product_id,
+        "payments": [
+            {
+                "id": p.id,
+                "amount": float(p.amount),
+                "status": p.status,
+                "payment_date": str(p.payment_date) if p.payment_date else None,
+                "nedarim_donation_id": p.nedarim_donation_id,
+                "created_at": str(p.created_at),
+            }
+            for p in payments
+        ]
+    }

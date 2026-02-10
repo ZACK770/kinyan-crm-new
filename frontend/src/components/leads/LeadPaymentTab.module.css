@@ -1,0 +1,49 @@
+.paymentTab {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  padding: 16px;
+}
+
+.card {
+  background: var(--bg-default);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition-med);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.cardTitle {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+  border-bottom: 1px solid var(--color-border-light);
+  padding-bottom: 12px;
+}
+
+.linkDisplay {
+  display: flex;
+  gap: 8px;
+}
+
+.status {
+  margin-top: 16px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.paid {
+  color: var(--color-success);
+}
+
+.pending {
+  color: var(--color-warning);
+}

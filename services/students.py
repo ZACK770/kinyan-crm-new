@@ -126,14 +126,16 @@ async def update_progress(
 
 
 async def get_student_dashboard(db: AsyncSession, student_id: int) -> dict | None:
-    """Get full student info with enrollments and exams."""
+    """Get full student info with enrollments, exams, payments, collections, and commitments."""
     stmt = (
         select(Student)
         .where(Student.id == student_id)
         .options(
             selectinload(Student.enrollments).selectinload(Enrollment.course),
-            selectinload(Student.exams),
+            selectinload(Student.exam_submissions),
             selectinload(Student.payments),
+            selectinload(Student.collections),
+            selectinload(Student.commitments),
         )
     )
     result = await db.execute(stmt)
@@ -144,8 +146,10 @@ async def get_student_dashboard(db: AsyncSession, student_id: int) -> dict | Non
     return {
         "student": student,
         "enrollments": student.enrollments,
-        "exams": student.exams,
+        "exam_submissions": student.exam_submissions,
         "payments": student.payments,
+        "collections": student.collections,
+        "commitments": student.commitments,
     }
 
 

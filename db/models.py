@@ -286,6 +286,13 @@ class Lead(Base):
     campaign_id: Mapped[Optional[int]] = mapped_column(ForeignKey("campaigns.id"))
     course_id: Mapped[Optional[int]] = mapped_column(ForeignKey("courses.id"))  # Interested course
     active_task_id: Mapped[Optional[int]] = mapped_column(ForeignKey("sales_tasks.id", use_alter=True))
+    
+    # Selected product for sale (from LeadProduct)
+    selected_product_id: Mapped[Optional[int]] = mapped_column(ForeignKey("lead_products.id", use_alter=True))
+    
+    # Payment tracking (before conversion)
+    first_payment_id: Mapped[Optional[int]] = mapped_column(ForeignKey("payments.id", use_alter=True))
+    nedarim_payment_link: Mapped[Optional[str]] = mapped_column(String(500))  # Active payment link from Nedarim
 
     # Meta
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -305,7 +312,10 @@ class Lead(Base):
     course: Mapped[Optional["Course"]] = relationship()  # Interested course
     student: Mapped[Optional["Student"]] = relationship(foreign_keys=[student_id])  # Lead converted to this student
     interactions: Mapped[List["LeadInteraction"]] = relationship(back_populates="lead", order_by="LeadInteraction.interaction_date.desc()")
-    products: Mapped[List["LeadProduct"]] = relationship(back_populates="lead")
+    products: Mapped[List["LeadProduct"]] = relationship(back_populates="lead", foreign_keys="LeadProduct.lead_id")
+    selected_product: Mapped[Optional["LeadProduct"]] = relationship(foreign_keys=[selected_product_id])
+    first_payment_rel: Mapped[Optional["Payment"]] = relationship(foreign_keys=[first_payment_id])
+    payments: Mapped[List["Payment"]] = relationship(back_populates="lead", foreign_keys="Payment.lead_id")
 
 
 # ============================================================
@@ -378,7 +388,7 @@ class LeadProduct(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    lead: Mapped["Lead"] = relationship(back_populates="products")
+    lead: Mapped["Lead"] = relationship(back_populates="products", foreign_keys=[lead_id])
     product: Mapped[Optional["Product"]] = relationship()
     coupon: Mapped[Optional["Coupon"]] = relationship()
     entry_module: Mapped[Optional["CourseModule"]] = relationship()
@@ -504,6 +514,7 @@ class Payment(Base):
         Index("idx_payments_nedarim", "nedarim_donation_id"),
     )
 
+    lead: Mapped[Optional["Lead"]] = relationship(back_populates="payments", foreign_keys=[lead_id])
     student: Mapped[Optional["Student"]] = relationship(back_populates="payments")
     course: Mapped[Optional["Course"]] = relationship()
     commitment: Mapped[Optional["Commitment"]] = relationship(back_populates="payments")
@@ -723,6 +734,7 @@ class Commitment(Base):
     student: Mapped["Student"] = relationship(back_populates="commitments")
     course: Mapped[Optional["Course"]] = relationship()
     payments: Mapped[List["Payment"]] = relationship(back_populates="commitment")
+    collections: Mapped[List["Collection"]] = relationship(back_populates="commitment")
 
 
 # ============================================================
@@ -734,23 +746,40 @@ class Collection(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     student_id: Mapped[int] = mapped_column(ForeignKey("students.id"), nullable=False)
     commitment_id: Mapped[Optional[int]] = mapped_column(ForeignKey("commitments.id"))
+    payment_id: Mapped[Optional[int]] = mapped_column(ForeignKey("payments.id"))  # Link to resulting payment
+    course_id: Mapped[Optional[int]] = mapped_column(ForeignKey("courses.id"))
+    
     amount: Mapped[Numeric] = mapped_column(Numeric(10, 2), nullable=False)
     due_date: Mapped[date] = mapped_column(Date, nullable=False)
+    charge_day: Mapped[Optional[int]] = mapped_column(Integer)  # Day of month for recurring
+    installment_number: Mapped[Optional[int]] = mapped_column(Integer)  # e.g., 3 of 12
+    total_installments: Mapped[Optional[int]] = mapped_column(Integer)  # total planned installments
+    
     status: Mapped[str] = mapped_column(String(50), default="ממתין")  # ממתין / נגבה / נכשל / בוטל
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     collected_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     reference: Mapped[Optional[str]] = mapped_column(String(200))
     notes: Mapped[Optional[str]] = mapped_column(Text)
+    
+    # Nedarim Plus integration
+    nedarim_donation_id: Mapped[Optional[str]] = mapped_column(String(50))  # DON_xxxxx
+    nedarim_transaction_id: Mapped[Optional[str]] = mapped_column(String(50))  # TRX_xxxxx
+    nedarim_subscription_id: Mapped[Optional[str]] = mapped_column(String(50))  # From Commitment
+    
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
         Index("idx_collections_student", "student_id"),
         Index("idx_collections_status", "status"),
         Index("idx_collections_due_date", "due_date"),
+        Index("idx_collections_nedarim", "nedarim_donation_id"),
+        Index("idx_collections_commitment", "commitment_id"),
     )
 
     student: Mapped["Student"] = relationship(back_populates="collections")
-    commitment: Mapped[Optional["Commitment"]] = relationship()
+    commitment: Mapped[Optional["Commitment"]] = relationship(back_populates="collections")
+    payment: Mapped[Optional["Payment"]] = relationship()
+    course: Mapped[Optional["Course"]] = relationship()
 
 
 # ============================================================
@@ -760,10 +789,12 @@ class Expense(Base):
     __tablename__ = "expenses"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    vendor: Mapped[str] = mapped_column(String(300), nullable=False)
-    expense_date: Mapped[date] = mapped_column(Date, nullable=False)
+    description: Mapped[str] = mapped_column(String(500), nullable=False)  # תיאור - חובה
+    category: Mapped[Optional[str]] = mapped_column(String(100))  # קטגוריה
     amount: Mapped[Numeric] = mapped_column(Numeric(10, 2), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text)
+    expense_date: Mapped[Optional[date]] = mapped_column(Date)  # תאריך הוצאה
+    vendor: Mapped[Optional[str]] = mapped_column(String(300))  # ספק
+    notes: Mapped[Optional[str]] = mapped_column(Text)  # הערות
     course_id: Mapped[Optional[int]] = mapped_column(ForeignKey("courses.id"))
     campaign_id: Mapped[Optional[int]] = mapped_column(ForeignKey("campaigns.id"))
     payment_method: Mapped[Optional[str]] = mapped_column(String(50))

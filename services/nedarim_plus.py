@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import settings
@@ -146,6 +146,107 @@ async def ensure_payer_exists(db: AsyncSession, student_id: int) -> str:
         raise ValueError(f"Student {student_id} not found")
     
     return await create_payer(db, student)
+
+
+# ============================================================
+# Lead Payment Service (for pre-conversion payments)
+# ============================================================
+async def create_lead_payment_link(
+    db: AsyncSession,
+    lead_id: int,
+    amount: float,
+    currency: str = "ILS",
+    payment_method: str = "credit_card",
+    installments: int = 1,
+    redirect_url: Optional[str] = None,
+    course_id: Optional[int] = None,
+    product_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Create a payment link for a Lead (before conversion to student).
+    Used by sales team to charge leads directly.
+    
+    Returns:
+        dict with: payment_id, nedarim_donation_id, payment_link, lead_id
+    """
+    from db.models import Lead, LeadProduct
+    
+    # Get the lead
+    stmt = select(Lead).where(Lead.id == lead_id)
+    result = await db.execute(stmt)
+    lead = result.scalar_one_or_none()
+    if not lead:
+        raise ValueError(f"Lead {lead_id} not found")
+    
+    # Create payer from lead data (temporary, not a Student yet)
+    client = NedarimClient()
+    
+    payer_payload = {
+        "payer_name": lead.full_name,
+        "payer_tz": lead.id_number or "",
+        "payer_phone": lead.phone,
+        "payer_email": lead.email or ""
+    }
+    
+    payer_response = await client.post("/payers", payer_payload)
+    payer_id = payer_response["payer_id"]
+    
+    # Create payment record linked to lead (not student)
+    payment = Payment(
+        lead_id=lead_id,
+        course_id=course_id or lead.course_id,
+        amount=amount,
+        currency=currency,
+        payment_method=payment_method,
+        installments=installments,
+        transaction_type="נדרים פלוס",
+        status="ממתין",
+    )
+    db.add(payment)
+    await db.flush()
+    
+    # Build redirect URL
+    if not redirect_url:
+        redirect_url = f"{settings.FRONTEND_URL}/payment-success?payment_id={payment.id}&lead_id={lead_id}"
+    
+    # Build webhook URL
+    webhook_url = f"{settings.FRONTEND_URL}/api/webhooks/nedarim"
+    
+    payment_payload = {
+        "payer_id": payer_id,
+        "amount": amount,
+        "currency": currency,
+        "payment_method": payment_method,
+        "installments": installments,
+        "redirect_url": redirect_url,
+        "webhook_url": webhook_url,
+        "metadata": {
+            "lead_id": lead_id,
+            "product_id": product_id,
+        }
+    }
+    
+    response = await client.post("/donations", payment_payload)
+    
+    # Update payment with Nedarim IDs
+    payment.nedarim_donation_id = response["donation_id"]
+    payment.nedarim_transaction_id = response.get("transaction_id")
+    payment.reference = response["donation_id"]
+    
+    # Update lead with payment link
+    lead.nedarim_payment_link = response["payment_link"]
+    
+    await db.flush()
+    
+    logger.info(f"Created Nedarim payment link for lead {lead_id}: {response['payment_link']}")
+    
+    return {
+        "payment_id": payment.id,
+        "lead_id": lead_id,
+        "nedarim_donation_id": response["donation_id"],
+        "payment_link": response["payment_link"],
+        "status": "ממתין"
+    }
 
 
 # ============================================================
@@ -422,7 +523,7 @@ async def process_webhook(
             else:
                 payment.payment_date = datetime.now().date()
             
-            # Update student total_paid
+            # Update student total_paid (if student exists)
             if payment.student_id:
                 stmt = select(Student).where(Student.id == payment.student_id)
                 res = await db.execute(stmt)
@@ -431,6 +532,18 @@ async def process_webhook(
                     student.total_paid = (student.total_paid or 0) + float(payment.amount)
                     if student.total_price and student.total_paid >= student.total_price:
                         student.payment_status = "שולם"
+            
+            # Handle lead first payment (pre-conversion payment)
+            if payment.lead_id:
+                from db.models import Lead
+                stmt = select(Lead).where(Lead.id == payment.lead_id)
+                res = await db.execute(stmt)
+                lead = res.scalar_one_or_none()
+                if lead:
+                    lead.first_payment = True
+                    lead.first_payment_id = payment.id
+                    lead.status = "נסלק"  # Move lead to "charged" status
+                    logger.info(f"Lead {lead.id} payment completed - marked as נסלק")
         
         # Store error info if failed
         if metadata.get("error_code"):
@@ -471,6 +584,36 @@ async def process_webhook(
                 reference=f"SUB:{subscription_id} | DON:{donation_id}",
             )
             db.add(payment)
+            await db.flush()
+            
+            # Create Collection record for this charge
+            from db.models import Collection
+            
+            # Calculate installment number based on existing collections
+            stmt = select(func.count(Collection.id)).where(
+                Collection.commitment_id == commitment.id,
+                Collection.status == "נגבה"
+            )
+            res = await db.execute(stmt)
+            installment_num = res.scalar() + 1
+            
+            collection = Collection(
+                student_id=commitment.student_id,
+                commitment_id=commitment.id,
+                payment_id=payment.id,
+                course_id=commitment.course_id,
+                amount=float(payment.amount),
+                due_date=datetime.now().date(),
+                charge_day=commitment.charge_day,
+                installment_number=installment_num,
+                total_installments=commitment.installments,
+                status="נגבה",
+                collected_at=func.now(),
+                nedarim_donation_id=donation_id,
+                nedarim_subscription_id=subscription_id,
+                reference=f"SUB:{subscription_id} | DON:{donation_id}",
+            )
+            db.add(collection)
             
             # Update student total_paid
             stmt = select(Student).where(Student.id == commitment.student_id)
@@ -484,13 +627,43 @@ async def process_webhook(
             await db.flush()
             result["processed"] = True
             result["payment_id"] = payment.id
+            result["collection_id"] = collection.id
             result["commitment_id"] = commitment.id
+            result["installment_number"] = installment_num
         
         elif event_type == "subscription.failed":
+            # Create a failed collection record
+            from db.models import Collection
+            
+            # Calculate installment number
+            stmt = select(func.count(Collection.id)).where(
+                Collection.commitment_id == commitment.id
+            )
+            res = await db.execute(stmt)
+            installment_num = res.scalar() + 1
+            
+            collection = Collection(
+                student_id=commitment.student_id,
+                commitment_id=commitment.id,
+                course_id=commitment.course_id,
+                amount=float(amount or commitment.monthly_amount),
+                due_date=datetime.now().date(),
+                charge_day=commitment.charge_day,
+                installment_number=installment_num,
+                total_installments=commitment.installments,
+                status="נכשל",
+                attempts=1,
+                nedarim_subscription_id=subscription_id,
+                notes=metadata.get("error_message", "Charge failed"),
+            )
+            db.add(collection)
+            await db.flush()
+            
             # Log the failure - could trigger notification
             logger.warning(f"Subscription charge failed for commitment {commitment.id}: {metadata}")
             result["processed"] = True
             result["commitment_id"] = commitment.id
+            result["collection_id"] = collection.id
             result["error"] = metadata.get("error_message", "Charge failed")
     
     else:

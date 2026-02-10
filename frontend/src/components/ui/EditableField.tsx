@@ -1,10 +1,15 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react'
-import { Check, X, Pencil, Plus } from 'lucide-react'
+import { Loader2, Pencil, Plus, Check } from 'lucide-react'
 import s from '@/styles/shared.module.css'
 
 /* ══════════════════════════════════════════════════════════════
    EditableField — Click-to-edit inline field
-   Supports: text, textarea, select, entity-select
+   ═══════════════════════════════════════════════════════════════
+   UX Pattern: Auto-save on blur
+   - Click to edit → field becomes input
+   - Auto-save when: blur, Enter (text), Tab
+   - Escape: cancel changes (revert to original)
+   - No explicit save/cancel buttons needed
    ══════════════════════════════════════════════════════════════ */
 
 export type FieldType = 'text' | 'textarea' | 'select' | 'entity-select'
@@ -28,6 +33,9 @@ export interface EditableFieldProps {
   entityCreatePath?: string  // Route path to open in new tab for creating new entity
 }
 
+// SaveStatus indicator states
+type SaveStatus = 'idle' | 'saving' | 'saved'
+
 export function EditableField({
   label,
   value,
@@ -43,8 +51,10 @@ export function EditableField({
 }: EditableFieldProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState(String(value ?? ''))
-  const [isSaving, setIsSaving] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Focus input when entering edit mode
   useEffect(() => {
@@ -63,10 +73,18 @@ export function EditableField({
     }
   }, [value, isEditing])
 
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+    }
+  }, [])
+
   const startEditing = () => {
-    if (disabled) return
+    if (disabled || saveStatus === 'saving') return
     setEditValue(String(value ?? ''))
     setIsEditing(true)
+    setSaveStatus('idle')
   }
 
   const cancel = () => {
@@ -75,12 +93,13 @@ export function EditableField({
   }
 
   const save = async () => {
+    // No changes? Just close
     if (editValue === String(value ?? '')) {
       setIsEditing(false)
       return
     }
 
-    setIsSaving(true)
+    setSaveStatus('saving')
     try {
       // Convert to appropriate type
       let finalValue: string | number | null = editValue
@@ -92,11 +111,27 @@ export function EditableField({
       
       await onSave(finalValue)
       setIsEditing(false)
+      
+      // Show saved indicator briefly
+      setSaveStatus('saved')
+      savedTimerRef.current = setTimeout(() => {
+        setSaveStatus('idle')
+      }, 1500)
     } catch (err) {
       console.error('Failed to save:', err)
-    } finally {
-      setIsSaving(false)
+      setSaveStatus('idle')
+      // Keep editing open on error
     }
+  }
+
+  const handleBlur = (e: React.FocusEvent) => {
+    // Don't save if clicking the "create new" button
+    const relatedTarget = e.relatedTarget as HTMLElement
+    if (relatedTarget?.closest('[data-create-entity]')) {
+      return
+    }
+    // Auto-save on blur
+    save()
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -104,18 +139,47 @@ export function EditableField({
       e.preventDefault()
       save()
     } else if (e.key === 'Escape') {
+      e.preventDefault()
       cancel()
     }
+  }
+
+  // For selects, save immediately on change (better UX)
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newValue = e.target.value
+    setEditValue(newValue)
+    // For selects, auto-save on selection (no need to blur)
+    setTimeout(() => {
+      if (!isEditing) return
+      save()
+    }, 50)
   }
 
   // Displayed value (when not editing)
   const display = displayValue ?? value ?? placeholder
 
-  // Editing UI
+  // Save status icon
+  const StatusIcon = () => {
+    if (saveStatus === 'saving') {
+      return <Loader2 size={12} className={s['editable-field__status']} style={{ animation: 'spin 1s linear infinite' }} />
+    }
+    if (saveStatus === 'saved') {
+      return <Check size={12} className={s['editable-field__status']} style={{ color: 'var(--color-success, #16a34a)' }} />
+    }
+    return null
+  }
+
+  // Editing UI — simplified, no save/cancel buttons
   if (isEditing) {
     return (
-      <div className={`${s['editable-field']} ${s['editable-field--editing']} ${className}`}>
-        <span className={s['editable-field__label']}>{label}</span>
+      <div 
+        ref={containerRef}
+        className={`${s['editable-field']} ${s['editable-field--editing']} ${className}`}
+      >
+        <span className={s['editable-field__label']}>
+          {label}
+          <StatusIcon />
+        </span>
         <div className={s['editable-field__edit-row']}>
           {type === 'textarea' ? (
             <textarea
@@ -124,9 +188,10 @@ export function EditableField({
               value={editValue}
               onChange={e => setEditValue(e.target.value)}
               onKeyDown={handleKeyDown}
+              onBlur={handleBlur}
               rows={3}
               dir={dir}
-              disabled={isSaving}
+              disabled={saveStatus === 'saving'}
             />
           ) : type === 'select' || type === 'entity-select' ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
@@ -134,9 +199,10 @@ export function EditableField({
                 ref={inputRef as React.RefObject<HTMLSelectElement>}
                 className={s.select}
                 value={editValue}
-                onChange={e => setEditValue(e.target.value)}
+                onChange={handleSelectChange}
                 onKeyDown={handleKeyDown}
-                disabled={isSaving}
+                onBlur={handleBlur}
+                disabled={saveStatus === 'saving'}
                 style={{ flex: 1 }}
               >
                 <option value="">— בחר —</option>
@@ -147,6 +213,7 @@ export function EditableField({
               {type === 'entity-select' && entityCreatePath && (
                 <button
                   type="button"
+                  data-create-entity
                   className={`${s.btn} ${s['btn-icon']} ${s['btn-ghost']}`}
                   title="צור חדש"
                   onClick={() => window.open(`${entityCreatePath}?create=true`, '_blank')}
@@ -164,30 +231,11 @@ export function EditableField({
               value={editValue}
               onChange={e => setEditValue(e.target.value)}
               onKeyDown={handleKeyDown}
+              onBlur={handleBlur}
               dir={dir}
-              disabled={isSaving}
+              disabled={saveStatus === 'saving'}
             />
           )}
-          <div className={s['editable-field__actions']}>
-            <button
-              type="button"
-              className={`${s.btn} ${s['btn-icon']} ${s['btn-success']}`}
-              onClick={save}
-              disabled={isSaving}
-              title="שמור"
-            >
-              <Check size={14} />
-            </button>
-            <button
-              type="button"
-              className={`${s.btn} ${s['btn-icon']} ${s['btn-ghost']}`}
-              onClick={cancel}
-              disabled={isSaving}
-              title="בטל"
-            >
-              <X size={14} />
-            </button>
-          </div>
         </div>
       </div>
     )
@@ -202,7 +250,10 @@ export function EditableField({
       tabIndex={disabled ? undefined : 0}
       onKeyDown={e => { if (e.key === 'Enter') startEditing() }}
     >
-      <span className={s['editable-field__label']}>{label}</span>
+      <span className={s['editable-field__label']}>
+        {label}
+        <StatusIcon />
+      </span>
       <span className={s['editable-field__value']}>
         {display}
         {!disabled && (

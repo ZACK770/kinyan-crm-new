@@ -74,6 +74,10 @@
 | תאריך המרה | `conversion_date` | DateTime | לא | |
 | קישור לתלמיד | `student_id` | FK → students | לא | |
 | משימה פעילה | `active_task_id` | FK → sales_tasks | לא | |
+| **מכירה וסליקה** | | | | |
+| מוצר שנבחר | `selected_product_id` | FK → lead_products | לא | המוצר שנבחר לעסקה |
+| תשלום ראשון | `first_payment_id` | FK → payments | לא | התשלום הראשון שנסלק |
+| לינק תשלום נדרים | `nedarim_payment_link` | String(500) | לא | לינק פעיל לתשלום |
 | **מטא** | | | | |
 | תאריך יצירה | `created_at` | DateTime | אוטומטי | |
 | תאריך עדכון | `updated_at` | DateTime | אוטומטי | |
@@ -423,19 +427,38 @@
 
 ## 16. גביה (`collections`)
 
+> **משולב עם נדרים פלוס** — כל חיוב חוזר יוצר רשומת גביה, מקושר Payment ו-Commitment.
+
 | שדה | עמודה | סוג | חובה | הערה |
 |-----|-------|-----|------|------|
 | id | `id` | PK | אוטומטי | |
 | תלמיד | `student_id` | FK → students | כן | |
 | התחייבות | `commitment_id` | FK → commitments | לא | |
+| תשלום | `payment_id` | FK → payments | לא | קישור לתשלום שנוצר |
+| קורס | `course_id` | FK → courses | לא | |
+| **סכום ותזמון** | | | | |
 | סכום לגביה | `amount` | Numeric(10,2) | כן | |
 | תאריך יעד | `due_date` | Date | כן | |
+| יום חיוב | `charge_day` | Integer | לא | יום בחודש לחיוב חוזר |
+| מספר תשלום | `installment_number` | Integer | לא | למשל 3 מתוך 12 |
+| סה"כ תשלומים | `total_installments` | Integer | לא | |
+| **סטטוס** | | | | |
 | סטטוס | `status` | String(50) | כן | ממתין / נגבה / נכשל / בוטל |
 | ניסיונות גביה | `attempts` | Integer | אוטומטי | default: 0 |
 | תאריך גביה בפועל | `collected_at` | DateTime | לא | |
 | אסמכתא | `reference` | String(200) | לא | |
 | הערות | `notes` | Text | לא | |
+| **אינטגרציית נדרים פלוס** | | | | |
+| מזהה תרומה נדרים | `nedarim_donation_id` | String(50) | לא | DON_xxxxx |
+| מזהה עסקה נדרים | `nedarim_transaction_id` | String(50) | לא | TRX_xxxxx |
+| מזהה הוראת קבע | `nedarim_subscription_id` | String(50) | לא | מ-Commitment |
+| **מטא** | | | | |
 | תאריך יצירה | `created_at` | DateTime | אוטומטי | |
+
+**מופעים מקושרים:**
+- תלמיד (`students`) — פרטי התלמיד
+- התחייבות (`commitments`) — הוראת הקבע שיצרה את הגביה
+- תשלום (`payments`) — התשלום שנוצר לאחר גביה מוצלחת
 
 ---
 

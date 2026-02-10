@@ -29,10 +29,15 @@ export interface Lead {
   campaign_id?: number
   course_id?: number  // Interested course
   active_task_id?: number
+  // Payment tracking
+  selected_product_id?: number
+  first_payment_id?: number
+  nedarim_payment_link?: string
   created_at: string
   updated_at?: string
   created_by?: string
   interactions?: LeadInteraction[]
+  payments?: Payment[]
 }
 
 export interface LeadInteraction {
@@ -65,7 +70,7 @@ export interface Student {
   notes?: string
   status: string
   approved_terms: boolean
-  nedarim_id?: string
+  nedarim_payer_id?: string
   lead_id?: number
   total_price?: number
   total_paid?: number
@@ -74,6 +79,9 @@ export interface Student {
   created_at: string
   updated_at: string
   enrollments?: Enrollment[]
+  payments?: Payment[]
+  collections?: Collection[]
+  commitments?: Commitment[]
 }
 
 export interface Course {
@@ -140,12 +148,16 @@ export interface Payment {
   student_id?: number
   lead_id?: number
   course_id?: number
+  commitment_id?: number
   payment_date?: string
   amount: number
   currency?: string
   transaction_type?: string
+  installments?: number
   payment_method?: string
   status: string
+  nedarim_donation_id?: string
+  nedarim_transaction_id?: string
   created_at: string
 }
 
@@ -185,31 +197,56 @@ export interface Expense {
   created_at: string
 }
 
-export interface CollectionItem {
+export interface Collection {
   id: number
   student_id: number
-  student_name?: string
+  commitment_id?: number
+  payment_id?: number
+  course_id?: number
   amount: number
   due_date: string
+  charge_day?: number
+  installment_number?: number
+  total_installments?: number
   status: string
-  payment_method?: string
-  collected_date?: string
+  attempts: number
+  collected_at?: string
+  reference?: string
   notes?: string
+  nedarim_donation_id?: string
+  nedarim_subscription_id?: string
   created_at: string
+  // Joined data
+  student?: {
+    id: number
+    full_name: string
+    phone: string
+  }
+  commitment?: {
+    id: number
+    monthly_amount: number
+    installments?: number
+    status: string
+  }
 }
 
 export interface Commitment {
   id: number
+  reference?: string
   student_id: number
-  student_name?: string
   course_id?: number
-  total_amount: number
-  paid_amount: number
-  remaining: number
+  end_date?: string
+  monthly_amount: number
+  total_amount?: number
   installments?: number
+  charge_day?: number
+  payment_method?: string
   status: string
-  start_date?: string
+  nedarim_subscription_id?: string
   created_at: string
+  // Computed
+  paid_amount?: number
+  remaining?: number
 }
 
 export interface InquiryResponse {
@@ -234,4 +271,92 @@ export interface SalespersonStats {
   total_leads: number
   new_leads: number
   open_tasks: number
+}
+
+// ============================================================
+// Lead Payment & Product Selection API Types
+// ============================================================
+
+export interface CreatePaymentLinkRequest {
+  amount: number
+  currency?: string
+  installments?: number
+  payment_method?: string
+  product_id?: number
+  redirect_url?: string
+}
+
+export interface CreatePaymentLinkResponse {
+  payment_id: number
+  lead_id: number
+  nedarim_donation_id: string
+  payment_link: string
+  status: string
+}
+
+export interface SelectProductRequest {
+  product_id: number
+  price?: number
+  payments_count?: number
+  monthly_payment?: number
+  payment_day?: number
+  payment_type?: string
+  coupon_id?: number
+}
+
+export interface SelectProductResponse {
+  lead_id: number
+  lead_product_id: number
+  product_name: string
+  price: number
+  payments_count: number
+  monthly_payment: number
+}
+
+export interface LeadPaymentStatus {
+  lead_id: number
+  first_payment: boolean
+  first_payment_id?: number
+  nedarim_payment_link?: string
+  selected_product_id?: number
+  payments: Payment[]
+}
+
+export interface CollectionSummary {
+  pending_amount: number
+  collected_amount: number
+  failed_amount: number
+  overdue_count: number
+}
+
+export interface LeadProduct {
+  id: number
+  lead_id: number
+  product_id?: number
+  price?: number
+  payments_count?: number
+  monthly_payment?: number
+  payment_day?: number
+  payment_type: string
+  language: string
+  coupon_id?: number
+  discount_type?: string
+  discount_amount?: number
+  final_price?: number
+  entry_module_id?: number
+  entry_date?: string
+  sessions_remaining?: number
+  estimated_finish?: string
+  created_at: string
+}
+
+export interface Product {
+  id: number
+  name: string
+  product_number?: string
+  product_number_en?: string
+  price?: number
+  payments_count: number
+  is_active: boolean
+  created_at: string
 }

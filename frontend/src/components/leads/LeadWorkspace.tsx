@@ -1,4 +1,4 @@
-import { useState, useCallback, type ReactNode, type FormEvent } from 'react'
+import { useState, useCallback, useMemo, type ReactNode, type FormEvent } from 'react'
 import {
   MessageSquarePlus,
   UserCheck,
@@ -12,14 +12,21 @@ import {
 import { api } from '@/lib/api'
 import { getStatus, formatDateTime } from '@/lib/status'
 import { EditableField, type SelectOption } from '@/components/ui/EditableField'
+import { useModal } from '@/components/ui/Modal'
 import type { Lead, LeadInteraction, Salesperson, Course, Campaign } from '@/types'
 import s from '@/styles/shared.module.css'
 
 /* ══════════════════════════════════════════════════════════════
    Lead Workspace — Full workspace view for lead management
+   ═══════════════════════════════════════════════════════════════
    Supports both CREATE and EDIT modes:
    - CREATE: lead is null, shows form with fields
-   - EDIT: lead is provided, inline editable fields
+   - EDIT: lead is provided, inline editable fields (auto-save on blur)
+   
+   UX Improvements:
+   - Auto-save on blur for edit mode (no OK/✓ buttons needed)
+   - Unsaved changes detection for create mode
+   - Confirmation dialog when closing with unsaved changes
    ══════════════════════════════════════════════════════════════ */
 
 // Status badge helper
@@ -46,6 +53,26 @@ const SOURCE_OPTIONS: SelectOption[] = [
   { value: 'referral', label: 'הפניה' },
   { value: 'other', label: 'אחר' },
 ]
+
+// Initial empty form state
+const INITIAL_FORM = {
+  full_name: '',
+  family_name: '',
+  phone: '',
+  phone2: '',
+  email: '',
+  city: '',
+  address: '',
+  id_number: '',
+  source_type: '',
+  source_name: '',
+  source_message: '',
+  campaign_id: '',
+  course_id: '',
+  notes: '',
+  salesperson_id: '',
+  status: 'new',
+}
 
 interface LeadWorkspaceProps {
   lead?: Lead | null  // null/undefined = create mode
@@ -75,26 +102,18 @@ export function LeadWorkspace({
   const isCreateMode = !lead
   const [activeTab, setActiveTab] = useState<TabId>('interactions')
   const [isSaving, setIsSaving] = useState(false)
+  const { confirm } = useModal()
   
   // Form state for create mode
-  const [form, setForm] = useState({
-    full_name: '',
-    family_name: '',
-    phone: '',
-    phone2: '',
-    email: '',
-    city: '',
-    address: '',
-    id_number: '',
-    source_type: '',
-    source_name: '',
-    source_message: '',
-    campaign_id: '',
-    course_id: '',
-    notes: '',
-    salesperson_id: '',
-    status: 'new',
-  })
+  const [form, setForm] = useState(INITIAL_FORM)
+
+  // Check if form has been modified (dirty state)
+  const isDirty = useMemo(() => {
+    if (!isCreateMode) return false // Edit mode uses auto-save, no dirty tracking
+    return Object.keys(INITIAL_FORM).some(
+      key => form[key as keyof typeof form] !== INITIAL_FORM[key as keyof typeof INITIAL_FORM]
+    )
+  }, [isCreateMode, form])
 
   const updateForm = (field: string, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -111,6 +130,21 @@ export function LeadWorkspace({
       throw err
     }
   }, [lead?.id, onUpdate])
+
+  // Close handler with unsaved changes confirmation
+  const handleClose = useCallback(async () => {
+    if (isDirty) {
+      const shouldDiscard = await confirm({
+        title: 'שינויים לא נשמרו',
+        message: 'יש לך שינויים שלא נשמרו. האם לבטל אותם?',
+        confirmLabel: 'בטל שינויים',
+        cancelLabel: 'המשך לערוך',
+        danger: true,
+      })
+      if (!shouldDiscard) return
+    }
+    onClose()
+  }, [isDirty, confirm, onClose])
 
   // Create handler
   const handleCreate = async (e: FormEvent) => {
@@ -183,7 +217,7 @@ export function LeadWorkspace({
               <span>{form.full_name || 'ליד חדש'} {form.family_name}</span>
               <Badge entity="leads" value={form.status} />
             </div>
-            <button type="button" className={`${s.btn} ${s['btn-ghost']} ${s['btn-icon']}`} onClick={onClose} title="חזור">
+            <button type="button" className={`${s.btn} ${s['btn-ghost']} ${s['btn-icon']}`} onClick={handleClose} title="חזור">
               <ArrowLeft size={18} />
             </button>
           </div>
@@ -281,7 +315,7 @@ export function LeadWorkspace({
             <button type="submit" className={`${s.btn} ${s['btn-primary']}`} disabled={isSaving || !form.full_name.trim() || !form.phone.trim()}>
               <Save size={16} /> {isSaving ? 'שומר...' : 'צור ליד'}
             </button>
-            <button type="button" className={`${s.btn} ${s['btn-ghost']}`} onClick={onClose}>
+            <button type="button" className={`${s.btn} ${s['btn-ghost']}`} onClick={handleClose}>
               ביטול
             </button>
           </div>

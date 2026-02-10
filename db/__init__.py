@@ -42,8 +42,16 @@ class Settings(BaseSettings):
     # Frontend URL (for reset links, welcome page, etc.)
     FRONTEND_URL: str = "http://localhost:5173"
 
+    # Cloudflare R2 Storage
+    R2_ACCOUNT_ID: str = ""
+    R2_ACCESS_KEY_ID: str = ""
+    R2_SECRET_ACCESS_KEY: str = ""
+    R2_BUCKET_NAME: str = ""
+    R2_PUBLIC_URL: str = ""
+
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
     @property
     def async_database_url(self) -> str:
@@ -59,7 +67,19 @@ class Settings(BaseSettings):
 settings = Settings()
 
 # Use async_database_url to ensure correct driver for Render deployments
-engine = create_async_engine(settings.async_database_url, echo=False)
+engine = create_async_engine(
+    settings.async_database_url,
+    echo=False,
+    pool_size=5,
+    max_overflow=10,
+    pool_timeout=30,
+    pool_recycle=1800,
+    pool_pre_ping=True,
+    connect_args={
+        "timeout": 10,
+        "command_timeout": 30,
+    }
+)
 SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 

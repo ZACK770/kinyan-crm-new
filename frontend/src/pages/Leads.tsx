@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   Plus,
-  Search,
   Phone,
   Eye,
   Pencil,
@@ -14,7 +13,7 @@ import { api } from '@/lib/api'
 import { getStatus, getSourceLabel, formatDate, formatDateTime } from '@/lib/status'
 import { useModal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
-import { DataTable, type Column } from '@/components/ui/DataTable'
+import { SmartTable, type SmartColumn } from '@/components/ui/SmartTable'
 import { LeadWorkspace } from '@/components/leads'
 import type { Lead, LeadInteraction, Salesperson, Course, Campaign } from '@/types'
 import s from '@/styles/shared.module.css'
@@ -459,9 +458,6 @@ export function LeadsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState('')
-  const [spFilter, setSpFilter] = useState('')
-  const [phoneSearch, setPhoneSearch] = useState('')
   
   // Workspace view state: 'list' | 'create' | Lead object (edit mode)
   type ViewMode = 'list' | 'create'
@@ -496,33 +492,54 @@ export function LeadsPage() {
   const fetchLeads = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams()
-      if (statusFilter) params.set('status', statusFilter)
-      if (spFilter) params.set('salesperson_id', spFilter)
-      params.set('limit', '200')
-      const qs = params.toString()
-      const data = await api.get<Lead[]>(`leads?${qs}`)
+      // Fetch leads (default limit 200 for now, filtering handled by SmartTable)
+      const data = await api.get<Lead[]>('leads?limit=500')
       setLeads(data)
     } catch (err: unknown) {
       toast.error((err as { message?: string }).message ?? 'שגיאה בטעינת לידים')
     } finally {
       setLoading(false)
     }
-  }, [statusFilter, spFilter, toast])
+  }, [toast])
 
   useEffect(() => { fetchLeads() }, [fetchLeads])
 
-  /* ── Phone search ── */
-  const handlePhoneSearch = async () => {
-    if (!phoneSearch.trim()) return fetchLeads()
-    setLoading(true)
+  /* ── Inline Update ── */
+  const handleInlineUpdate = async (lead: Lead, field: string, value: unknown) => {
     try {
-      const data = await api.get<Lead[]>(`leads/search?phone=${encodeURIComponent(phoneSearch.trim())}`)
-      setLeads(data)
-    } catch {
-      toast.error('שגיאה בחיפוש')
-    } finally {
-      setLoading(false)
+      const payload: Record<string, unknown> = { [field]: value }
+      // Handle special fields conversions if needed
+      await api.patch(`leads/${lead.id}`, payload)
+      toast.success('עודכן בהצלחה')
+      
+      // Update local state to avoid full reload
+      setLeads(prev => prev.map(p => p.id === lead.id ? { ...p, ...payload } : p))
+    } catch (err) {
+      toast.error('שגיאה בעדכון')
+      throw err // SmartTable will catch this to revert/show error
+    }
+  }
+
+  /* ── Bulk Actions ── */
+  const handleBulkUpdate = async (selectedLeads: Lead[], field: string, value: unknown) => {
+    try {
+      const ids = selectedLeads.map(l => l.id)
+      await api.post('leads/bulk-update', { ids, field, value })
+      toast.success(`עודכנו ${ids.length} לידים`)
+      fetchLeads()
+    } catch (err) {
+      toast.error('שגיאה בעדכון מרובה')
+    }
+  }
+
+  const handleBulkDelete = async (selectedLeads: Lead[]) => {
+    try {
+      const ids = selectedLeads.map(l => l.id)
+      await api.post('leads/bulk-delete', { ids })
+      toast.success(`נמחקו ${ids.length} לידים`)
+      fetchLeads()
+    } catch (err) {
+      toast.error('שגיאה במחיקה')
     }
   }
 
@@ -667,21 +684,77 @@ export function LeadsPage() {
     })
   }
 
-  /* ── Columns ── */
-  const columns: Column<Lead>[] = [
-    { key: 'full_name', header: 'שם מלא', render: r => `${r.full_name} ${r.family_name ?? ''}`.trim() },
-    { key: 'phone', header: 'טלפון', className: s.mono, render: r => <span dir="ltr">{r.phone}</span> },
-    { key: 'status', header: 'סטטוס', render: r => <Badge entity="lead" value={r.status} /> },
-    { key: 'source_type', header: 'מקור', render: r => getSourceLabel(r.source_type) },
-    {
-      key: 'salesperson_id',
-      header: 'איש מכירות',
-      render: r => salespersons.find(sp => sp.id === r.salesperson_id)?.name ?? '—',
+  /* ── Columns (SmartTable) ── */
+  const columns: SmartColumn<Lead>[] = [
+    { 
+      key: 'full_name', 
+      header: 'שם מלא', 
+      type: 'text',
+      sortable: true,
+      filterable: true,
+      render: (r, update) => (
+        <span 
+          style={{ fontWeight: 600, color: 'var(--color-primary)', cursor: 'pointer' }}
+          onClick={() => openDetail(r)}
+        >
+          {r.full_name} {r.family_name ?? ''}
+        </span>
+      )
     },
-    { key: 'created_at', header: 'תאריך', render: r => formatDate(r.created_at), className: s.muted },
+    { 
+      key: 'phone', 
+      header: 'טלפון', 
+      type: 'text',
+      className: s.mono, 
+      renderView: r => <span dir="ltr">{r.phone}</span>,
+      editable: false // Phone usually shouldn't be edited inline easily
+    },
+    { 
+      key: 'status', 
+      header: 'סטטוס', 
+      type: 'select',
+      options: [
+        { value: 'new', label: 'חדש' },
+        { value: 'contacted', label: 'נוצר קשר' },
+        { value: 'interested', label: 'מעוניין' },
+        { value: 'converted', label: 'הומר' },
+        { value: 'irrelevant', label: 'לא רלוונטי' },
+      ],
+      renderView: r => <Badge entity="lead" value={r.status} />
+    },
+    { 
+      key: 'salesperson_id', 
+      header: 'איש מכירות', 
+      type: 'select',
+      options: salespersons.map(sp => ({ value: sp.id, label: sp.name })),
+      renderView: r => salespersons.find(sp => sp.id === r.salesperson_id)?.name ?? '—'
+    },
+    { 
+      key: 'source_type', 
+      header: 'מקור', 
+      type: 'select',
+      options: [
+        { value: 'yemot', label: 'ימות המשיח' },
+        { value: 'elementor', label: 'אלמנטור' },
+        { value: 'manual', label: 'ידני' },
+        { value: 'referral', label: 'הפניה' },
+        { value: 'other', label: 'אחר' },
+      ],
+      renderView: r => getSourceLabel(r.source_type)
+    },
+    { 
+      key: 'created_at', 
+      header: 'תאריך יצירה', 
+      type: 'datetime',
+      className: s.muted,
+      editable: false,
+      renderView: r => formatDate(r.created_at)
+    },
     {
       key: '_actions',
       header: '',
+      type: 'text',
+      width: 80,
       render: r => (
         <div style={{ display: 'flex', gap: 4 }}>
           <button
@@ -793,71 +866,31 @@ export function LeadsPage() {
         </div>
       </div>
 
-      {/* Card with toolbar + table */}
+      {/* Card with SmartTable */}
       <div className={s.card}>
-        <div className={s.toolbar}>
-          {/* Phone search */}
-          <div style={{ display: 'flex', gap: 4, flex: 1, maxWidth: 280 }}>
-            <input
-              className={`${s.input} ${s['input-sm']}`}
-              placeholder="חיפוש לפי טלפון..."
-              value={phoneSearch}
-              onChange={e => setPhoneSearch(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handlePhoneSearch()}
-              dir="ltr"
-              style={{ flex: 1 }}
-            />
-            <button className={`${s.btn} ${s['btn-secondary']} ${s['btn-sm']}`} onClick={handlePhoneSearch}>
-              <Search size={14} strokeWidth={1.5} />
-            </button>
-          </div>
-
-          {/* Status filter */}
-          <select
-            className={`${s.select} ${s['select-sm']}`}
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
-          >
-            <option value="">כל הסטטוסים</option>
-            <option value="new">ליד חדש</option>
-            <option value="first_call">חיוג ראשון</option>
-            <option value="follow_up">במעקב</option>
-            <option value="interested">מתעניין</option>
-            <option value="payment_done">נסלק</option>
-            <option value="converted">ליד סגור-לקוח</option>
-            <option value="not_relevant">לא רלוונטי</option>
-          </select>
-
-          {/* Salesperson filter */}
-          <select
-            className={`${s.select} ${s['select-sm']}`}
-            value={spFilter}
-            onChange={e => setSpFilter(e.target.value)}
-          >
-            <option value="">כל אנשי המכירות</option>
-            {salespersons.map(sp => (
-              <option key={sp.id} value={sp.id}>{sp.name}</option>
-            ))}
-          </select>
-
-          {phoneSearch && (
-            <button
-              className={`${s.btn} ${s['btn-ghost']} ${s['btn-sm']}`}
-              onClick={() => { setPhoneSearch(''); fetchLeads() }}
-            >
-              נקה חיפוש
-            </button>
-          )}
-        </div>
-
-        <DataTable
-          columns={columns}
+        <SmartTable
+          columns={columns as SmartColumn<Lead>[]}
           data={leads}
           loading={loading}
           emptyText="לא נמצאו לידים"
           emptyIcon={<Phone size={40} strokeWidth={1.5} />}
           onRowClick={openLeadWorkspace}
+          onUpdate={handleInlineUpdate}
+          onDelete={handleBulkDelete}
+          onBulkUpdate={handleBulkUpdate}
           keyExtractor={(row) => row.id}
+          storageKey="leads_table_v1"
+          bulkActions={[
+            {
+              id: 'assign_sp',
+              label: 'שיוך לאיש מכירות',
+              icon: <UserCheck size={14} />,
+              action: (selected) => {
+                // TODO: Open modal to select SP
+                toast.success(`נבחרו ${selected.length} לידים לשיוך`)
+              }
+            }
+          ]}
         />
       </div>
     </div>

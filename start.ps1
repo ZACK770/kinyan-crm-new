@@ -23,19 +23,22 @@ $env:API_KEY = "dev-webhook-key"
 $env:JWT_SECRET_KEY = "dev-jwt-secret-key-change-in-production"
 $env:JWT_ALGORITHM = "HS256"
 $env:JWT_EXPIRATION_MINUTES = "1440"
-$env:FRONTEND_URL = "http://localhost:8000"
+$env:FRONTEND_URL = "http://localhost:8001"
 
 # Google OAuth
 $env:GOOGLE_CLIENT_ID = "638402661079-pjfnm1g84il9uvj9vtgh4v5jqj6uk1gi.apps.googleusercontent.com"
 $env:GOOGLE_CLIENT_SECRET = "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"
-$env:GOOGLE_REDIRECT_URI = "http://localhost:8000/api/auth/google/callback"
+$env:GOOGLE_REDIRECT_URI = "http://localhost:8001/api/auth/google/callback"
 
 Write-Host "[OK] Environment configured" -ForegroundColor Green
 Write-Host "[DB] Render PostgreSQL (Frankfurt)" -ForegroundColor Yellow
 
 # Check if virtual environment exists
-if (Test-Path ".\venv\Scripts\Activate.ps1") {
-    Write-Host "[OK] Activating virtual environment..." -ForegroundColor Cyan
+if (Test-Path ".\.venv311\Scripts\Activate.ps1") {
+    Write-Host "[OK] Activating virtual environment (.venv311)..." -ForegroundColor Cyan
+    & .\.venv311\Scripts\Activate.ps1
+} elseif (Test-Path ".\venv\Scripts\Activate.ps1") {
+    Write-Host "[OK] Activating virtual environment (venv)..." -ForegroundColor Cyan
     & .\venv\Scripts\Activate.ps1
 }
 
@@ -69,13 +72,13 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "   ONE SERVER - Everything included!" -ForegroundColor White
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "   App:     http://localhost:8000" -ForegroundColor White
-Write-Host "   API:     http://localhost:8000/api/" -ForegroundColor White
-Write-Host "   Docs:    http://localhost:8000/docs" -ForegroundColor White
-Write-Host "   Health:  http://localhost:8000/health" -ForegroundColor White
+Write-Host "   App:     http://localhost:8001" -ForegroundColor White
+Write-Host "   API:     http://localhost:8001/api/" -ForegroundColor White
+Write-Host "   Docs:    http://localhost:8001/docs" -ForegroundColor White
+Write-Host "   Health:  http://localhost:8001/health" -ForegroundColor White
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "Press Ctrl+C to stop" -ForegroundColor Gray
 Write-Host ""
 
-uvicorn app:app --reload --host 0.0.0.0 --port 8000
+uvicorn app:app --reload --host 0.0.0.0 --port 8001

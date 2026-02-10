@@ -1,10 +1,10 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Plus, GraduationCap, Eye, BookOpen, ArrowRight } from 'lucide-react'
+import { Plus, GraduationCap, Eye, ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, formatDate, formatCurrency } from '@/lib/status'
 import { useModal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
-import { DataTable, type Column } from '@/components/ui/DataTable'
+import { SmartTable, type SmartColumn } from '@/components/ui/SmartTable'
 import type { Student, Course, Enrollment } from '@/types'
 import s from '@/styles/shared.module.css'
 
@@ -175,7 +175,6 @@ export function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState('')
 
   // Workspace view state
   type ViewMode = 'list' | 'convert'
@@ -186,17 +185,14 @@ export function StudentsPage() {
   const fetchStudents = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams()
-      if (statusFilter) params.set('status', statusFilter)
-      params.set('limit', '200')
-      const data = await api.get<Student[]>(`students?${params}`)
+      const data = await api.get<Student[]>('students?limit=500')
       setStudents(data)
     } catch (err: unknown) {
       toast.error((err as { message?: string }).message ?? 'שגיאה')
     } finally {
       setLoading(false)
     }
-  }, [statusFilter, toast])
+  }, [toast])
 
   useEffect(() => { fetchStudents() }, [fetchStudents])
   useEffect(() => { api.get<Course[]>('courses').then(setCourses).catch(() => {}) }, [])
@@ -249,16 +245,79 @@ export function StudentsPage() {
     setViewMode('convert')
   }
 
-  const columns: Column<Student>[] = [
-    { key: 'full_name', header: 'שם מלא' },
-    { key: 'phone', header: 'טלפון', className: s.mono, render: r => <span dir="ltr">{r.phone}</span> },
-    { key: 'status', header: 'סטטוס', render: r => <Badge entity="student" value={r.status} /> },
-    { key: 'payment_status', header: 'תשלום', render: r => <Badge entity="payment" value={r.payment_status} /> },
-    { key: 'total_paid', header: 'שולם', render: r => formatCurrency(r.total_paid) },
-    { key: 'created_at', header: 'הצטרפות', render: r => formatDate(r.created_at), className: s.muted },
+  const handleInlineUpdate = async (stu: Student, field: string, value: unknown) => {
+    try {
+      await api.patch(`students/${stu.id}`, { [field]: value })
+      toast.success('עודכן')
+      setStudents(prev => prev.map(s => s.id === stu.id ? { ...s, [field]: value } : s))
+    } catch { toast.error('שגיאה בעדכון') }
+  }
+
+  const columns: SmartColumn<Student>[] = [
+    { 
+      key: 'full_name', 
+      header: 'שם מלא', 
+      type: 'text',
+      sortable: true,
+      filterable: true,
+      render: (r, update) => (
+        <span style={{ fontWeight: 600, color: 'var(--color-primary)', cursor: 'pointer' }} onClick={() => openDetail(r)}>
+          {r.full_name}
+        </span>
+      )
+    },
+    { 
+      key: 'phone', 
+      header: 'טלפון', 
+      type: 'text',
+      className: s.mono, 
+      renderView: r => <span dir="ltr">{r.phone}</span>,
+      editable: false
+    },
+    { 
+      key: 'status', 
+      header: 'סטטוס', 
+      type: 'select',
+      options: [
+        { value: 'active', label: 'פעיל' },
+        { value: 'inactive', label: 'לא פעיל' },
+        { value: 'graduated', label: 'סיים' },
+        { value: 'suspended', label: 'מושהה' },
+      ],
+      renderView: r => <Badge entity="student" value={r.status} />
+    },
+    { 
+      key: 'payment_status', 
+      header: 'תשלום', 
+      type: 'select',
+      options: [
+        { value: 'paid', label: 'שולם' },
+        { value: 'partial', label: 'חלקי' },
+        { value: 'pending', label: 'ממתין' },
+        { value: 'not_paid', label: 'לא שולם' },
+      ],
+      renderView: r => <Badge entity="payment" value={r.payment_status} />
+    },
+    { 
+      key: 'total_paid', 
+      header: 'שולם', 
+      type: 'currency',
+      renderView: r => formatCurrency(r.total_paid),
+      editable: false
+    },
+    { 
+      key: 'created_at', 
+      header: 'הצטרפות', 
+      type: 'date',
+      className: s.muted,
+      renderView: r => formatDate(r.created_at),
+      editable: false
+    },
     {
       key: '_actions',
       header: '',
+      type: 'text',
+      width: 50,
       render: r => (
         <button className={`${s.btn} ${s['btn-ghost']} ${s['btn-xs']}`} onClick={e => { e.stopPropagation(); openDetail(r) }}>
           <Eye size={14} strokeWidth={1.5} />
@@ -313,16 +372,7 @@ export function StudentsPage() {
       </div>
 
       <div className={s.card}>
-        <div className={s.toolbar}>
-          <select className={`${s.select} ${s['select-sm']}`} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-            <option value="">כל הסטטוסים</option>
-            <option value="active">פעיל</option>
-            <option value="inactive">לא פעיל</option>
-            <option value="graduated">סיים</option>
-          </select>
-        </div>
-
-        <DataTable
+        <SmartTable
           columns={columns}
           data={students}
           loading={loading}
@@ -330,6 +380,8 @@ export function StudentsPage() {
           emptyIcon={<GraduationCap size={40} strokeWidth={1.5} />}
           onRowClick={openDetail}
           keyExtractor={r => r.id}
+          storageKey="students_table_v1"
+          onUpdate={handleInlineUpdate}
         />
       </div>
     </div>

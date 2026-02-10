@@ -11,10 +11,12 @@ from db.models import Expense
 
 async def create_expense(
     db: AsyncSession,
-    vendor: str,
+    description: str,
     amount: float,
+    category: str | None = None,
+    vendor: str | None = None,
     expense_date: date | None = None,
-    description: str | None = None,
+    notes: str | None = None,
     course_id: int | None = None,
     campaign_id: int | None = None,
     payment_method: str | None = None,
@@ -22,10 +24,12 @@ async def create_expense(
 ) -> Expense:
     """Record a new expense."""
     expense = Expense(
+        description=description,
+        category=category,
+        amount=amount,
         vendor=vendor,
         expense_date=expense_date or date.today(),
-        amount=amount,
-        description=description,
+        notes=notes,
         course_id=course_id,
         campaign_id=campaign_id,
         payment_method=payment_method,

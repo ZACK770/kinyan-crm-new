@@ -14,10 +14,12 @@ router = APIRouter()
 
 
 class ExpenseCreate(BaseModel):
-    vendor: str
+    description: str
     amount: float
+    category: str | None = None
+    vendor: str | None = None
     expense_date: date | None = None
-    description: str | None = None
+    notes: str | None = None
     course_id: int | None = None
     campaign_id: int | None = None
     payment_method: str | None = None
@@ -42,12 +44,15 @@ async def list_expenses(
     return [
         {
             "id": e.id,
-            "vendor": e.vendor,
-            "amount": float(e.amount),
-            "expense_date": str(e.expense_date),
             "description": e.description,
+            "category": e.category,
+            "amount": float(e.amount) if e.amount else 0,
+            "expense_date": str(e.expense_date) if e.expense_date else None,
+            "vendor": e.vendor,
+            "notes": e.notes,
             "course_id": e.course_id,
             "campaign_id": e.campaign_id,
+            "created_at": str(e.created_at) if e.created_at else None,
         }
         for e in items
     ]

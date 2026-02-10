@@ -3,6 +3,7 @@ import {
   useContext,
   useState,
   useCallback,
+  useMemo,
   useRef,
   useEffect,
   type FC,
@@ -138,12 +139,15 @@ export const ToastProvider: FC<{ children: ReactNode }> = ({ children }) => {
     }, 200)
   }, [])
 
-  const ctx: ToastContextType = {
+  // IMPORTANT: Memoize ctx to prevent infinite re-render loops!
+  // Without useMemo, ctx changes every render, causing useCallback deps to change,
+  // which triggers useEffect, which fetches, which on error shows toast, which re-renders...
+  const ctx: ToastContextType = useMemo(() => ({
     success: (title, message) => addToast('success', title, message),
     error: (title, message) => addToast('error', title, message),
     warning: (title, message) => addToast('warning', title, message),
     info: (title, message) => addToast('info', title, message),
-  }
+  }), [addToast])
 
   return (
     <ToastContext.Provider value={ctx}>

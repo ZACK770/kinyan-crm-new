@@ -3,7 +3,7 @@ import { Plus, CreditCard, Search, ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, formatDate, formatCurrency } from '@/lib/status'
 import { useToast } from '@/components/ui/Toast'
-import { DataTable, type Column } from '@/components/ui/DataTable'
+import { SmartTable, type SmartColumn } from '@/components/ui/SmartTable'
 import type { Payment } from '@/types'
 import s from '@/styles/shared.module.css'
 
@@ -129,13 +129,35 @@ export function PaymentsPage() {
     setViewMode('create')
   }
 
-  const columns: Column<Payment>[] = [
-    { key: 'id', header: '#', render: r => r.id },
-    { key: 'amount', header: 'סכום', render: r => formatCurrency(r.amount) },
-    { key: 'payment_method', header: 'אמצעי', render: r => r.payment_method ?? '—' },
-    { key: 'status', header: 'סטטוס', render: r => <Badge entity="payment" value={r.status} /> },
-    { key: 'reference', header: 'אסמכתא', render: r => r.reference ?? '—', className: s.mono },
-    { key: 'payment_date', header: 'תאריך', render: r => formatDate(r.payment_date ?? r.created_at), className: s.muted },
+  const columns: SmartColumn<Payment>[] = [
+    { key: 'id', header: '#', type: 'number', width: 60, editable: false },
+    { key: 'amount', header: 'סכום', type: 'currency', renderView: r => formatCurrency(r.amount) },
+    { 
+      key: 'payment_method', 
+      header: 'אמצעי', 
+      type: 'select',
+      options: [
+        { value: 'credit_card', label: 'כרטיס אשראי' },
+        { value: 'bank_transfer', label: 'העברה בנקאית' },
+        { value: 'cash', label: 'מזומן' },
+        { value: 'check', label: 'צ\'ק' },
+        { value: 'nedarim', label: 'נדרים פלוס' },
+      ],
+      renderView: r => r.payment_method ?? '—'
+    },
+    { 
+      key: 'status', 
+      header: 'סטטוס', 
+      type: 'select',
+      options: [
+        { value: 'paid', label: 'שולם' },
+        { value: 'pending', label: 'ממתין' },
+        { value: 'partial', label: 'חלקי' },
+      ],
+      renderView: r => <Badge entity="payment" value={r.status} /> 
+    },
+    { key: 'reference', header: 'אסמכתא', type: 'text', className: s.mono, renderView: r => r.reference ?? '—' },
+    { key: 'payment_date', header: 'תאריך', type: 'date', className: s.muted, renderView: r => formatDate(r.payment_date ?? r.created_at) },
   ]
 
   // Show workspace for create
@@ -196,21 +218,15 @@ export function PaymentsPage() {
           </div>
         </div>
 
-        {!studentId && !payments.length && !loading ? (
-          <div className={s.empty}>
-            <span className={s['empty-icon']}><CreditCard size={40} strokeWidth={1.5} /></span>
-            <span className={s['empty-text']}>הזן מזהה תלמיד כדי לצפות בתשלומים</span>
-          </div>
-        ) : (
-          <DataTable
-            columns={columns}
-            data={payments}
-            loading={loading}
-            emptyText="לא נמצאו תשלומים"
-            emptyIcon={<CreditCard size={40} strokeWidth={1.5} />}
-            keyExtractor={r => r.id}
-          />
-        )}
+        <SmartTable
+          columns={columns}
+          data={payments}
+          loading={loading}
+          emptyText={studentId ? "לא נמצאו תשלומים" : "הזן מזהה תלמיד כדי לצפות בתשלומים"}
+          emptyIcon={<CreditCard size={40} strokeWidth={1.5} />}
+          keyExtractor={r => r.id}
+          storageKey="payments_table"
+        />
       </div>
     </div>
   )
