@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from db import get_db
 from services import course_tracks, course_sessions
-from api.dependencies import get_current_user, require_permission
+from api.dependencies import require_entity_access
 
 
 router = APIRouter(prefix="/api/course-tracks", tags=["Course Tracks"])
@@ -84,11 +84,9 @@ async def get_tracks(
     skip: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_entity_access("course_tracks", "view"))
 ):
     """קבלת כל המסלולים עם פילטרים"""
-    await require_permission(current_user, "course_tracks", "view")
-    
     tracks = await course_tracks.get_all_tracks(
         db=db,
         course_id=course_id,
@@ -108,10 +106,9 @@ async def get_upcoming_entry_points(
     course_id: Optional[int] = None,
     city: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_entity_access("course_tracks", "view"))
 ):
     """קבלת נקודות כניסה קרובות - חשוב לאנשי מכירות"""
-    await require_permission(current_user, "course_tracks", "view")
     
     entry_points = await course_tracks.get_upcoming_entry_points(
         db=db,
@@ -127,11 +124,9 @@ async def get_upcoming_entry_points(
 async def get_track(
     track_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_entity_access("course_tracks", "view"))
 ):
     """קבלת מסלול ספציפי"""
-    await require_permission(current_user, "course_tracks", "view")
-    
     track = await course_tracks.get_track(db, track_id)
     if not track:
         raise HTTPException(status_code=404, detail="מסלול לא נמצא")
@@ -143,11 +138,9 @@ async def get_track(
 async def get_track_progress(
     track_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_entity_access("course_tracks", "view"))
 ):
     """קבלת מידע על התקדמות המסלול"""
-    await require_permission(current_user, "course_tracks", "view")
-    
     progress = await course_tracks.get_track_progress(db, track_id)
     if not progress:
         raise HTTPException(status_code=404, detail="מסלול לא נמצא")
@@ -165,11 +158,9 @@ async def get_track_sessions(
     skip: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_entity_access("course_tracks", "view"))
 ):
     """קבלת כל השיעורים של מסלול"""
-    await require_permission(current_user, "course_tracks", "view")
-    
     sessions = await course_sessions.get_track_sessions(
         db=db,
         track_id=track_id,
@@ -188,11 +179,9 @@ async def get_track_sessions(
 async def create_track(
     track_data: CourseTrackCreate,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_entity_access("course_tracks", "create"))
 ):
     """יצירת מסלול חדש"""
-    await require_permission(current_user, "course_tracks", "create")
-    
     track = await course_tracks.create_track(
         db=db,
         course_id=track_data.course_id,
@@ -214,11 +203,9 @@ async def update_track(
     track_id: int,
     track_data: CourseTrackUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_entity_access("course_tracks", "edit"))
 ):
     """עדכון מסלול"""
-    await require_permission(current_user, "course_tracks", "edit")
-    
     update_data = track_data.model_dump(exclude_unset=True)
     track = await course_tracks.update_track(db, track_id, **update_data)
     
@@ -232,11 +219,9 @@ async def update_track(
 async def delete_track(
     track_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_entity_access("course_tracks", "delete"))
 ):
     """מחיקת מסלול"""
-    await require_permission(current_user, "course_tracks", "delete")
-    
     success = await course_tracks.delete_track(db, track_id)
     if not success:
         raise HTTPException(status_code=404, detail="מסלול לא נמצא")
@@ -249,11 +234,9 @@ async def advance_track_session(
     track_id: int,
     advance_data: SessionAdvance,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_entity_access("course_tracks", "edit"))
 ):
     """קידום המסלול למפגש הבא"""
-    await require_permission(current_user, "course_tracks", "edit")
-    
     track = await course_tracks.advance_track_session(
         db=db,
         track_id=track_id,
@@ -271,11 +254,9 @@ async def generate_track_schedule(
     track_id: int,
     schedule_data: GenerateScheduleRequest,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_entity_access("course_tracks", "edit"))
 ):
     """יצירת לוח זמנים מלא למסלול"""
-    await require_permission(current_user, "course_tracks", "edit")
-    
     sessions = await course_sessions.generate_full_track_schedule(
         db=db,
         track_id=track_id,
@@ -293,11 +274,9 @@ async def generate_track_schedule(
 async def calculate_next_entry(
     track_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_entity_access("course_tracks", "view"))
 ):
     """חישוב תאריך נקודת הכניסה הבאה"""
-    await require_permission(current_user, "course_tracks", "view")
-    
     track = await course_tracks.get_track(db, track_id)
     if not track:
         raise HTTPException(status_code=404, detail="מסלול לא נמצא")

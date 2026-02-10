@@ -566,6 +566,64 @@
   font-size: 13px;
 }
 
+/* --- Form --- */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.form-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding-top: 8px;
+}
+
+/* --- Table container --- */
+.table-container {
+  overflow-x: auto;
+}
+
+/* --- Icon buttons --- */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.icon-btn:hover {
+  background: var(--color-border-light);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+.icon-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #fee2e2;
+  background: transparent;
+  border-radius: var(--radius-md);
+  color: #dc2626;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.icon-btn-danger:hover {
+  background: #fee2e2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
 /* --- Animations --- */
 @keyframes spin {
   from { transform: rotate(0deg); }

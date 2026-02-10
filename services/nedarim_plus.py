@@ -40,6 +40,12 @@ class NedarimClient:
         self.base_url = settings.NEDARIM_API_URL
         self.api_key = settings.NEDARIM_API_KEY
         self.mosad_id = settings.NEDARIM_MOSAD_ID
+        
+        if not self.api_key or not self.mosad_id:
+            raise ValueError(
+                "Nedarim Plus API credentials not configured. "
+                "Please set NEDARIM_API_KEY and NEDARIM_MOSAD_ID in environment variables."
+            )
     
     def _get_headers(self) -> Dict[str, str]:
         return {
