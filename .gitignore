@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.env
+.venv/
+venv/
+*.db
+*.sqlite3
+alembic/versions/*.py
+!alembic/versions/__init__.py
+.idea/
+.vscode/
+*.log
