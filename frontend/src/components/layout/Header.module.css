@@ -111,7 +111,11 @@
   line-height: 1;
 }
 
-/* User avatar */
+/* User avatar and menu */
+.header__user {
+  position: relative;
+}
+
 .header__avatar {
   display: flex;
   align-items: center;
@@ -139,10 +143,94 @@
   font-size: 12px;
   font-weight: 600;
 }
+.header__avatar-img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+}
 .header__avatar-name {
   font-size: 13px;
   font-weight: 500;
   color: var(--color-text);
+}
+
+/* User dropdown menu */
+.header__user-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 240px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  z-index: 50;
+  animation: dropdownIn 150ms ease-out;
+}
+
+.header__user-info {
+  padding: 16px;
+  border-bottom: 1px solid var(--color-border-light);
+  background: var(--color-surface-secondary);
+}
+
+.header__user-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 4px;
+}
+
+.header__user-email {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-bottom: 4px;
+}
+
+.header__user-role {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  background: var(--color-border-light);
+  padding: 2px 6px;
+  border-radius: 10px;
+  display: inline-block;
+}
+
+.header__user-actions {
+  padding: 4px;
+}
+
+.header__user-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  color: var(--color-text);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: background var(--transition-fast), color var(--transition-fast);
+  text-align: right;
+}
+
+.header__user-action:hover {
+  background: var(--color-border-light);
+}
+
+.header__user-action--danger {
+  color: var(--color-danger);
+}
+
+.header__user-action--danger:hover {
+  background: var(--color-danger-light);
+  color: var(--color-danger-dark);
 }
 
 /* Quick-add dropdown */

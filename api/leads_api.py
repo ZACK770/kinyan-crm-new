@@ -2,12 +2,13 @@
 Leads API endpoints.
 """
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_db
 from services import leads as lead_svc
+from services import audit_logs
 from .dependencies import require_entity_access
 
 router = APIRouter(prefix="/leads", tags=["leads"])
@@ -110,10 +111,23 @@ async def get_lead(
 @router.post("/")
 async def create_lead(
     data: LeadCreate,
+    request: Request,
     user = Depends(require_entity_access("leads", "create")),
     db: AsyncSession = Depends(get_db)
 ):
     result = await lead_svc.process_incoming_lead(db, **data.model_dump())
+    
+    # Log lead creation
+    if result and "lead_id" in result:
+        await audit_logs.log_create(
+            db=db,
+            user=user,
+            entity_type="leads",
+            entity_id=result["lead_id"],
+            description=f"נוצר ליד חדש: {data.name} - {data.phone}",
+            request=request,
+        )
+    
     return result
 
 
@@ -121,6 +135,7 @@ async def create_lead(
 async def update_lead(
     lead_id: int,
     data: LeadUpdate,
+    request: Request,
     user = Depends(require_entity_access("leads", "edit")),
     db: AsyncSession = Depends(get_db)
 ):
@@ -128,6 +143,19 @@ async def update_lead(
     if not lead:
         raise HTTPException(404, "Lead not found")
     await db.commit()
+    
+    # Log lead update
+    changes = data.model_dump(exclude_unset=True)
+    await audit_logs.log_update(
+        db=db,
+        user=user,
+        entity_type="leads",
+        entity_id=lead_id,
+        description=f"עודכן ליד: {lead.full_name}",
+        changes=changes,
+        request=request,
+    )
+    
     return {"id": lead.id, "status": lead.status}
 
 

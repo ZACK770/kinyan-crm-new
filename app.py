@@ -1,15 +1,23 @@
 """
 Kinyan CRM - FastAPI Application Entry Point
 Minimal app.py - all logic lives in services/
+Serves both API and Frontend from a single server!
 """
+import os
+from pathlib import Path
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from db import init_db
 from api import leads_api, students_api, courses_api, dashboard_api, webhooks_api
 from api import inquiries_api, exams_api, payments_api, expenses_api, attendance_api, collections_api
-from api import auth_api, users_api
+from api import auth_api, users_api, audit_logs_api
+
+# Frontend build directory
+FRONTEND_DIR = Path(__file__).parent / "frontend" / "dist"
 
 
 @asynccontextmanager
@@ -51,6 +59,9 @@ app.include_router(webhooks_api.router, prefix="/webhooks", tags=["webhooks"])
 app.include_router(auth_api.router, prefix="/api/auth", tags=["auth"])
 app.include_router(users_api.router, prefix="/api/users", tags=["users"])
 
+# --- System Management ---
+app.include_router(audit_logs_api.router, prefix="/api/audit-logs", tags=["audit-logs"])
+
 
 @app.get("/")
 async def root():
@@ -60,3 +71,24 @@ async def root():
 @app.get("/health")
 async def health():
     return {"status": "healthy"}
+
+
+# --- Serve Frontend (SPA) ---
+# Mount static assets if frontend is built
+if FRONTEND_DIR.exists():
+    # Serve static assets (JS, CSS, images)
+    app.mount("/assets", StaticFiles(directory=FRONTEND_DIR / "assets"), name="assets")
+    
+    # Catch-all route for SPA - must be LAST
+    @app.get("/{full_path:path}")
+    async def serve_spa(request: Request, full_path: str):
+        """Serve the React SPA for all non-API routes."""
+        # Don't serve frontend for API/webhooks routes
+        if full_path.startswith(("api/", "webhooks/", "docs", "openapi.json", "redoc")):
+            return {"detail": "Not Found"}
+        
+        # Serve index.html for all other routes (SPA handles routing)
+        index_file = FRONTEND_DIR / "index.html"
+        if index_file.exists():
+            return FileResponse(index_file)
+        return {"detail": "Frontend not built. Run: cd frontend && npm run build"}

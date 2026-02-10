@@ -7,7 +7,10 @@ import {
   UserPlus,
   GraduationCap,
   CheckSquare,
+  LogOut,
+  User,
 } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
 import { useModal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { api } from '@/lib/api'
@@ -86,10 +89,13 @@ interface HeaderProps {
 }
 
 export const Header: FC<HeaderProps> = ({ onToggleSidebar }) => {
+  const { user, logout } = useAuth()
   const [scrolled, setScrolled] = useState(false)
   const [showQuickAdd, setShowQuickAdd] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
+  const [showUserMenu, setShowUserMenu] = useState(false)
   const quickAddRef = useRef<HTMLDivElement>(null)
+  const userMenuRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Track scroll for shadow
@@ -117,6 +123,18 @@ export const Header: FC<HeaderProps> = ({ onToggleSidebar }) => {
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [showQuickAdd])
+
+  // Close user menu on outside click
+  useEffect(() => {
+    if (!showUserMenu) return
+    const handler = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setShowUserMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showUserMenu])
 
   // Keyboard shortcut: Ctrl+K for search
   useEffect(() => {
@@ -252,11 +270,68 @@ export const Header: FC<HeaderProps> = ({ onToggleSidebar }) => {
             <span className={styles.header__badge}>3</span>
           </button>
 
-          {/* User avatar */}
-          <button className={styles.header__avatar}>
-            <span className={styles['header__avatar-circle']}>ינ</span>
-            <span className={styles['header__avatar-name']}>ישראל נתן</span>
-          </button>
+          {/* User avatar and menu */}
+          <div className={styles.header__user} ref={userMenuRef}>
+            <button 
+              className={styles.header__avatar}
+              onClick={() => setShowUserMenu(!showUserMenu)}
+            >
+              {user?.avatar_url ? (
+                <img 
+                  src={user.avatar_url} 
+                  alt={user.full_name}
+                  className={styles['header__avatar-img']}
+                />
+              ) : (
+                <span className={styles['header__avatar-circle']}>
+                  {user?.full_name?.split(' ').map(n => n[0]).join('') || 'U'}
+                </span>
+              )}
+              <span className={styles['header__avatar-name']}>
+                {user?.full_name || 'משתמש'}
+              </span>
+            </button>
+
+            {showUserMenu && (
+              <div className={styles['header__user-menu']}>
+                <div className={styles['header__user-info']}>
+                  <div className={styles['header__user-name']}>{user?.full_name}</div>
+                  <div className={styles['header__user-email']}>{user?.email}</div>
+                  <div className={styles['header__user-role']}>
+                    {user?.role_name === 'admin' && 'מנהל מערכת'}
+                    {user?.role_name === 'manager' && 'מנהל'}
+                    {user?.role_name === 'editor' && 'עורך'}
+                    {user?.role_name === 'viewer' && 'צופה'}
+                    {user?.role_name === 'pending' && 'ממתין לאישור'}
+                  </div>
+                </div>
+                
+                <div className={styles['header__user-actions']}>
+                  <button 
+                    className={styles['header__user-action']}
+                    onClick={() => {
+                      setShowUserMenu(false)
+                      // Navigate to profile (TODO: implement)
+                    }}
+                  >
+                    <User size={16} />
+                    פרופיל אישי
+                  </button>
+                  
+                  <button 
+                    className={`${styles['header__user-action']} ${styles['header__user-action--danger']}`}
+                    onClick={() => {
+                      setShowUserMenu(false)
+                      logout()
+                    }}
+                  >
+                    <LogOut size={16} />
+                    התנתק
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 

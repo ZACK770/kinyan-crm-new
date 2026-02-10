@@ -35,6 +35,21 @@
   padding: 0 8px;
 }
 
+/* Section title */
+.sidebar__section_title {
+  padding: 8px 12px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: opacity var(--transition-fast);
+}
+
+.collapsed .sidebar__section_title {
+  opacity: 0;
+}
+
 /* Divider */
 .sidebar__divider {
   height: 1px;

@@ -16,7 +16,10 @@ import {
   TrendingDown,
   PanelRightClose,
   PanelRightOpen,
+  Shield,
+  ScrollText,
 } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
 import clsx from 'clsx'
 import styles from './Sidebar.module.css'
 
@@ -65,12 +68,23 @@ const NAV_SECTIONS: { items: NavItem[] }[] = [
   },
 ]
 
+// Admin-only navigation items
+const ADMIN_NAV_ITEMS: NavItem[] = [
+  { to: '/admin/users', label: 'ניהול משתמשים', icon: Shield },
+]
+
+// Manager+ navigation items
+const MANAGER_NAV_ITEMS: NavItem[] = [
+  { to: '/admin/audit-logs', label: 'יומן פעילות', icon: ScrollText },
+]
+
 export const Sidebar: FC<SidebarProps> = ({
   collapsed,
   mobileOpen,
   onToggleCollapse,
   onCloseMobile,
 }) => {
+  const { user } = useAuth()
   const location = useLocation()
 
   return (
@@ -126,6 +140,88 @@ export const Sidebar: FC<SidebarProps> = ({
               </div>
             </div>
           ))}
+          
+          {/* Admin section - only for admin users */}
+          {user?.role_name === 'admin' && (
+            <>
+              <div className={styles.sidebar__divider} />
+              <div className={styles.sidebar__section}>
+                <div className={styles.sidebar__section_title}>
+                  {!collapsed && <span>ניהול מערכת</span>}
+                </div>
+                {ADMIN_NAV_ITEMS.map((item) => {
+                  const Icon = item.icon
+                  const isActive = location.pathname.startsWith(item.to)
+
+                  return (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      className={clsx(
+                        styles.sidebar__item,
+                        isActive && styles.active,
+                      )}
+                      onClick={onCloseMobile}
+                    >
+                      <span className={styles.sidebar__icon}>
+                        <Icon size={20} strokeWidth={1.5} />
+                      </span>
+                      <span className={styles.sidebar__label}>
+                        {item.label}
+                      </span>
+                      {collapsed && (
+                        <span className={styles.sidebar__tooltip}>
+                          {item.label}
+                        </span>
+                      )}
+                    </NavLink>
+                  )
+                })}
+              </div>
+            </>
+          )}
+
+          {/* Manager+ section - for manager and admin */}
+          {(user?.role_name === 'admin' || user?.role_name === 'manager') && (
+            <>
+              {user?.role_name !== 'admin' && <div className={styles.sidebar__divider} />}
+              <div className={styles.sidebar__section}>
+                {user?.role_name !== 'admin' && (
+                  <div className={styles.sidebar__section_title}>
+                    {!collapsed && <span>ניהול מערכת</span>}
+                  </div>
+                )}
+                {MANAGER_NAV_ITEMS.map((item) => {
+                  const Icon = item.icon
+                  const isActive = location.pathname.startsWith(item.to)
+
+                  return (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      className={clsx(
+                        styles.sidebar__item,
+                        isActive && styles.active,
+                      )}
+                      onClick={onCloseMobile}
+                    >
+                      <span className={styles.sidebar__icon}>
+                        <Icon size={20} strokeWidth={1.5} />
+                      </span>
+                      <span className={styles.sidebar__label}>
+                        {item.label}
+                      </span>
+                      {collapsed && (
+                        <span className={styles.sidebar__tooltip}>
+                          {item.label}
+                        </span>
+                      )}
+                    </NavLink>
+                  )
+                })}
+              </div>
+            </>
+          )}
         </nav>
 
         {/* Collapse toggle — desktop only */}

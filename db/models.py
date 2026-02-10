@@ -757,3 +757,33 @@ class Expense(Base):
 
     course: Mapped[Optional["Course"]] = relationship()
     campaign: Mapped[Optional["Campaign"]] = relationship()
+
+
+# ============================================================
+# AuditLog (לוג פעולות במערכת) — system logging
+# ============================================================
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))  # null for API/system actions
+    user_name: Mapped[Optional[str]] = mapped_column(String(300))  # cached for display
+    action: Mapped[str] = mapped_column(String(100), nullable=False)  # create/update/delete/view/login/etc
+    entity_type: Mapped[Optional[str]] = mapped_column(String(100))  # leads/students/courses/etc
+    entity_id: Mapped[Optional[int]] = mapped_column(Integer)  # the ID of the affected record
+    description: Mapped[Optional[str]] = mapped_column(Text)  # human-readable description
+    ip_address: Mapped[Optional[str]] = mapped_column(String(50))
+    user_agent: Mapped[Optional[str]] = mapped_column(String(500))
+    request_method: Mapped[Optional[str]] = mapped_column(String(10))  # GET/POST/PUT/DELETE
+    request_path: Mapped[Optional[str]] = mapped_column(String(500))
+    changes: Mapped[Optional[str]] = mapped_column(Text)  # JSON string of before/after values
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    __table_args__ = (
+        Index("idx_audit_logs_user", "user_id"),
+        Index("idx_audit_logs_entity", "entity_type", "entity_id"),
+        Index("idx_audit_logs_action", "action"),
+        Index("idx_audit_logs_created", "created_at"),
+    )
+
+    user: Mapped[Optional["User"]] = relationship()

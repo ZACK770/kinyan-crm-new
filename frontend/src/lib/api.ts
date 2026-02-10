@@ -2,11 +2,9 @@
    API Client — clean fetch wrapper for the FastAPI backend
    ============================================================ */
 
-// In production (Render), use VITE_API_URL. In dev, use relative path (Vite proxy)
-const API_HOST = import.meta.env.VITE_API_URL
-  ? `https://${import.meta.env.VITE_API_URL}`
-  : ''
-const BASE = `${API_HOST}/api`
+// Single server - frontend and API are on the same origin!
+// Always use relative path - no need for VITE_API_URL
+const BASE = '/api'
 
 interface ApiError {
   status: number

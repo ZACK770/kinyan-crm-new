@@ -2,12 +2,13 @@
 Auth API — login, register, Google OAuth, password reset.
 Prefix: /api/auth
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_db, settings
 from db.models import User
+from services import audit_logs
 from services.auth import (
     verify_password,
     create_access_token,
@@ -144,7 +145,7 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
 # ── Login ────────────────────────────────────────────
 @router.post("/login", response_model=TokenResponse)
-async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
+async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """Login with email + password."""
     user = await get_user_by_email(db, body.email)
 
@@ -167,6 +168,15 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
         )
 
     await update_last_login(db, user.id)
+    
+    # Log successful login
+    await audit_logs.log_login(
+        db=db,
+        user=user,
+        description=f"התחברות מוצלחת עם אימייל: {user.email}",
+        request=request,
+    )
+    
     return _create_token_response(user)
 
 
@@ -179,7 +189,7 @@ async def google_login_url():
 
 
 @router.post("/google/callback", response_model=TokenResponse)
-async def google_callback(body: GoogleCallbackRequest, db: AsyncSession = Depends(get_db)):
+async def google_callback(body: GoogleCallbackRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """
     Exchange Google authorization code for tokens,
     get user info, and create/login the user.
@@ -221,11 +231,19 @@ async def google_callback(body: GoogleCallbackRequest, db: AsyncSession = Depend
             detail="חשבון המשתמש אינו פעיל",
         )
 
+    # Log successful Google login
+    await audit_logs.log_login(
+        db=db,
+        user=user,
+        description=f"התחברות מוצלחת דרך Google: {user.email}",
+        request=request,
+    )
+
     return _create_token_response(user)
 
 
 @router.post("/google/id-token", response_model=TokenResponse)
-async def google_id_token_login(body: GoogleIdTokenRequest, db: AsyncSession = Depends(get_db)):
+async def google_id_token_login(body: GoogleIdTokenRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """
     Alternative: verify a Google ID token (from Google Sign-In button).
     Useful for frontend-only Google sign-in without server-side code exchange.
@@ -250,6 +268,14 @@ async def google_id_token_login(body: GoogleIdTokenRequest, db: AsyncSession = D
             status_code=status.HTTP_403_FORBIDDEN,
             detail="חשבון המשתמש אינו פעיל",
         )
+
+    # Log successful Google login
+    await audit_logs.log_login(
+        db=db,
+        user=user,
+        description=f"התחברות מוצלחת דרך Google ID Token: {user.email}",
+        request=request,
+    )
 
     return _create_token_response(user)
 

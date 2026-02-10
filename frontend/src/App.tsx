@@ -1,6 +1,6 @@
 import { Routes, Route } from 'react-router-dom'
 import { AppLayout } from '@/components/layout'
-import { ProtectedRoute, ViewerRoute } from '@/components/ProtectedRoute'
+import { ProtectedRoute, ViewerRoute, AdminRoute, ManagerRoute } from '@/components/ProtectedRoute'
 import { LoginPage, RegisterPage, WelcomePage } from '@/pages/auth'
 import { Dashboard } from '@/pages/Dashboard'
 import { LeadsPage } from '@/pages/Leads'
@@ -14,7 +14,7 @@ import { TasksPage } from '@/pages/Tasks'
 import { InquiriesPage } from '@/pages/Inquiries'
 import { MessagesPage } from '@/pages/Messages'
 import { LecturersPage } from '@/pages/Lecturers'
-import { ExpensesPage } from '@/pages/Expenses'
+import { ExpensesPage } from '@/pages/Expenses'import { AuditLogsPage } from '@/pages/AuditLogs'import { UsersManagePage } from '@/pages/UsersManagePage'
 import { PlaceholderPage } from '@/pages/Placeholder'
 
 export function App() {
@@ -47,7 +47,7 @@ export function App() {
                 <Route path=\"/messages\" element={<ViewerRoute><MessagesPage /></ViewerRoute>} />
                 <Route path=\"/lecturers\" element={<ViewerRoute><LecturersPage /></ViewerRoute>} />
                 <Route path=\"/expenses\" element={<ViewerRoute><ExpensesPage /></ViewerRoute>} />
-                <Route path=\"*\" element={<PlaceholderPage title=\"הדף לא נמצא\" />} />
+                <Route path=\"/admin/users\" element={<AdminRoute><UsersManagePage /></AdminRoute>} />                <Route path="/admin/audit-logs" element={<ManagerRoute><AuditLogsPage /></ManagerRoute>} />                <Route path=\"*\" element={<PlaceholderPage title=\"הדף לא נמצא\" />} />
               </Routes>
             </AppLayout>
           </ProtectedRoute>
