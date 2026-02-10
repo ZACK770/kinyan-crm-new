@@ -10,32 +10,12 @@ from db import get_db
 from services import leads as lead_svc
 from services import audit_logs
 from .dependencies import require_entity_access
+from .schemas import LeadCreate, LeadUpdate, SalespersonResponse
 
 router = APIRouter(tags=["leads"])
 
 
-# ── Schemas ──────────────────────────────────────────
-class LeadCreate(BaseModel):
-    name: str = ""
-    phone: str
-    email: str | None = None
-    city: str | None = None
-    source_type: str | None = None
-    source_name: str | None = None
-    campaign_name: str | None = None
-    source_message: str | None = None
-
-
-class LeadUpdate(BaseModel):
-    full_name: str | None = None
-    phone: str | None = None
-    email: str | None = None
-    city: str | None = None
-    status: str | None = None
-    notes: str | None = None
-    salesperson_id: int | None = None
-
-
+# ── Local Schemas (not in shared schemas.py) ──────────
 class InteractionCreate(BaseModel):
     interaction_type: str = "generic"
     description: str | None = None
@@ -77,6 +57,20 @@ async def search_lead(
     if not lead:
         raise HTTPException(404, "Lead not found")
     return {"id": lead.id, "full_name": lead.full_name, "phone": lead.phone, "status": lead.status}
+
+
+@router.get("/salespersons")
+async def get_salespersons(
+    user = Depends(require_entity_access("leads", "view")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get list of active salespeople for lead assignment."""
+    from services import sales as sales_svc
+    salespeople = await sales_svc.get_active_salespeople(db)
+    return [
+        {"id": sp.id, "name": sp.name, "email": sp.email, "phone": sp.phone}
+        for sp in salespeople
+    ]
 
 
 @router.get("/{lead_id}")
@@ -124,7 +118,7 @@ async def create_lead(
             user=user,
             entity_type="leads",
             entity_id=result["lead_id"],
-            description=f"נוצר ליד חדש: {data.name} - {data.phone}",
+            description=f"נוצר ליד חדש: {data.full_name} - {data.phone}",
             request=request,
         )
     
@@ -157,6 +151,39 @@ async def update_lead(
     )
     
     return {"id": lead.id, "status": lead.status}
+
+
+# ── Convert Lead to Student ────────────────────────────────
+class ConvertLeadRequest(BaseModel):
+    course_id: int | None = None
+
+
+@router.post("/{lead_id}/convert")
+async def convert_lead(
+    lead_id: int,
+    data: ConvertLeadRequest,
+    request: Request,
+    user = Depends(require_entity_access("leads", "edit")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Convert a lead to a student, optionally enrolling in a course."""
+    result = await lead_svc.convert_lead_to_student(db, lead_id, course_id=data.course_id)
+    
+    if not result.get("success"):
+        raise HTTPException(400, result.get("error", "Conversion failed"))
+    
+    # Log conversion
+    await audit_logs.log_update(
+        db=db,
+        user=user,
+        entity_type="leads",
+        entity_id=lead_id,
+        description=f"ליד הומר לתלמיד #{result.get('student_id')}",
+        changes={"action": "converted", "student_id": result.get("student_id"), "course_id": data.course_id},
+        request=request,
+    )
+    
+    return result
 
 
 @router.post("/{lead_id}/interactions")

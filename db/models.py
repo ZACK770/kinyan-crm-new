@@ -300,7 +300,7 @@ class Lead(Base):
     # Relations
     salesperson: Mapped[Optional["Salesperson"]] = relationship(back_populates="leads")
     campaign: Mapped[Optional["Campaign"]] = relationship(back_populates="leads")
-    student: Mapped[Optional["Student"]] = relationship(back_populates="lead", foreign_keys=[student_id])
+    student: Mapped[Optional["Student"]] = relationship(foreign_keys=[student_id])  # Lead converted to this student
     interactions: Mapped[List["LeadInteraction"]] = relationship(back_populates="lead", order_by="LeadInteraction.interaction_date.desc()")
     products: Mapped[List["LeadProduct"]] = relationship(back_populates="lead")
 
@@ -400,7 +400,9 @@ class Student(Base):
 
     status: Mapped[str] = mapped_column(String(100), default="תלמיד פעיל")
     approved_terms: Mapped[bool] = mapped_column(Boolean, default=False)
-    nedarim_id: Mapped[Optional[str]] = mapped_column(String(50))
+    
+    # Nedarim Plus integration
+    nedarim_payer_id: Mapped[Optional[str]] = mapped_column(String(50))  # PAY_xxxxx
 
     # Link back to lead
     lead_id: Mapped[Optional[int]] = mapped_column(ForeignKey("leads.id"))
@@ -419,7 +421,7 @@ class Student(Base):
         Index("idx_students_status", "status"),
     )
 
-    lead: Mapped[Optional["Lead"]] = relationship(back_populates="student", foreign_keys=[lead_id])
+    original_lead: Mapped[Optional["Lead"]] = relationship(foreign_keys=[lead_id])  # Student came from this lead
     enrollments: Mapped[List["Enrollment"]] = relationship(back_populates="student")
     exam_submissions: Mapped[List["ExamSubmission"]] = relationship(back_populates="student")
     payments: Mapped[List["Payment"]] = relationship(back_populates="student")
@@ -485,6 +487,10 @@ class Payment(Base):
     charge_day: Mapped[Optional[int]] = mapped_column(Integer)
     payment_method: Mapped[Optional[str]] = mapped_column(String(50))  # אשראי / העברה / מזומן
     status: Mapped[str] = mapped_column(String(50), default="ממתין")  # שולם / ממתין / נכשל / הוחזר
+    
+    # Nedarim Plus integration
+    nedarim_donation_id: Mapped[Optional[str]] = mapped_column(String(50))  # DON_xxxxx
+    nedarim_transaction_id: Mapped[Optional[str]] = mapped_column(String(50))  # TRX_xxxxx
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -492,6 +498,7 @@ class Payment(Base):
         Index("idx_payments_student", "student_id"),
         Index("idx_payments_status", "status"),
         Index("idx_payments_commitment", "commitment_id"),
+        Index("idx_payments_nedarim", "nedarim_donation_id"),
     )
 
     student: Mapped[Optional["Student"]] = relationship(back_populates="payments")
@@ -698,11 +705,16 @@ class Commitment(Base):
     charge_day: Mapped[Optional[int]] = mapped_column(Integer)
     payment_method: Mapped[Optional[str]] = mapped_column(String(50))  # אשראי / הוראת קבע
     status: Mapped[str] = mapped_column(String(50), default="פעיל")  # פעיל / מושהה / הסתיים / בוטל
+    
+    # Nedarim Plus integration
+    nedarim_subscription_id: Mapped[Optional[str]] = mapped_column(String(50))  # SUB_xxxxx
+    
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
         Index("idx_commitments_student", "student_id"),
         Index("idx_commitments_status", "status"),
+        Index("idx_commitments_nedarim", "nedarim_subscription_id"),
     )
 
     student: Mapped["Student"] = relationship(back_populates="commitments")

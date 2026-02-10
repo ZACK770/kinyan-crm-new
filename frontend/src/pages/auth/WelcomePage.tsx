@@ -11,7 +11,7 @@ export function WelcomePage() {
         <div className={styles.authCard}>
           <h1>גישה מוגבלת</h1>
           <p>אנא התחבר כדי לראות עמוד זה</p>
-          <Link to=\"/auth/login\" className={styles.primaryButton}>
+          <Link to="/auth/login" className={styles.primaryButton}>
             התחבר
           </Link>
         </div>

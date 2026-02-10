@@ -3,6 +3,10 @@ Kinyan CRM - FastAPI Application Entry Point
 Minimal app.py - all logic lives in services/
 Serves both API and Frontend from a single server!
 """
+# Load .env FIRST, before any other imports that use environment variables
+from dotenv import load_dotenv
+load_dotenv()
+
 import os
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -14,7 +18,7 @@ from fastapi.responses import FileResponse
 from db import init_db
 from api import leads_api, students_api, courses_api, dashboard_api, webhooks_api
 from api import inquiries_api, exams_api, payments_api, expenses_api, attendance_api, collections_api
-from api import auth_api, users_api, audit_logs_api
+from api import auth_api, users_api, audit_logs_api, campaigns_api
 
 # Frontend build directory
 FRONTEND_DIR = Path(__file__).parent / "frontend" / "dist"
@@ -53,6 +57,7 @@ app.include_router(collections_api.router, prefix="/api/collections", tags=["col
 app.include_router(expenses_api.router, prefix="/api/expenses", tags=["expenses"])
 app.include_router(inquiries_api.router, prefix="/api/inquiries", tags=["inquiries"])
 app.include_router(dashboard_api.router, prefix="/api/dashboard", tags=["dashboard"])
+app.include_router(campaigns_api.router, prefix="/api/campaigns", tags=["campaigns"])
 app.include_router(webhooks_api.router, prefix="/webhooks", tags=["webhooks"])
 
 # --- Auth & User Management ---

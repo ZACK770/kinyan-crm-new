@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { UserPlus, UserCheck, UserX, Edit, Trash2, Shield, Eye } from 'lucide-react'
+import { UserPlus, UserCheck, Edit, Trash2, Shield, Eye } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useModal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
@@ -43,13 +43,13 @@ function UserForm({
       <div className={s['form-group']}>
         <label className={s['form-label']}>כתובת מייל *</label>
         <input
-          type=\"email\"
+          type="email"
           className={s.input}
           value={formData.email}
           onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
           required
           disabled={loading || !!user}
-          dir=\"ltr\"
+          dir="ltr"
         />
         {user && <small className={s['form-hint']}>לא ניתן לשנות כתובת מייל</small>}
       </div>
@@ -57,7 +57,7 @@ function UserForm({
       <div className={s['form-group']}>
         <label className={s['form-label']}>שם מלא *</label>
         <input
-          type=\"text\"
+          type="text"
           className={s.input}
           value={formData.full_name}
           onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
@@ -75,11 +75,11 @@ function UserForm({
           required
           disabled={loading}
         >
-          <option value=\"pending\">ממתין לאישור (0)</option>
-          <option value=\"viewer\">צופה (10)</option>
-          <option value=\"editor\">עורך (20)</option>
-          <option value=\"manager\">מנהל (30)</option>
-          <option value=\"admin\">מנהל מערכת (40)</option>
+          <option value="pending">ממתין לאישור (0)</option>
+          <option value="viewer">צופה (10)</option>
+          <option value="editor">עורך (20)</option>
+          <option value="manager">מנהל (30)</option>
+          <option value="admin">מנהל מערכת (40)</option>
         </select>
         <small className={s['form-hint']}>
           המספר בסוגריים מציין את רמת ההרשאה
@@ -89,7 +89,7 @@ function UserForm({
       <div className={s['form-group']}>
         <label className={s['checkbox-label']}>
           <input
-            type=\"checkbox\"
+            type="checkbox"
             checked={formData.is_active}
             onChange={(e) => setFormData(prev => ({ ...prev, is_active: e.target.checked }))}
             disabled={loading}
@@ -103,7 +103,7 @@ function UserForm({
 
       <div className={s['form-actions']}>
         <button 
-          type=\"submit\" 
+          type="submit" 
           className={`${s.btn} ${s['btn-primary']}`}
           disabled={loading}
         >
@@ -121,14 +121,14 @@ export function UsersManagePage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterRole, setFilterRole] = useState('all')
   const { openModal, closeModal } = useModal()
-  const { showError, showSuccess } = useToast()
+  const { error: showError, success: showSuccess } = useToast()
 
   const loadUsers = async () => {
     try {
       setLoading(true)
       const data = await api.get<User[]>('/users')
       setUsers(data)
-    } catch (error: any) {
+    } catch (err: unknown) {
       showError('שגיאה בטעינת רשימת המשתמשים')
     } finally {
       setLoading(false)
@@ -161,8 +161,9 @@ export function UsersManagePage() {
               showSuccess('המשתמש נוצר בהצלחה')
               loadUsers()
               closeModal()
-            } catch (error: any) {
-              showError(error.message || 'שגיאה ביצירת המשתמש')
+            } catch (err: unknown) {
+              const message = err instanceof Error ? err.message : 'שגיאה ביצירת המשתמש'
+              showError(message)
             }
           }}
           loading={false}
@@ -184,8 +185,9 @@ export function UsersManagePage() {
               showSuccess('המשתמש עודכן בהצלחה')
               loadUsers()
               closeModal()
-            } catch (error: any) {
-              showError(error.message || 'שגיאה בעדכון המשתמש')
+            } catch (err: unknown) {
+              const message = err instanceof Error ? err.message : 'שגיאה בעדכון המשתמש'
+              showError(message)
             }
           }}
           loading={false}
@@ -216,8 +218,9 @@ export function UsersManagePage() {
                   showSuccess('המשתמש נמחק בהצלחה')
                   loadUsers()
                   closeModal()
-                } catch (error: any) {
-                  showError(error.message || 'שגיאה במחיקת המשתמש')
+                } catch (err: unknown) {
+                  const message = err instanceof Error ? err.message : 'שגיאה במחיקת המשתמש'
+                  showError(message)
                 }
               }}
             >
@@ -249,7 +252,7 @@ export function UsersManagePage() {
   const columns = [
     {
       key: 'full_name',
-      label: 'שם',
+      header: 'שם',
       render: (user: User) => (
         <div className={styles.userInfo}>
           <div className={styles.userName}>{user.full_name}</div>
@@ -259,13 +262,13 @@ export function UsersManagePage() {
     },
     {
       key: 'role_name',
-      label: 'תפקיד',
+      header: 'תפקיד',
       render: (user: User) => {
         const role = getRoleDisplay(user.role_name)
         return (
           <span 
             className={styles.roleBadge}
-            style={{ backgroundColor: role.color + '20', color: role.color }}
+            style={{ backgroundColor: role.label + '20', color: role.color }}
           >
             {role.label}
           </span>
@@ -274,7 +277,7 @@ export function UsersManagePage() {
     },
     {
       key: 'is_active',
-      label: 'סטטוס',
+      header: 'סטטוס',
       render: (user: User) => (
         <span className={`${styles.statusBadge} ${user.is_active ? styles.active : styles.inactive}`}>
           {user.is_active ? 'פעיל' : 'לא פעיל'}
@@ -283,18 +286,18 @@ export function UsersManagePage() {
     },
     {
       key: 'created_at',
-      label: 'תאריך הצטרפות',
+      header: 'תאריך הצטרפות',
       render: (user: User) => new Date(user.created_at).toLocaleDateString('he-IL')
     },
     {
       key: 'actions',
-      label: 'פעולות',
+      header: 'פעולות',
       render: (user: User) => (
         <div className={styles.actions}>
           <button
             className={styles.actionBtn}
             onClick={() => handleEditUser(user)}
-            title=\"עריכה\"
+            title="עריכה"
           >
             <Edit size={16} />
           </button>
@@ -302,7 +305,7 @@ export function UsersManagePage() {
             <button
               className={`${styles.actionBtn} ${styles.danger}`}
               onClick={() => handleDeleteUser(user)}
-              title=\"מחיקה\"
+              title="מחיקה"
             >
               <Trash2 size={16} />
             </button>
@@ -335,8 +338,8 @@ export function UsersManagePage() {
         <div className={styles.filters}>
           <div className={styles.searchBox}>
             <input
-              type=\"text\"
-              placeholder=\"חיפוש לפי שם או מייל...\"
+              type="text"
+              placeholder="חיפוש לפי שם או מייל..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className={s.input}
@@ -349,12 +352,12 @@ export function UsersManagePage() {
               onChange={(e) => setFilterRole(e.target.value)}
               className={s.select}
             >
-              <option value=\"all\">כל התפקידים</option>
-              <option value=\"pending\">ממתין לאישור</option>
-              <option value=\"viewer\">צופה</option>
-              <option value=\"editor\">עורך</option>
-              <option value=\"manager\">מנהל</option>
-              <option value=\"admin\">מנהל מערכת</option>
+              <option value="all">כל התפקידים</option>
+              <option value="pending">ממתין לאישור</option>
+              <option value="viewer">צופה</option>
+              <option value="editor">עורך</option>
+              <option value="manager">מנהל</option>
+              <option value="admin">מנהל מערכת</option>
             </select>
           </div>
         </div>
@@ -364,7 +367,8 @@ export function UsersManagePage() {
             data={filteredUsers}
             columns={columns}
             loading={loading}
-            emptyMessage=\"לא נמצאו משתמשים\"
+            emptyText="לא נמצאו משתמשים"
+            keyExtractor={(user) => user.id}
           />
         </div>
 

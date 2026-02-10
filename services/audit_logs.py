@@ -46,7 +46,9 @@ async def create_audit_log(
     }
 
     if user:
-        log_data["user_id"] = user.id
+        # Only set user_id if it's a real user (not dev fake user with id=0)
+        if user.id and user.id > 0:
+            log_data["user_id"] = user.id
         log_data["user_name"] = user.full_name
 
     if changes:

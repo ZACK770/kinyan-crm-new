@@ -28,6 +28,53 @@ async def get_course_with_modules(db: AsyncSession, course_id: int) -> Course | 
     return result.scalar_one_or_none()
 
 
+async def create_course(db: AsyncSession, **kwargs) -> Course:
+    """Create a new course."""
+    course = Course(
+        name=kwargs.get("name", ""),
+        description=kwargs.get("description"),
+        start_date=kwargs.get("start_date"),
+        end_date=kwargs.get("end_date"),
+        semester=kwargs.get("semester"),
+        syllabus_url=kwargs.get("syllabus_url"),
+        website_url=kwargs.get("website_url"),
+        zoom_url=kwargs.get("zoom_url"),
+        is_active=kwargs.get("is_active", True),
+    )
+    db.add(course)
+    await db.flush()
+    return course
+
+
+async def update_course(db: AsyncSession, course_id: int, **kwargs) -> Course | None:
+    """Update course fields."""
+    stmt = select(Course).where(Course.id == course_id)
+    result = await db.execute(stmt)
+    course = result.scalar_one_or_none()
+    if not course:
+        return None
+
+    for key, value in kwargs.items():
+        if value is not None and hasattr(course, key):
+            setattr(course, key, value)
+
+    await db.flush()
+    return course
+
+
+async def delete_course(db: AsyncSession, course_id: int) -> bool:
+    """Soft delete (deactivate) a course."""
+    stmt = select(Course).where(Course.id == course_id)
+    result = await db.execute(stmt)
+    course = result.scalar_one_or_none()
+    if not course:
+        return False
+
+    course.is_active = False
+    await db.flush()
+    return True
+
+
 async def get_entry_points(db: AsyncSession, course_id: int) -> list[dict]:
     """Get possible entry points for a course (each module is an entry point)."""
     stmt = (

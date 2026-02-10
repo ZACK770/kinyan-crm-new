@@ -21,33 +21,35 @@ export function App() {
   return (
     <Routes>
       {/* Public Auth Routes */}
-      <Route path=\"/auth/login\" element={<LoginPage />} />
-      <Route path=\"/auth/register\" element={<RegisterPage />} />
+      <Route path="/auth/login" element={<LoginPage />} />
+      <Route path="/auth/register" element={<RegisterPage />} />
       
       {/* Pending user welcome page */}
-      <Route path=\"/welcome\" element={<WelcomePage />} />
+      <Route path="/welcome" element={<WelcomePage />} />
       
       {/* Protected App Routes */}
       <Route
-        path=\"/*\"
+        path="/*"
         element={
           <ProtectedRoute>
             <AppLayout>
               <Routes>
-                <Route path=\"/\" element={<ViewerRoute><Dashboard /></ViewerRoute>} />
-                <Route path=\"/leads\" element={<ViewerRoute><LeadsPage /></ViewerRoute>} />
-                <Route path=\"/students\" element={<ViewerRoute><StudentsPage /></ViewerRoute>} />
-                <Route path=\"/courses\" element={<ViewerRoute><CoursesPage /></ViewerRoute>} />
-                <Route path=\"/payments\" element={<ViewerRoute><PaymentsPage /></ViewerRoute>} />
-                <Route path=\"/collections\" element={<ViewerRoute><CollectionsPage /></ViewerRoute>} />
-                <Route path=\"/commitments\" element={<ViewerRoute><CommitmentsPage /></ViewerRoute>} />
-                <Route path=\"/campaigns\" element={<ViewerRoute><CampaignsPage /></ViewerRoute>} />
-                <Route path=\"/tasks\" element={<ViewerRoute><TasksPage /></ViewerRoute>} />
-                <Route path=\"/inquiries\" element={<ViewerRoute><InquiriesPage /></ViewerRoute>} />
-                <Route path=\"/messages\" element={<ViewerRoute><MessagesPage /></ViewerRoute>} />
-                <Route path=\"/lecturers\" element={<ViewerRoute><LecturersPage /></ViewerRoute>} />
-                <Route path=\"/expenses\" element={<ViewerRoute><ExpensesPage /></ViewerRoute>} />
-                <Route path=\"/admin/users\" element={<AdminRoute><UsersManagePage /></AdminRoute>} />                <Route path="/admin/audit-logs" element={<ManagerRoute><AuditLogsPage /></ManagerRoute>} />                <Route path=\"*\" element={<PlaceholderPage title=\"הדף לא נמצא\" />} />
+                <Route path="/" element={<ViewerRoute><Dashboard /></ViewerRoute>} />
+                <Route path="/leads" element={<ViewerRoute><LeadsPage /></ViewerRoute>} />
+                <Route path="/students" element={<ViewerRoute><StudentsPage /></ViewerRoute>} />
+                <Route path="/courses" element={<ViewerRoute><CoursesPage /></ViewerRoute>} />
+                <Route path="/payments" element={<ViewerRoute><PaymentsPage /></ViewerRoute>} />
+                <Route path="/collections" element={<ViewerRoute><CollectionsPage /></ViewerRoute>} />
+                <Route path="/commitments" element={<ViewerRoute><CommitmentsPage /></ViewerRoute>} />
+                <Route path="/campaigns" element={<ViewerRoute><CampaignsPage /></ViewerRoute>} />
+                <Route path="/tasks" element={<ViewerRoute><TasksPage /></ViewerRoute>} />
+                <Route path="/inquiries" element={<ViewerRoute><InquiriesPage /></ViewerRoute>} />
+                <Route path="/messages" element={<ViewerRoute><MessagesPage /></ViewerRoute>} />
+                <Route path="/lecturers" element={<ViewerRoute><LecturersPage /></ViewerRoute>} />
+                <Route path="/expenses" element={<ViewerRoute><ExpensesPage /></ViewerRoute>} />
+                <Route path="/admin/users" element={<AdminRoute><UsersManagePage /></AdminRoute>} />
+                <Route path="/admin/audit-logs" element={<ManagerRoute><AuditLogsPage /></ManagerRoute>} />
+                <Route path="*" element={<PlaceholderPage title="הדף לא נמצא" />} />
               </Routes>
             </AppLayout>
           </ProtectedRoute>

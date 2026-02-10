@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { api } from '@/lib/api'
 import type { User, AuthResponse, LoginCredentials, RegisterData, GoogleAuthRequest } from '@/types/auth'
 
@@ -23,15 +23,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // Check if we have a saved token on mount
+  // Check if we have a saved token on mount, or try to get user from dev mode
   useEffect(() => {
     const token = localStorage.getItem(TOKEN_KEY)
     if (token) {
-      // Verify token and get user info
-      refreshUser().finally(() => setLoading(false))
-    } else {
-      setLoading(false)
+      api.setAuthToken(token)
     }
+    // Always try to get user - backend may have DEV_SKIP_AUTH enabled
+    refreshUser().finally(() => setLoading(false))
   }, [])
 
   const setAuthToken = (token: string) => {

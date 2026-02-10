@@ -1,16 +1,40 @@
 """
 Courses API endpoints.
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_db
 from services import courses as course_svc
+from services import audit_logs
 from .dependencies import require_entity_access
 
 router = APIRouter(tags=["courses"])
 
 
+# ── Schemas ──────────────────────────────────────────
+class CourseCreate(BaseModel):
+    name: str
+    description: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    semester: str | None = None
+    total_sessions: int | None = None
+    is_active: bool = True
+
+
+class CourseUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    semester: str | None = None
+    total_sessions: int | None = None
+    is_active: bool | None = None
+
+
+# ── Endpoints ────────────────────────────────────────
 @router.get("/")
 async def list_courses(
     user = Depends(require_entity_access("courses", "view")),
@@ -67,3 +91,75 @@ async def calculate_remaining(
 ):
     result = await course_svc.calculate_remaining(db, course_id, from_module)
     return result
+
+
+@router.post("/")
+async def create_course(
+    data: CourseCreate,
+    request: Request,
+    user = Depends(require_entity_access("courses", "create")),
+    db: AsyncSession = Depends(get_db)
+):
+    course = await course_svc.create_course(db, **data.model_dump())
+    await db.commit()
+    
+    await audit_logs.log_create(
+        db=db,
+        user=user,
+        entity_type="courses",
+        entity_id=course.id,
+        description=f"נוצר קורס: {data.name}",
+        request=request,
+    )
+    
+    return {"id": course.id, "name": course.name}
+
+
+@router.patch("/{course_id}")
+async def update_course(
+    course_id: int,
+    data: CourseUpdate,
+    request: Request,
+    user = Depends(require_entity_access("courses", "edit")),
+    db: AsyncSession = Depends(get_db)
+):
+    course = await course_svc.update_course(db, course_id, **data.model_dump(exclude_unset=True))
+    if not course:
+        raise HTTPException(404, "Course not found")
+    await db.commit()
+    
+    await audit_logs.log_update(
+        db=db,
+        user=user,
+        entity_type="courses",
+        entity_id=course_id,
+        description=f"עודכן קורס: {course.name}",
+        changes=data.model_dump(exclude_unset=True),
+        request=request,
+    )
+    
+    return {"id": course.id, "name": course.name}
+
+
+@router.delete("/{course_id}")
+async def delete_course(
+    course_id: int,
+    request: Request,
+    user = Depends(require_entity_access("courses", "delete")),
+    db: AsyncSession = Depends(get_db)
+):
+    success = await course_svc.delete_course(db, course_id)
+    if not success:
+        raise HTTPException(404, "Course not found")
+    await db.commit()
+    
+    await audit_logs.log_delete(
+        db=db,
+        user=user,
+        entity_type="courses",
+        entity_id=course_id,
+        description="קורס בוטל",
+        request=request,
+    )
+    
+    return {"success": True}

@@ -43,16 +43,22 @@ async def search_by_phone(db: AsyncSession, phone: str) -> Lead | None:
 # ============================================================
 async def create_lead(db: AsyncSession, **kwargs) -> Lead:
     """Create a new lead."""
+    # Support both 'name' (from webhooks) and 'full_name' (from frontend)
+    full_name = kwargs.get("full_name") or kwargs.get("name", "")
     lead = Lead(
-        full_name=kwargs.get("name", ""),
+        full_name=full_name,
+        family_name=kwargs.get("family_name"),
         phone=normalize_phone(kwargs.get("phone", "")),
+        phone2=kwargs.get("phone2"),
         email=kwargs.get("email"),
         city=kwargs.get("city"),
+        notes=kwargs.get("notes"),
         source_type=kwargs.get("source_type"),
         source_name=kwargs.get("source_name"),
         campaign_name=kwargs.get("campaign_name"),
         source_message=kwargs.get("source_message"),
         source_details=kwargs.get("source_details"),
+        salesperson_id=kwargs.get("salesperson_id"),
     )
     db.add(lead)
     await db.flush()
@@ -134,6 +140,76 @@ async def assign_salesperson(db: AsyncSession, lead_id: int, phone: str) -> Sale
         await db.flush()
 
     return chosen
+
+
+# ============================================================
+# Lead Conversion — Convert Lead to Student + Enrollment
+# ============================================================
+async def convert_lead_to_student(
+    db: AsyncSession, 
+    lead_id: int, 
+    course_id: int | None = None
+) -> dict:
+    """
+    Convert a lead to a student.
+    1. Creates Student record from Lead data
+    2. Creates Enrollment if course_id provided
+    3. Updates Lead with student_id and conversion info
+    """
+    from db.models import Student, Enrollment
+    from datetime import datetime
+    
+    # Get the lead
+    lead = await get_lead_with_history(db, lead_id)
+    if not lead:
+        return {"success": False, "error": "Lead not found"}
+    
+    if lead.student_id:
+        return {"success": False, "error": "Lead already converted", "student_id": lead.student_id}
+    
+    # Create student from lead data
+    student = Student(
+        full_name=lead.full_name,
+        phone=lead.phone,
+        phone2=lead.phone2,
+        email=lead.email,
+        city=lead.city,
+        address=lead.address,
+        id_number=lead.id_number,
+        notes=lead.notes,
+        status="active",
+        payment_status="pending",
+        lead_id=lead.id,
+    )
+    db.add(student)
+    await db.flush()
+    
+    enrollment = None
+    
+    # Create enrollment if course specified
+    if course_id:
+        enrollment = Enrollment(
+            student_id=student.id,
+            course_id=course_id,
+            status="active",
+            current_module=1,
+        )
+        db.add(enrollment)
+        await db.flush()
+    
+    # Update lead with conversion info
+    lead.student_id = student.id
+    lead.status = "converted"
+    lead.conversion_date = datetime.now()
+    
+    await db.commit()
+    
+    return {
+        "success": True,
+        "student_id": student.id,
+        "enrollment_id": enrollment.id if enrollment else None,
+        "message": f"ליד הומר לתלמיד #{student.id}" + (f" ונרשם לקורס" if enrollment else ""),
+    }
 
 
 # ============================================================

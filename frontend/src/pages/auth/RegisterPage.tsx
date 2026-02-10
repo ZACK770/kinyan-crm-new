@@ -11,7 +11,7 @@ export function RegisterPage() {
   const [fullName, setFullName] = useState('')
   const [loading, setLoading] = useState(false)
   const { register } = useAuth()
-  const { showError, showSuccess } = useToast()
+  const { error: showError, success: showSuccess } = useToast()
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,8 +41,9 @@ export function RegisterPage() {
       })
       showSuccess('נרשמת בהצלחה! החשבון שלך ממתין לאישור מנהל')
       navigate('/welcome')
-    } catch (error: any) {
-      showError(error.message || 'שגיאה בהרשמה')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'שגיאה בהרשמה'
+      showError(message)
     } finally {
       setLoading(false)
     }
@@ -58,10 +59,10 @@ export function RegisterPage() {
 
         <form onSubmit={handleSubmit} className={styles.authForm}>
           <div className={styles.field}>
-            <label htmlFor=\"fullName\">שם מלא *</label>
+            <label htmlFor="fullName">שם מלא *</label>
             <input
-              id=\"fullName\"
-              type=\"text\"
+              id="fullName"
+              type="text"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               disabled={loading}
@@ -70,47 +71,47 @@ export function RegisterPage() {
           </div>
 
           <div className={styles.field}>
-            <label htmlFor=\"email\">כתובת מייל *</label>
+            <label htmlFor="email">כתובת מייל *</label>
             <input
-              id=\"email\"
-              type=\"email\"
+              id="email"
+              type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={loading}
               required
-              dir=\"ltr\"
+              dir="ltr"
             />
           </div>
 
           <div className={styles.field}>
-            <label htmlFor=\"password\">סיסמה * (לפחות 6 תווים)</label>
+            <label htmlFor="password">סיסמה * (לפחות 6 תווים)</label>
             <input
-              id=\"password\"
-              type=\"password\"
+              id="password"
+              type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={loading}
               required
               minLength={6}
-              dir=\"ltr\"
+              dir="ltr"
             />
           </div>
 
           <div className={styles.field}>
-            <label htmlFor=\"confirmPassword\">אימוד סיסמה *</label>
+            <label htmlFor="confirmPassword">אימות סיסמה *</label>
             <input
-              id=\"confirmPassword\"
-              type=\"password\"
+              id="confirmPassword"
+              type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               disabled={loading}
               required
-              dir=\"ltr\"
+              dir="ltr"
             />
           </div>
 
           <button 
-            type=\"submit\" 
+            type="submit" 
             className={styles.primaryButton}
             disabled={loading}
           >
@@ -119,11 +120,11 @@ export function RegisterPage() {
         </form>
 
         <div className={styles.authInfo}>
-          <p><strong>הערה:</strong> לאחר ההרשמה, החשבון שלך יהיה במצב \"ממתין לאישור\" עד שמנהל המערכת יפעיל אותו.</p>
+          <p><strong>הערה:</strong> לאחר ההרשמה, החשבון שלך יהיה במצב "ממתין לאישור" עד שמנהל המערכת יפעיל אותו.</p>
         </div>
 
         <div className={styles.authLinks}>
-          <Link to=\"/auth/login\">כבר יש לך חשבון? התחבר</Link>
+          <Link to="/auth/login">כבר יש לך חשבון? התחבר</Link>
         </div>
       </div>
     </div>

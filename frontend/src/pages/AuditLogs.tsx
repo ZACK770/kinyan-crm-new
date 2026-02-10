@@ -1,5 +1,5 @@
 import { useEffect, useState, type FC } from 'react'
-import { FileText, Filter, RefreshCw, User, Calendar } from 'lucide-react'
+import { FileText, Filter, RefreshCw, User } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatDateTime } from '@/lib/status'
 import { useToast } from '@/components/ui/Toast'
@@ -153,7 +153,7 @@ export const AuditLogsPage: FC = () => {
   const columns: Column<AuditLog>[] = [
     {
       key: 'created_at',
-      label: 'תאריך ושעה',
+      header: 'תאריך ושעה',
       render: (log) => (
         <div style={{ fontSize: '0.875rem', whiteSpace: 'nowrap' }}>
           {formatDateTime(log.created_at)}
@@ -162,12 +162,12 @@ export const AuditLogsPage: FC = () => {
     },
     {
       key: 'action',
-      label: 'פעולה',
+      header: 'פעולה',
       render: (log) => <ActionBadge action={log.action} />,
     },
     {
       key: 'user_name',
-      label: 'משתמש',
+      header: 'משתמש',
       render: (log) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <User size={14} strokeWidth={2} style={{ color: '#6b7280' }} />
@@ -177,7 +177,7 @@ export const AuditLogsPage: FC = () => {
     },
     {
       key: 'entity_type',
-      label: 'ישות',
+      header: 'ישות',
       render: (log) => (
         <span style={{ fontSize: '0.875rem' }}>
           {getEntityLabel(log.entity_type)}
@@ -187,7 +187,7 @@ export const AuditLogsPage: FC = () => {
     },
     {
       key: 'description',
-      label: 'תיאור',
+      header: 'תיאור',
       render: (log) => (
         <div style={{ maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {log.description || '-'}
@@ -196,7 +196,7 @@ export const AuditLogsPage: FC = () => {
     },
     {
       key: 'ip_address',
-      label: 'IP',
+      header: 'IP',
       render: (log) => (
         <span style={{ fontSize: '0.8rem', fontFamily: 'monospace', color: '#6b7280', direction: 'ltr' }}>
           {log.ip_address || '-'}
@@ -313,7 +313,8 @@ export const AuditLogsPage: FC = () => {
         columns={columns}
         data={logs}
         loading={loading}
-        emptyMessage="אין רשומות להצגה"
+        emptyText="אין רשומות להצגה"
+        keyExtractor={(log) => log.id}
       />
 
       {/* Pagination */}

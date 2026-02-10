@@ -6,13 +6,14 @@ import {
   Eye,
   Pencil,
   MessageSquarePlus,
+  UserCheck,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, getSourceLabel, formatDate, formatDateTime } from '@/lib/status'
 import { useModal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { DataTable, type Column } from '@/components/ui/DataTable'
-import type { Lead, LeadInteraction, Salesperson } from '@/types'
+import type { Lead, LeadInteraction, Salesperson, Course, Campaign } from '@/types'
 import s from '@/styles/shared.module.css'
 
 /* ── status badge helper ── */
@@ -27,10 +28,14 @@ function Badge({ entity, value }: { entity: string; value?: string }) {
 function LeadForm({
   initial,
   salespersons,
+  campaigns,
+  courses,
   onSubmit,
 }: {
   initial?: Partial<Lead>
   salespersons: Salesperson[]
+  campaigns: Campaign[]
+  courses: Course[]
   onSubmit: (data: Record<string, unknown>) => void
 }) {
   const [form, setForm] = useState({
@@ -41,11 +46,15 @@ function LeadForm({
     email: initial?.email ?? '',
     city: initial?.city ?? '',
     source_type: initial?.source_type ?? '',
-    campaign_name: initial?.campaign_name ?? '',
+    campaign_id: initial?.campaign_id ?? '',
+    course_id: (initial as Record<string, unknown>)?.course_id ?? '',
     notes: initial?.notes ?? '',
     salesperson_id: initial?.salesperson_id ?? '',
     status: initial?.status ?? 'new',
   })
+
+  // Get selected course for price display
+  const selectedCourse = courses.find(c => c.id === Number(form.course_id))
 
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(prev => ({ ...prev, [key]: e.target.value }))
@@ -55,6 +64,10 @@ function LeadForm({
     const data: Record<string, unknown> = { ...form }
     if (data.salesperson_id) data.salesperson_id = Number(data.salesperson_id)
     else delete data.salesperson_id
+    if (data.campaign_id) data.campaign_id = Number(data.campaign_id)
+    else delete data.campaign_id
+    if (data.course_id) data.course_id = Number(data.course_id)
+    else delete data.course_id
     // Remove empty strings
     Object.keys(data).forEach(k => { if (data[k] === '') delete data[k] })
     onSubmit(data)
@@ -109,11 +122,25 @@ function LeadForm({
         </div>
         <div className={s['form-group']}>
           <label className={s['form-label']}>קמפיין</label>
-          <input className={s.input} value={form.campaign_name} onChange={set('campaign_name')} />
+          <select className={s.select} value={form.campaign_id} onChange={set('campaign_id')}>
+            <option value="">— בחר קמפיין —</option>
+            {campaigns.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
         </div>
       </div>
 
       <div className={s['form-row']}>
+        <div className={s['form-group']}>
+          <label className={s['form-label']}>קורס מבוקש</label>
+          <select className={s.select} value={form.course_id} onChange={set('course_id')}>
+            <option value="">— בחר קורס —</option>
+            {courses.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
         <div className={s['form-group']}>
           <label className={s['form-label']}>איש מכירות</label>
           <select className={s.select} value={form.salesperson_id} onChange={set('salesperson_id')}>
@@ -123,6 +150,17 @@ function LeadForm({
             ))}
           </select>
         </div>
+      </div>
+
+      {/* Show course price if selected */}
+      {selectedCourse && (
+        <div className={s['detail-row']} style={{ background: 'var(--bg-accent)', padding: '8px 12px', borderRadius: 6 }}>
+          <span className={s['detail-key']}>קורס נבחר</span>
+          <span className={s['detail-value']} style={{ fontWeight: 600 }}>{selectedCourse.name}</span>
+        </div>
+      )}
+
+      <div className={s['form-row']}>
         <div className={s['form-group']}>
           <label className={s['form-label']}>סטטוס</label>
           <select className={s.select} value={form.status} onChange={set('status')}>
@@ -203,30 +241,98 @@ function InteractionForm({ onSubmit }: { onSubmit: (data: Record<string, unknown
 }
 
 /* ══════════════════════════════════════════════════════════════
+   Convert Lead to Student Form
+   ══════════════════════════════════════════════════════════════ */
+function ConvertLeadForm({
+  courses,
+  onSubmit,
+}: {
+  courses: Course[]
+  onSubmit: (courseId: number | null) => void
+}) {
+  const [courseId, setCourseId] = useState('')
+  
+  const handle = (e: FormEvent) => {
+    e.preventDefault()
+    onSubmit(courseId ? Number(courseId) : null)
+  }
+
+  const selectedCourse = courses.find(c => c.id === Number(courseId))
+
+  return (
+    <form onSubmit={handle} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: 14 }}>
+        המרה לתלמיד תיצור רשומת תלמיד חדשה עם כל הפרטים מהליד.
+      </p>
+      
+      <div className={s['form-group']}>
+        <label className={s['form-label']}>קורס להרשמה (אופציונלי)</label>
+        <select className={s.select} value={courseId} onChange={e => setCourseId(e.target.value)}>
+          <option value="">— ללא הרשמה לקורס —</option>
+          {courses.map(c => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+      </div>
+
+      {selectedCourse && (
+        <div className={s['detail-row']} style={{ background: 'var(--bg-accent)', padding: '8px 12px', borderRadius: 6 }}>
+          <span className={s['detail-key']}>קורס נבחר</span>
+          <span className={s['detail-value']} style={{ fontWeight: 600 }}>{selectedCourse.name}</span>
+        </div>
+      )}
+
+      <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>
+        <UserCheck size={16} strokeWidth={1.5} />
+        {courseId ? 'המר והרשם לקורס' : 'המר לתלמיד'}
+      </button>
+    </form>
+  )
+}
+
+/* ══════════════════════════════════════════════════════════════
    Lead Detail (shown in modal)
    ══════════════════════════════════════════════════════════════ */
 function LeadDetail({
   lead,
   salespersons,
+  courses,
   onEdit,
   onAddInteraction,
+  onConvert,
 }: {
   lead: Lead
   salespersons: Salesperson[]
+  courses: Course[]
   onEdit: () => void
   onAddInteraction: () => void
+  onConvert: () => void
 }) {
   const sp = salespersons.find(s => s.id === lead.salesperson_id)
+  const isConverted = lead.status === 'converted' || lead.student_id
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Info section */}
       <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8 }}>
           <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>פרטי ליד</h4>
-          <button className={`${s.btn} ${s['btn-secondary']} ${s['btn-sm']}`} onClick={onEdit}>
-            <Pencil size={14} strokeWidth={1.5} /> עריכה
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {!isConverted && (
+              <button className={`${s.btn} ${s['btn-primary']} ${s['btn-sm']}`} onClick={onConvert}>
+                <UserCheck size={14} strokeWidth={1.5} /> המר לתלמיד
+              </button>
+            )}
+            <button className={`${s.btn} ${s['btn-secondary']} ${s['btn-sm']}`} onClick={onEdit}>
+              <Pencil size={14} strokeWidth={1.5} /> עריכה
+            </button>
+          </div>
         </div>
+        {isConverted && lead.student_id && (
+          <div className={s['detail-row']} style={{ background: 'var(--bg-success)', padding: '8px 12px', borderRadius: 6, marginBottom: 12 }}>
+            <span className={s['detail-key']}>🎉 הומר לתלמיד</span>
+            <span className={s['detail-value']} style={{ fontWeight: 600 }}>תלמיד #{lead.student_id}</span>
+          </div>
+        )}
         <div className={s['detail-row']}>
           <span className={s['detail-key']}>שם</span>
           <span className={s['detail-value']}>{lead.full_name} {lead.family_name ?? ''}</span>
@@ -314,12 +420,28 @@ export function LeadsPage() {
 
   const [leads, setLeads] = useState<Lead[]>([])
   const [salespersons, setSalespersons] = useState<Salesperson[]>([])
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('')
   const [spFilter, setSpFilter] = useState('')
   const [phoneSearch, setPhoneSearch] = useState('')
 
-  /* ── Fetch ── */
+  /* ── Fetch Reference Data ── */
+  useEffect(() => {
+    // Load salespeople, campaigns, courses in parallel
+    Promise.all([
+      api.get<Salesperson[]>('leads/salespersons').catch(() => []),
+      api.get<Campaign[]>('campaigns').catch(() => []),
+      api.get<Course[]>('courses').catch(() => []),
+    ]).then(([sp, camp, crs]) => {
+      setSalespersons(sp)
+      setCampaigns(camp)
+      setCourses(crs)
+    })
+  }, [])
+
+  /* ── Fetch Leads ── */
   const fetchLeads = useCallback(async () => {
     setLoading(true)
     try {
@@ -338,15 +460,6 @@ export function LeadsPage() {
   }, [statusFilter, spFilter, toast])
 
   useEffect(() => { fetchLeads() }, [fetchLeads])
-
-  useEffect(() => {
-    api.get<Salesperson[]>('leads/salespersons').catch(() =>
-      // fallback — endpoint might not exist; use dashboard salespeople
-      api.get<{ id: number; name: string }[]>('dashboard/salespeople').catch(() => [])
-    ).then(data => {
-      if (Array.isArray(data)) setSalespersons(data as Salesperson[])
-    })
-  }, [])
 
   /* ── Phone search ── */
   const handlePhoneSearch = async () => {
@@ -370,6 +483,8 @@ export function LeadsPage() {
       content: (
         <LeadForm
           salespersons={salespersons}
+          campaigns={campaigns}
+          courses={courses}
           onSubmit={async data => {
             try {
               await api.post('leads', data)
@@ -403,6 +518,7 @@ export function LeadsPage() {
         <LeadDetail
           lead={lead}
           salespersons={salespersons}
+          courses={courses}
           onEdit={() => {
             closeModal()
             openEdit(lead)
@@ -410,6 +526,36 @@ export function LeadsPage() {
           onAddInteraction={() => {
             closeModal()
             openAddInteraction(lead.id)
+          }}
+          onConvert={() => {
+            closeModal()
+            openConvert(lead)
+          }}
+        />
+      ),
+    })
+  }
+
+  /* ── Convert Lead to Student ── */
+  const openConvert = (lead: Lead) => {
+    openModal({
+      title: `המרה לתלמיד — ${lead.full_name}`,
+      size: 'md',
+      content: (
+        <ConvertLeadForm
+          courses={courses}
+          onSubmit={async (courseId) => {
+            try {
+              const result = await api.post<{ success: boolean; student_id?: number; message?: string }>(
+                `leads/${lead.id}/convert`,
+                { course_id: courseId || null }
+              )
+              toast.success(result.message ?? 'ליד הומר לתלמיד בהצלחה!')
+              closeModal()
+              fetchLeads()
+            } catch (err: unknown) {
+              toast.error((err as { message?: string }).message ?? 'שגיאה בהמרה')
+            }
           }}
         />
       ),
@@ -425,6 +571,8 @@ export function LeadsPage() {
         <LeadForm
           initial={lead}
           salespersons={salespersons}
+          campaigns={campaigns}
+          courses={courses}
           onSubmit={async data => {
             try {
               await api.patch(`leads/${lead.id}`, data)

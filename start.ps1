@@ -16,6 +16,7 @@ Write-Host "====================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Set environment variables
+$env:DEV_SKIP_AUTH = "true"  # Skip authentication for testing
 $env:DATABASE_URL = "postgresql+asyncpg://crm_new_user:45RsFRWnUuvPQFAttG37PxisVlC79HZv@dpg-d65jjr56ubrc7396u8r0-a.frankfurt-postgres.render.com/crm_new"
 $env:SECRET_KEY = "dev-local-secret-key-change-in-production"
 $env:API_KEY = "dev-webhook-key"

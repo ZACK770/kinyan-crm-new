@@ -6,6 +6,8 @@ from fastapi import APIRouter, Request
 from webhooks.elementor import handle_elementor_webhook
 from webhooks.yemot import handle_yemot_webhook
 from webhooks.generic import handle_generic_webhook
+from webhooks.nedarim import handle_nedarim_webhook
+from services.nedarim_plus import verify_webhook_signature
 
 router = APIRouter(tags=["webhooks"])
 
@@ -36,4 +38,23 @@ async def generic_webhook(request: Request):
     """Handle generic webhook / manual API."""
     data = await request.json()
     result = await handle_generic_webhook(data)
+    return result
+
+
+@router.post("/nedarim")
+async def nedarim_webhook(request: Request):
+    """
+    Handle Nedarim Plus payment webhooks.
+    Verifies signature and processes payment events.
+    """
+    # Get raw body for signature verification
+    body = await request.body()
+    signature = request.headers.get("X-Nedarim-Signature", "")
+    
+    # Verify signature
+    if not verify_webhook_signature(body, signature):
+        return {"success": False, "error": "Invalid signature"}
+    
+    data = await request.json()
+    result = await handle_nedarim_webhook(data, signature)
     return result

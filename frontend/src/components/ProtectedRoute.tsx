@@ -1,4 +1,4 @@
-import { ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -34,12 +34,12 @@ export function ProtectedRoute({
 
   // Redirect to login if not authenticated
   if (!isAuthenticated) {
-    return <Navigate to=\"/auth/login\" state={{ from: location }} replace />
+    return <Navigate to="/auth/login" state={{ from: location }} replace />
   }
 
   // Check if user account is pending
   if (user?.role_name === 'pending') {
-    return <Navigate to=\"/welcome\" replace />
+    return <Navigate to="/welcome" replace />
   }
 
   // Check role requirement

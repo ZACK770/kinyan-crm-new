@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://localhost/kinyan_crm"
     SECRET_KEY: str = "dev-secret"
     API_KEY: str = "dev-api-key"
+    
+    # Dev mode: skip authentication
+    DEV_SKIP_AUTH: bool = False
 
     # JWT
     JWT_SECRET_KEY: str = "jwt-secret-change-in-production"
@@ -29,6 +32,12 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     SMTP_FROM_EMAIL: str = ""
     SMTP_FROM_NAME: str = "Kinyan CRM"
+
+    # Nedarim Plus API
+    NEDARIM_API_URL: str = "https://api.nedarimplus.co.il/v1"
+    NEDARIM_API_KEY: str = ""
+    NEDARIM_MOSAD_ID: str = ""
+    NEDARIM_WEBHOOK_SECRET: str = ""
 
     # Frontend URL (for reset links, welcome page, etc.)
     FRONTEND_URL: str = "http://localhost:5173"

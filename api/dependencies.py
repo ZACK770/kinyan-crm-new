@@ -21,7 +21,12 @@ Usage:
         db: AsyncSession = Depends(get_db),
     ):
         ...
+
+DEV MODE:
+    Set DEV_SKIP_AUTH=true in .env to bypass authentication (returns fake admin user).
+    This is for development/testing only! Remove in production.
 """
+import os
 from typing import Optional, Callable
 
 from fastapi import Depends, HTTPException, status, Request
@@ -36,6 +41,22 @@ from services.users import get_user_by_id, ROLES, get_required_level, check_perm
 # Bearer token scheme — reads "Authorization: Bearer <token>" header
 bearer_scheme = HTTPBearer(auto_error=False)
 
+# DEV MODE: Skip authentication (set DEV_SKIP_AUTH=true in .env)
+DEV_SKIP_AUTH = os.environ.get("DEV_SKIP_AUTH", "").lower() in ("true", "1", "yes")
+
+
+def _get_fake_dev_user() -> User:
+    """Create a fake admin user for development without authentication."""
+    fake_user = User(
+        id=0,
+        email="dev@localhost",
+        full_name="Dev User (No Auth)",
+        permission_level=40,  # Admin
+        role_name="admin",
+        is_active=True,
+    )
+    return fake_user
+
 
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
@@ -45,7 +66,13 @@ async def get_current_user(
     Extract and validate the JWT token from the Authorization header.
     Returns the full User object from the database.
     Raises 401 if token is missing/invalid/expired or user not found.
+    
+    DEV MODE: If DEV_SKIP_AUTH=true, returns a fake admin user without auth.
     """
+    # DEV MODE: Skip auth and return fake admin user
+    if DEV_SKIP_AUTH:
+        return _get_fake_dev_user()
+    
     if not credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
