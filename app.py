@@ -19,7 +19,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from db import init_db
 from api import leads_api, students_api, courses_api, dashboard_api, webhooks_api
 from api import inquiries_api, exams_api, payments_api, expenses_api, attendance_api, collections_api
-from api import auth_api, users_api, audit_logs_api, campaigns_api, files_api, products_api
+from api import auth_api, users_api, audit_logs_api, campaigns_api, files_api, products_api, sales_assignment_api
 
 # Frontend build directory
 FRONTEND_DIR = Path(__file__).parent / "frontend" / "dist"
@@ -69,6 +69,7 @@ app.include_router(users_api.router, prefix="/api/users", tags=["users"])
 # --- System Management ---
 app.include_router(audit_logs_api.router, prefix="/api/audit-logs", tags=["audit-logs"])
 app.include_router(files_api.router, prefix="/api/files", tags=["files"])
+app.include_router(sales_assignment_api.router, prefix="/api/sales-assignment-rules", tags=["sales-assignment"])
 
 
 # Health check endpoint (for Render and monitoring)

@@ -112,37 +112,132 @@ async def add_interaction(db: AsyncSession, lead_id: int, **kwargs) -> LeadInter
 
 
 # ============================================================
-# Round-Robin Assignment
+# Smart Lead Assignment with Rules
 # ============================================================
-def _phone_hash(phone: str) -> int:
-    """Deterministic hash from phone number (same algo as JS version)."""
-    clean = "".join(c for c in phone if c.isdigit())
-    h = 0
-    for ch in clean:
-        h = ((h << 5) - h) + ord(ch)
-        h &= 0xFFFFFFFF  # 32-bit
-    return h
-
-
 async def assign_salesperson(db: AsyncSession, lead_id: int, phone: str) -> Salesperson | None:
-    """Assign salesperson via deterministic round-robin based on phone hash."""
-    stmt = select(Salesperson).where(Salesperson.is_active == True).order_by(Salesperson.id)  # noqa: E712
+    """
+    Smart salesperson assignment with workload control, daily limits, and priority weights.
+    
+    Algorithm:
+    1. Get all active salespeople with their assignment rules
+    2. Filter out those who reached limits (daily/workload)
+    3. Select using weighted random based on priority_weight
+    4. Update counters and assign
+    5. Fallback to simple round-robin if no rules exist
+    """
+    from db.models import SalesAssignmentRules
+    from datetime import date as date_type
+    import random
+    
+    # Get active salespeople with their rules
+    stmt = (
+        select(Salesperson, SalesAssignmentRules)
+        .outerjoin(SalesAssignmentRules, Salesperson.id == SalesAssignmentRules.salesperson_id)
+        .where(Salesperson.is_active == True)  # noqa: E712
+        .order_by(Salesperson.id)
+    )
     result = await db.execute(stmt)
-    active = result.scalars().all()
-
-    if not active:
+    salespeople_with_rules = result.all()
+    
+    if not salespeople_with_rules:
         return None
-
-    idx = _phone_hash(phone) % len(active)
-    chosen = active[idx]
-
+    
+    # Check if any rules exist
+    has_rules = any(rules is not None for _, rules in salespeople_with_rules)
+    
+    if not has_rules:
+        # Fallback to simple round-robin
+        return await _assign_salesperson_simple(db, lead_id, phone, [sp for sp, _ in salespeople_with_rules])
+    
+    # Filter available salespeople based on rules
+    today = date_type.today()
+    available = []
+    
+    for salesperson, rules in salespeople_with_rules:
+        if rules is None:
+            # No rules = always available with default weight
+            available.append((salesperson, 1))
+            continue
+        
+        if not rules.is_active:
+            continue
+        
+        # Reset daily counter if needed
+        if rules.last_reset_date != today:
+            rules.daily_leads_assigned = 0
+            rules.last_reset_date = today
+            await db.flush()
+        
+        # Check daily limit
+        if rules.daily_lead_limit is not None and rules.daily_leads_assigned >= rules.daily_lead_limit:
+            continue
+        
+        # Check workload limit (count open leads)
+        if rules.max_open_leads is not None:
+            status_filters = rules.status_filters or ["ליד חדש", "במעקב", "מתעניין"]
+            open_leads_stmt = (
+                select(func.count(Lead.id))
+                .where(Lead.salesperson_id == salesperson.id)
+                .where(Lead.status.in_(status_filters))
+            )
+            open_count_result = await db.execute(open_leads_stmt)
+            open_count = open_count_result.scalar()
+            
+            if open_count >= rules.max_open_leads:
+                continue
+        
+        # Available with priority weight
+        available.append((salesperson, rules.priority_weight))
+    
+    if not available:
+        # No one available - fallback to simple assignment (ignore rules)
+        return await _assign_salesperson_simple(db, lead_id, phone, [sp for sp, _ in salespeople_with_rules])
+    
+    # Weighted random selection
+    salespeople, weights = zip(*available)
+    chosen = random.choices(salespeople, weights=weights, k=1)[0]
+    
+    # Update lead assignment
     lead_stmt = select(Lead).where(Lead.id == lead_id)
     lead_result = await db.execute(lead_stmt)
     lead = lead_result.scalar_one_or_none()
     if lead:
         lead.salesperson_id = chosen.id
         await db.flush()
+    
+    # Update daily counter
+    rules_stmt = select(SalesAssignmentRules).where(SalesAssignmentRules.salesperson_id == chosen.id)
+    rules_result = await db.execute(rules_stmt)
+    rules = rules_result.scalar_one_or_none()
+    if rules:
+        rules.daily_leads_assigned += 1
+        await db.flush()
+    
+    return chosen
 
+
+async def _assign_salesperson_simple(db: AsyncSession, lead_id: int, phone: str, salespeople: list) -> Salesperson | None:
+    """Simple round-robin fallback (original algorithm)."""
+    if not salespeople:
+        return None
+    
+    # Deterministic hash from phone number
+    clean = "".join(c for c in phone if c.isdigit())
+    h = 0
+    for ch in clean:
+        h = ((h << 5) - h) + ord(ch)
+        h &= 0xFFFFFFFF  # 32-bit
+    
+    idx = h % len(salespeople)
+    chosen = salespeople[idx]
+    
+    lead_stmt = select(Lead).where(Lead.id == lead_id)
+    lead_result = await db.execute(lead_stmt)
+    lead = lead_result.scalar_one_or_none()
+    if lead:
+        lead.salesperson_id = chosen.id
+        await db.flush()
+    
     return chosen
 
 

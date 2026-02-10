@@ -77,6 +77,42 @@ class Salesperson(Base):
     leads: Mapped[List["Lead"]] = relationship(back_populates="salesperson")
     tasks: Mapped[List["SalesTask"]] = relationship(back_populates="salesperson")
     campaign_links: Mapped[List["CampaignSalespersonLink"]] = relationship(back_populates="salesperson")
+    assignment_rules: Mapped[Optional["SalesAssignmentRules"]] = relationship(back_populates="salesperson", uselist=False)
+
+
+# ============================================================
+# SalesAssignmentRules (כללי שיוך לידים) — smart lead assignment
+# ============================================================
+class SalesAssignmentRules(Base):
+    __tablename__ = "sales_assignment_rules"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    salesperson_id: Mapped[int] = mapped_column(ForeignKey("salespeople.id", ondelete="CASCADE"), nullable=False, unique=True)
+
+    # Daily limits
+    daily_lead_limit: Mapped[Optional[int]] = mapped_column(Integer)  # NULL = unlimited
+    daily_leads_assigned: Mapped[int] = mapped_column(Integer, default=0)
+    last_reset_date: Mapped[Optional[date]] = mapped_column(Date)
+
+    # Priority/preference weight (1-10, higher = more leads)
+    priority_weight: Mapped[int] = mapped_column(Integer, default=1)
+
+    # Workload control
+    max_open_leads: Mapped[Optional[int]] = mapped_column(Integer)  # NULL = unlimited
+    status_filters: Mapped[Optional[list]] = mapped_column(ARRAY(String), default=["ליד חדש", "במעקב", "מתעניין"])
+
+    # Active/inactive
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_assignment_rules_salesperson", "salesperson_id"),
+        Index("idx_assignment_rules_active", "is_active"),
+    )
+
+    salesperson: Mapped["Salesperson"] = relationship(back_populates="assignment_rules")
 
 
 # ============================================================
