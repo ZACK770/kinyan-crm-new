@@ -27,18 +27,19 @@ export interface Lead {
   conversion_date?: string
   student_id?: number
   campaign_id?: number
+  course_id?: number  // Interested course
   active_task_id?: number
   created_at: string
-  updated_at: string
+  updated_at?: string
   created_by?: string
   interactions?: LeadInteraction[]
 }
 
 export interface LeadInteraction {
   id: number
-  lead_id: number
+  lead_id?: number
   interaction_type: string
-  interaction_date: string
+  interaction_date?: string
   call_status?: string
   wait_time?: string
   call_duration?: string

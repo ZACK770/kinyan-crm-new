@@ -51,7 +51,9 @@ async def create_lead(db: AsyncSession, **kwargs) -> Lead:
         phone=normalize_phone(kwargs.get("phone", "")),
         phone2=kwargs.get("phone2"),
         email=kwargs.get("email"),
+        address=kwargs.get("address"),
         city=kwargs.get("city"),
+        id_number=kwargs.get("id_number"),
         notes=kwargs.get("notes"),
         source_type=kwargs.get("source_type"),
         source_name=kwargs.get("source_name"),
@@ -59,6 +61,8 @@ async def create_lead(db: AsyncSession, **kwargs) -> Lead:
         source_message=kwargs.get("source_message"),
         source_details=kwargs.get("source_details"),
         salesperson_id=kwargs.get("salesperson_id"),
+        campaign_id=kwargs.get("campaign_id"),
+        course_id=kwargs.get("course_id"),
     )
     db.add(lead)
     await db.flush()

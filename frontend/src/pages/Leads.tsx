@@ -7,12 +7,14 @@ import {
   Pencil,
   MessageSquarePlus,
   UserCheck,
+  ArrowRight,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, getSourceLabel, formatDate, formatDateTime } from '@/lib/status'
 import { useModal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { DataTable, type Column } from '@/components/ui/DataTable'
+import { LeadWorkspace } from '@/components/leads'
 import type { Lead, LeadInteraction, Salesperson, Course, Campaign } from '@/types'
 import s from '@/styles/shared.module.css'
 
@@ -47,7 +49,7 @@ function LeadForm({
     city: initial?.city ?? '',
     source_type: initial?.source_type ?? '',
     campaign_id: initial?.campaign_id ?? '',
-    course_id: (initial as Record<string, unknown>)?.course_id ?? '',
+    course_id: initial?.course_id ?? '',
     notes: initial?.notes ?? '',
     salesperson_id: initial?.salesperson_id ?? '',
     status: initial?.status ?? 'new',
@@ -426,6 +428,9 @@ export function LeadsPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [spFilter, setSpFilter] = useState('')
   const [phoneSearch, setPhoneSearch] = useState('')
+  
+  // Workspace view state
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
 
   /* ── Fetch Reference Data ── */
   useEffect(() => {
@@ -500,14 +505,30 @@ export function LeadsPage() {
     })
   }
 
-  /* ── Detail ── */
-  const openDetail = async (lead: Lead) => {
+  /* ── Open Lead Workspace (full view) ── */
+  const openLeadWorkspace = async (lead: Lead) => {
     try {
       const full = await api.get<Lead>(`leads/${lead.id}`)
-      showDetailModal(full)
+      setSelectedLead(full)
     } catch {
       toast.error('שגיאה בטעינת פרטי ליד')
     }
+  }
+
+  const refreshSelectedLead = async () => {
+    if (!selectedLead) return
+    try {
+      const fresh = await api.get<Lead>(`leads/${selectedLead.id}`)
+      setSelectedLead(fresh)
+    } catch {
+      // Ignore refresh errors
+    }
+  }
+
+  /* ── Detail (legacy modal - can be removed) ── */
+  const openDetail = async (lead: Lead) => {
+    // Now opens workspace instead of modal
+    openLeadWorkspace(lead)
   }
 
   const showDetailModal = (lead: Lead) => {
@@ -648,6 +669,42 @@ export function LeadsPage() {
     },
   ]
 
+  // Show workspace if a lead is selected
+  if (selectedLead) {
+    return (
+      <div>
+        {/* Back button header */}
+        <div className={s['page-header']}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button 
+              className={`${s.btn} ${s['btn-ghost']}`} 
+              onClick={() => setSelectedLead(null)}
+              style={{ padding: '6px 10px' }}
+            >
+              <ArrowRight size={18} />
+              חזרה לרשימה
+            </button>
+            <h1 className={s['page-title']} style={{ fontSize: '1.2rem' }}>
+              פרטי ליד — {selectedLead.full_name} {selectedLead.family_name ?? ''}
+            </h1>
+          </div>
+        </div>
+        
+        {/* Lead Workspace */}
+        <LeadWorkspace
+          lead={selectedLead}
+          salespersons={salespersons}
+          campaigns={campaigns}
+          courses={courses}
+          onClose={() => setSelectedLead(null)}
+          onUpdate={refreshSelectedLead}
+          onAddInteraction={() => openAddInteraction(selectedLead.id)}
+          onConvert={() => openConvert(selectedLead)}
+        />
+      </div>
+    )
+  }
+
   return (
     <div>
       {/* Page header */}
@@ -686,11 +743,13 @@ export function LeadsPage() {
             onChange={e => setStatusFilter(e.target.value)}
           >
             <option value="">כל הסטטוסים</option>
-            <option value="new">חדש</option>
-            <option value="contacted">נוצר קשר</option>
-            <option value="interested">מעוניין</option>
-            <option value="converted">הומר</option>
-            <option value="irrelevant">לא רלוונטי</option>
+            <option value="new">ליד חדש</option>
+            <option value="first_call">חיוג ראשון</option>
+            <option value="follow_up">במעקב</option>
+            <option value="interested">מתעניין</option>
+            <option value="payment_done">נסלק</option>
+            <option value="converted">ליד סגור-לקוח</option>
+            <option value="not_relevant">לא רלוונטי</option>
           </select>
 
           {/* Salesperson filter */}
@@ -721,9 +780,7 @@ export function LeadsPage() {
           loading={loading}
           emptyText="לא נמצאו לידים"
           emptyIcon={<Phone size={40} strokeWidth={1.5} />}
-          onRowClick={openDetail}
-          keyExtractor={r => r.id}
-        />
+          onRowClick={openLeadWorkspace}
       </div>
     </div>
   )

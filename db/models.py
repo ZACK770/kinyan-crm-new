@@ -283,6 +283,7 @@ class Lead(Base):
     # Links
     student_id: Mapped[Optional[int]] = mapped_column(ForeignKey("students.id"))
     campaign_id: Mapped[Optional[int]] = mapped_column(ForeignKey("campaigns.id"))
+    course_id: Mapped[Optional[int]] = mapped_column(ForeignKey("courses.id"))  # Interested course
     active_task_id: Mapped[Optional[int]] = mapped_column(ForeignKey("sales_tasks.id", use_alter=True))
 
     # Meta
@@ -300,6 +301,7 @@ class Lead(Base):
     # Relations
     salesperson: Mapped[Optional["Salesperson"]] = relationship(back_populates="leads")
     campaign: Mapped[Optional["Campaign"]] = relationship(back_populates="leads")
+    course: Mapped[Optional["Course"]] = relationship()  # Interested course
     student: Mapped[Optional["Student"]] = relationship(foreign_keys=[student_id])  # Lead converted to this student
     interactions: Mapped[List["LeadInteraction"]] = relationship(back_populates="lead", order_by="LeadInteraction.interaction_date.desc()")
     products: Mapped[List["LeadProduct"]] = relationship(back_populates="lead")

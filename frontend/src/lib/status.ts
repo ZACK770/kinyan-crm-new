@@ -6,12 +6,40 @@ type BadgeColor = 'blue' | 'green' | 'yellow' | 'red' | 'gray' | 'orange'
 
 interface StatusDef { label: string; color: BadgeColor }
 
+// Lead statuses per ENTITIES_SPEC.md
 const leadStatus: Record<string, StatusDef> = {
-  new:        { label: 'חדש', color: 'blue' },
-  contacted:  { label: 'נוצר קשר', color: 'yellow' },
-  interested: { label: 'מעוניין', color: 'orange' },
-  converted:  { label: 'הומר', color: 'green' },
-  irrelevant: { label: 'לא רלוונטי', color: 'gray' },
+  new:           { label: 'ליד חדש', color: 'blue' },
+  first_call:    { label: 'חיוג ראשון', color: 'yellow' },
+  follow_up:     { label: 'במעקב', color: 'yellow' },
+  interested:    { label: 'מתעניין', color: 'orange' },
+  payment_done:  { label: 'נסלק', color: 'green' },
+  converted:     { label: 'ליד סגור-לקוח', color: 'green' },
+  not_relevant:  { label: 'ליד סגור-לא רלוונטי', color: 'gray' },
+  // Legacy mappings
+  contacted:     { label: 'נוצר קשר', color: 'yellow' },
+  irrelevant:    { label: 'לא רלוונטי', color: 'gray' },
+}
+
+// Interaction types
+const interactionType: Record<string, StatusDef> = {
+  call:          { label: 'שיחה', color: 'blue' },
+  ivr_call:      { label: 'IVR', color: 'yellow' },
+  outbound_call: { label: 'שיחה יוצאת', color: 'blue' },
+  sms:           { label: 'SMS', color: 'gray' },
+  whatsapp:      { label: 'וואטסאפ', color: 'green' },
+  email:         { label: 'אימייל', color: 'orange' },
+  website_form:  { label: 'טופס אתר', color: 'yellow' },
+  meeting:       { label: 'פגישה', color: 'green' },
+  note:          { label: 'הערה', color: 'gray' },
+  generic:       { label: 'כללי', color: 'gray' },
+}
+
+// Call statuses
+const callStatus: Record<string, StatusDef> = {
+  answered:  { label: 'ענה', color: 'green' },
+  no_answer: { label: 'לא ענה', color: 'red' },
+  busy:      { label: 'תפוס', color: 'yellow' },
+  voicemail: { label: 'תא קולי', color: 'gray' },
 }
 
 const studentStatus: Record<string, StatusDef> = {
@@ -62,6 +90,7 @@ const enrollmentStatus: Record<string, StatusDef> = {
 
 const maps: Record<string, Record<string, StatusDef>> = {
   lead: leadStatus,
+  leads: leadStatus,
   student: studentStatus,
   payment: paymentStatus,
   task: taskStatus,
@@ -69,6 +98,8 @@ const maps: Record<string, Record<string, StatusDef>> = {
   collection: collectionStatus,
   commitment: commitmentStatus,
   enrollment: enrollmentStatus,
+  interaction_type: interactionType,
+  call_status: callStatus,
 }
 
 export function getStatus(entity: string, value?: string): StatusDef {

@@ -23,13 +23,18 @@ class LeadBase(BaseModel):
     phone: str = Field(..., description="טלפון ראשי")
     phone2: Optional[str] = Field(default=None, description="טלפון נוסף")
     email: Optional[str] = Field(default=None, description="אימייל")
+    address: Optional[str] = Field(default=None, description="כתובת")
     city: Optional[str] = Field(default=None, description="עיר")
+    id_number: Optional[str] = Field(default=None, description="תעודת זהות")
     notes: Optional[str] = Field(default=None, description="הערות")
     source_type: Optional[str] = Field(default=None, description="סוג מקור (אינטרנט/ימות/אחר)")
     source_name: Optional[str] = Field(default=None, description="שם המקור")
-    campaign_name: Optional[str] = Field(default=None, description="שם הקמפיין")
+    campaign_name: Optional[str] = Field(default=None, description="שם הקמפיין (טקסט)")
     source_message: Optional[str] = Field(default=None, description="הודעת המקור")
+    source_details: Optional[str] = Field(default=None, description="פרטים נוספים")
     salesperson_id: Optional[int] = Field(default=None, description="מזהה איש מכירות")
+    campaign_id: Optional[int] = Field(default=None, description="מזהה קמפיין")
+    course_id: Optional[int] = Field(default=None, description="מזהה קורס מבוקש")
 
 
 class LeadCreate(LeadBase):
@@ -44,10 +49,18 @@ class LeadUpdate(BaseModel):
     phone: Optional[str] = None
     phone2: Optional[str] = None
     email: Optional[str] = None
+    address: Optional[str] = None
     city: Optional[str] = None
+    id_number: Optional[str] = None
     notes: Optional[str] = None
     status: Optional[str] = None
+    source_type: Optional[str] = None
+    source_name: Optional[str] = None
+    source_message: Optional[str] = None
+    source_details: Optional[str] = None
     salesperson_id: Optional[int] = None
+    campaign_id: Optional[int] = None
+    course_id: Optional[int] = None
 
 
 class LeadInteractionResponse(BaseModel):
@@ -55,8 +68,9 @@ class LeadInteractionResponse(BaseModel):
     id: int
     type: str
     description: Optional[str] = None
+    call_status: Optional[str] = None
+    user_name: Optional[str] = None
     created_at: str
-
 
 class LeadResponse(LeadBase):
     """Full lead response with all fields"""
