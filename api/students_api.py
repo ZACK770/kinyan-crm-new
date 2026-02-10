@@ -10,7 +10,7 @@ from db import get_db
 from services import students as student_svc
 from .dependencies import require_entity_access
 
-router = APIRouter(prefix="/students", tags=["students"])
+router = APIRouter(tags=["students"])
 
 
 # ── Schemas ──────────────────────────────────────────

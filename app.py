@@ -83,7 +83,7 @@ if FRONTEND_DIR.exists():
         app.mount("/assets", StaticFiles(directory=FRONTEND_DIR / "assets"), name="assets")
     
     # Root route - serve frontend
-    @app.get("/")
+    @app.get("/", include_in_schema=False)
     async def serve_root():
         """Serve the React SPA at root."""
         index_file = FRONTEND_DIR / "index.html"
@@ -91,19 +91,30 @@ if FRONTEND_DIR.exists():
             return FileResponse(index_file)
         return {"detail": "Frontend not built. Run: cd frontend && npm run build"}
     
-    # Catch-all route for SPA - must be LAST
-    @app.get("/{full_path:path}")
-    async def serve_spa(request: Request, full_path: str):
-        """Serve the React SPA for all non-API routes."""
-        # Don't serve frontend for API/webhooks routes
-        if full_path.startswith(("api/", "webhooks/", "docs", "openapi.json", "redoc", "health")):
-            return {"detail": "Not Found"}
-        
-        # Serve index.html for all other routes (SPA handles routing)
-        index_file = FRONTEND_DIR / "index.html"
-        if index_file.exists():
-            return FileResponse(index_file)
-        return {"detail": "Frontend not built. Run: cd frontend && npm run build"}
+    # SPA fallback - ONLY for frontend routes, NOT for API
+    # Use explicit frontend routes instead of catch-all
+    @app.get("/login", include_in_schema=False)
+    @app.get("/register", include_in_schema=False)
+    @app.get("/welcome", include_in_schema=False)
+    @app.get("/dashboard", include_in_schema=False)
+    @app.get("/leads", include_in_schema=False)
+    @app.get("/students", include_in_schema=False)
+    @app.get("/courses", include_in_schema=False)
+    @app.get("/lecturers", include_in_schema=False)
+    @app.get("/payments", include_in_schema=False)
+    @app.get("/collections", include_in_schema=False)
+    @app.get("/expenses", include_in_schema=False)
+    @app.get("/inquiries", include_in_schema=False)
+    @app.get("/messages", include_in_schema=False)
+    @app.get("/tasks", include_in_schema=False)
+    @app.get("/campaigns", include_in_schema=False)
+    @app.get("/commitments", include_in_schema=False)
+    @app.get("/users", include_in_schema=False)
+    @app.get("/audit-logs", include_in_schema=False)
+    @app.get("/settings", include_in_schema=False)
+    async def serve_spa_routes():
+        """Serve the React SPA for frontend routes."""
+        return FileResponse(FRONTEND_DIR / "index.html")
 else:
     # No frontend built - show API status at root
     @app.get("/")

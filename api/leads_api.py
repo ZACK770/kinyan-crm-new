@@ -11,7 +11,7 @@ from services import leads as lead_svc
 from services import audit_logs
 from .dependencies import require_entity_access
 
-router = APIRouter(prefix="/leads", tags=["leads"])
+router = APIRouter(tags=["leads"])
 
 
 # ── Schemas ──────────────────────────────────────────

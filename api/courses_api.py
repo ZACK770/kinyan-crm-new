@@ -8,7 +8,7 @@ from db import get_db
 from services import courses as course_svc
 from .dependencies import require_entity_access
 
-router = APIRouter(prefix="/courses", tags=["courses"])
+router = APIRouter(tags=["courses"])
 
 
 @router.get("/")

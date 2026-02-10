@@ -10,7 +10,7 @@ from db.models import Lead, Student, Enrollment, Payment, Salesperson
 from services import sales as sales_svc
 from .dependencies import require_permission
 
-router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+router = APIRouter(tags=["dashboard"])
 
 
 @router.get("/overview")

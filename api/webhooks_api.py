@@ -7,7 +7,7 @@ from webhooks.elementor import handle_elementor_webhook
 from webhooks.yemot import handle_yemot_webhook
 from webhooks.generic import handle_generic_webhook
 
-router = APIRouter(prefix="/webhooks", tags=["webhooks"])
+router = APIRouter(tags=["webhooks"])
 
 
 @router.post("/elementor")
