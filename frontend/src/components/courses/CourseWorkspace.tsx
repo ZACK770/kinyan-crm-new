@@ -101,12 +101,17 @@ export function CourseWorkspace({
   const handleInlineEdit = async (field: string, value: unknown) => {
     if (!course) return
     
+    console.log(`[CourseWorkspace] Saving field "${field}" with value:`, value, typeof value)
+    
     try {
-      await api.patch(`courses/${course.id}`, { [field]: value })
+      const payload = { [field]: value }
+      console.log('[CourseWorkspace] Sending payload:', payload)
+      await api.patch(`courses/${course.id}`, payload)
       toast.success('שדה עודכן')
       onUpdate()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'שגיאה בעדכון'
+      console.error('[CourseWorkspace] Save error:', err)
       toast.error(message)
     }
   }

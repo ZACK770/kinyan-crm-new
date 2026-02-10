@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_db
 from services import courses as course_svc
+from services import lecturers as lecturer_svc
 from services import audit_logs
 from .dependencies import require_entity_access
 
@@ -186,3 +187,13 @@ async def delete_course(
     )
     
     return {"success": True}
+
+
+@router.get("/lecturers")
+async def list_lecturers(
+    user = Depends(require_entity_access("lecturers", "view")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all lecturers - used by TracksPage."""
+    items = await lecturer_svc.get_lecturers(db)
+    return [{"id": lec.id, "name": lec.name} for lec in items]

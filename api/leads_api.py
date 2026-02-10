@@ -222,9 +222,9 @@ async def add_interaction(
 
 # ── Lead Payment Endpoints ────────────────────────────────
 class CreatePaymentLinkRequest(BaseModel):
-    amount: float
+    amount: float | None = None
     currency: str = "ILS"
-    installments: int = 1
+    installments: int | None = None
     payment_method: str = "credit_card"
     course_id: int | None = None
     redirect_url: str | None = None

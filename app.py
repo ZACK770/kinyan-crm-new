@@ -20,7 +20,7 @@ from db import init_db
 from api import leads_api, students_api, courses_api, dashboard_api, webhooks_api
 from api import inquiries_api, exams_api, payments_api, expenses_api, attendance_api, collections_api
 from api import auth_api, users_api, audit_logs_api, campaigns_api, files_api, sales_assignment_api
-from api import course_tracks_api
+from api import course_tracks_api, lecturers_api
 
 # Frontend build directory
 FRONTEND_DIR = Path(__file__).parent / "frontend" / "dist"
@@ -53,6 +53,7 @@ app.include_router(leads_api.router, prefix="/api/leads", tags=["leads"])
 app.include_router(students_api.router, prefix="/api/students", tags=["students"])
 app.include_router(courses_api.router, prefix="/api/courses", tags=["courses"])
 app.include_router(course_tracks_api.router)
+app.include_router(lecturers_api.router, prefix="/api/lecturers", tags=["lecturers"])
 app.include_router(exams_api.router, prefix="/api/exams", tags=["exams"])
 app.include_router(attendance_api.router, prefix="/api/attendance", tags=["attendance"])
 app.include_router(payments_api.router, prefix="/api/finance", tags=["finance"])

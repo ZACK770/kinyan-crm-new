@@ -67,16 +67,17 @@ export function InlineEditCell({
     setIsEditing(false)
   }
 
-  const saveValue = async () => {
+  const saveValue = async (overrideValue?: unknown) => {
+    const valToSave = overrideValue !== undefined ? overrideValue : editValue
     // No change - just close
-    if (editValue === value) {
+    if (valToSave === value) {
       setIsEditing(false)
       return
     }
 
     setIsSaving(true)
     try {
-      await onSave(editValue)
+      await onSave(valToSave)
       setIsEditing(false)
       // Show saved indicator
       setShowSaved(true)
@@ -106,12 +107,11 @@ export function InlineEditCell({
 
   // For selects, save immediately on change
   const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newValue = e.target.value
-    setEditValue(type === 'boolean' ? newValue === 'true' : newValue || null)
-    // Delay save slightly to allow blur handling
-    setTimeout(() => {
-      if (isEditing) saveValue()
-    }, 50)
+    const raw = e.target.value
+    const newValue = type === 'boolean' ? raw === 'true' : raw || null
+    setEditValue(newValue)
+    // Save directly with the new value to avoid stale state
+    saveValue(newValue)
   }
 
   // Render display value
@@ -158,7 +158,7 @@ export function InlineEditCell({
           value={String(editValue ?? '')}
           onChange={handleSelectChange}
           onKeyDown={handleKeyDown}
-          onBlur={handleBlur}
+          onBlur={cancelEditing}
           disabled={isSaving}
         >
           <option value="">—</option>
@@ -173,7 +173,7 @@ export function InlineEditCell({
           value={editValue === true ? 'true' : editValue === false ? 'false' : ''}
           onChange={handleSelectChange}
           onKeyDown={handleKeyDown}
-          onBlur={handleBlur}
+          onBlur={cancelEditing}
           disabled={isSaving}
         >
           <option value="">—</option>
