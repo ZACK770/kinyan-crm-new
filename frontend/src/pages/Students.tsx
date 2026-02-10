@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Plus, GraduationCap, Eye, ArrowRight } from 'lucide-react'
+import { Plus, GraduationCap, Eye, ArrowRight, BookOpen } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, formatDate, formatCurrency } from '@/lib/status'
 import { useModal } from '@/components/ui/Modal'
@@ -185,7 +185,7 @@ export function StudentsPage() {
   const fetchStudents = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await api.get<Student[]>('students?limit=500')
+      const data = await api.get<Student[]>('students?limit=200')
       setStudents(data)
     } catch (err: unknown) {
       toast.error((err as { message?: string }).message ?? 'שגיאה')
@@ -260,7 +260,7 @@ export function StudentsPage() {
       type: 'text',
       sortable: true,
       filterable: true,
-      render: (r, update) => (
+      render: (r) => (
         <span style={{ fontWeight: 600, color: 'var(--color-primary)', cursor: 'pointer' }} onClick={() => openDetail(r)}>
           {r.full_name}
         </span>

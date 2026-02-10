@@ -167,7 +167,7 @@ export function applyFilter<T>(row: T, filter: Filter, type: FieldType): boolean
     const numFilter = Number(filterValue)
     const numFilter2 = Number(filterValue2)
     
-    if (isNaN(numValue)) return filter.operator === 'isEmpty'
+    if (isNaN(numValue)) return String(filter.operator) === 'isEmpty'
     
     switch (filter.operator) {
       case 'equals': return numValue === numFilter

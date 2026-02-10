@@ -1,7 +1,6 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
-dist/
 build/
 .env
 .venv/
@@ -16,4 +15,3 @@ alembic/versions/*.py
 
 # Frontend
 frontend/node_modules/
-frontend/dist/

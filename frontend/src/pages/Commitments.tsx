@@ -44,7 +44,7 @@ export function CommitmentsPage() {
     { key: 'remaining', header: 'יתרה', render: r => formatCurrency(r.remaining) },
     { key: 'installments', header: 'תשלומים', render: r => r.installments ?? '—' },
     { key: 'status', header: 'סטטוס', render: r => <Badge entity="commitment" value={r.status} /> },
-    { key: 'start_date', header: 'התחלה', render: r => formatDate(r.start_date), className: s.muted },
+    { key: 'created_at', header: 'התחלה', render: r => formatDate(r.created_at), className: s.muted },
   ]
 
   return (

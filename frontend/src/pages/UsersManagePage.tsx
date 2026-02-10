@@ -13,6 +13,7 @@ import s from '@/styles/shared.module.css'
 interface UserFormData {
   email: string
   full_name: string
+  password?: string
   role_name: string
   is_active: boolean
 }
@@ -65,6 +66,23 @@ function UserForm({
           disabled={loading}
         />
       </div>
+
+      {!user && (
+        <div className={s['form-group']}>
+          <label className={s['form-label']}>סיסמה *</label>
+          <input
+            type="password"
+            className={s.input}
+            value={formData.password || ''}
+            onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+            required
+            disabled={loading}
+            minLength={6}
+            dir="ltr"
+          />
+          <small className={s['form-hint']}>לפחות 6 תווים</small>
+        </div>
+      )}
 
       <div className={s['form-group']}>
         <label className={s['form-label']}>תפקיד *</label>

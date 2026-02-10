@@ -3,7 +3,7 @@
    ============================================================ */
 
 import { useState, useRef, useEffect } from 'react'
-import { Check, X, Loader2 } from 'lucide-react'
+import { Check, Loader2 } from 'lucide-react'
 import type { FieldType } from './types'
 import s from './SmartTable.module.css'
 import shared from '@/styles/shared.module.css'
@@ -30,7 +30,7 @@ export function InlineEditCell({
   const [isSaving, setIsSaving] = useState(false)
   const [showSaved, setShowSaved] = useState(false)
   const inputRef = useRef<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(null)
-  const savedTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
+  const savedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Sync when value changes
   useEffect(() => {

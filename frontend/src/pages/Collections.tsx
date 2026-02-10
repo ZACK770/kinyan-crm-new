@@ -5,7 +5,7 @@ import { getStatus, formatDate, formatCurrency } from '@/lib/status'
 import { useModal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { DataTable, type Column } from '@/components/ui/DataTable'
-import type { CollectionItem } from '@/types'
+import type { Collection } from '@/types'
 import s from '@/styles/shared.module.css'
 
 function Badge({ entity, value }: { entity: string; value?: string }) {
@@ -20,14 +20,14 @@ export function CollectionsPage() {
   const { confirm } = useModal()
   const toast = useToast()
 
-  const [items, setItems] = useState<CollectionItem[]>([])
+  const [items, setItems] = useState<Collection[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'pending' | 'overdue'>('pending')
 
   const fetchItems = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await api.get<CollectionItem[]>(`collections/${tab}`)
+      const data = await api.get<Collection[]>(`collections/${tab}`)
       setItems(data)
     } catch (err: unknown) {
       toast.error((err as { message?: string }).message ?? 'שגיאה')
@@ -38,7 +38,7 @@ export function CollectionsPage() {
 
   useEffect(() => { fetchItems() }, [fetchItems])
 
-  const markCollected = async (item: CollectionItem) => {
+  const markCollected = async (item: Collection) => {
     const ok = await confirm({ title: 'אישור גביה', message: `לסמן גביה של ${formatCurrency(item.amount)}?` })
     if (!ok) return
     try {
@@ -48,7 +48,7 @@ export function CollectionsPage() {
     } catch (err: unknown) { toast.error((err as { message?: string }).message ?? 'שגיאה') }
   }
 
-  const markFailed = async (item: CollectionItem) => {
+  const markFailed = async (item: Collection) => {
     const ok = await confirm({ title: 'סימון ככישלון', message: 'לסמן גביה זו ככושלת?', danger: true })
     if (!ok) return
     try {
@@ -58,13 +58,13 @@ export function CollectionsPage() {
     } catch (err: unknown) { toast.error((err as { message?: string }).message ?? 'שגיאה') }
   }
 
-  const columns: Column<CollectionItem>[] = [
+  const columns: Column<Collection>[] = [
     { key: 'id', header: '#' },
-    { key: 'student_name', header: 'תלמיד', render: r => r.student_name ?? `תלמיד #${r.student_id}` },
+    { key: 'student_name', header: 'תלמיד', render: r => (r as any).student_name ?? `תלמיד #${r.student_id}` },
     { key: 'amount', header: 'סכום', render: r => formatCurrency(r.amount) },
     { key: 'due_date', header: 'תאריך יעד', render: r => formatDate(r.due_date), className: s.muted },
     { key: 'status', header: 'סטטוס', render: r => <Badge entity="collection" value={r.status} /> },
-    { key: 'payment_method', header: 'אמצעי', render: r => r.payment_method ?? '—' },
+    { key: 'payment_method', header: 'אמצעי', render: r => (r as any).payment_method ?? '—' },
     {
       key: '_actions',
       header: 'פעולות',

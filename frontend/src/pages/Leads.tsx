@@ -492,8 +492,8 @@ export function LeadsPage() {
   const fetchLeads = useCallback(async () => {
     setLoading(true)
     try {
-      // Fetch leads (default limit 200 for now, filtering handled by SmartTable)
-      const data = await api.get<Lead[]>('leads?limit=500')
+      // Fetch leads (API max limit is 200)
+      const data = await api.get<Lead[]>('leads?limit=200')
       setLeads(data)
     } catch (err: unknown) {
       toast.error((err as { message?: string }).message ?? 'שגיאה בטעינת לידים')
@@ -692,7 +692,7 @@ export function LeadsPage() {
       type: 'text',
       sortable: true,
       filterable: true,
-      render: (r, update) => (
+      render: (r) => (
         <span 
           style={{ fontWeight: 600, color: 'var(--color-primary)', cursor: 'pointer' }}
           onClick={() => openDetail(r)}

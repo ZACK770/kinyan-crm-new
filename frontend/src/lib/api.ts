@@ -54,7 +54,14 @@ class ApiClient {
       let message = `שגיאה ${res.status}`
       try {
         const body = await res.json()
-        message = body.detail || body.message || message
+        // Handle Pydantic validation errors (FastAPI)
+        if (Array.isArray(body.detail)) {
+          message = body.detail.map((e: any) => e.msg || e.message).join(', ')
+        } else if (typeof body.detail === 'string') {
+          message = body.detail
+        } else if (body.message) {
+          message = body.message
+        }
       } catch { /* ignore */ }
       const err: ApiError = { status: res.status, message }
       throw err

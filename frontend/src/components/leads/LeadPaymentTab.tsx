@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { api } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
-import { CreditCard, CheckCircle2, XCircle, Link, Copy } from 'lucide-react'
+import { CreditCard, CheckCircle2, XCircle, Copy } from 'lucide-react'
 import type { Lead, Product, LeadPaymentStatus, Payment } from '@/types'
 import { formatCurrency, formatDateTime } from '@/lib/status'
 import s from '@/styles/shared.module.css'
@@ -17,7 +17,7 @@ interface LeadPaymentTabProps {
    Product Selector Component
    ══════════════════════════════════════════════════════════════ */
 function ProductSelector({ lead, products, onUpdate }: LeadPaymentTabProps) {
-  const { toast } = useToast()
+  const toast = useToast()
   const [selectedProductId, setSelectedProductId] = useState<number | ''>(lead.selected_product_id ?? '')
   const [price, setPrice] = useState('')
   const [paymentsCount, setPaymentsCount] = useState('1')
@@ -42,7 +42,8 @@ function ProductSelector({ lead, products, onUpdate }: LeadPaymentTabProps) {
       toast.success('מוצר נבחר בהצלחה')
       onUpdate()
     } catch (err) {
-      toast.error('שגיאה בבחירת מוצר')
+      const message = err instanceof Error ? err.message : 'שגיאה בבחירת מוצר'
+      toast.error(message)
     }
   }
 
@@ -98,7 +99,7 @@ function ProductSelector({ lead, products, onUpdate }: LeadPaymentTabProps) {
    Payment Link Generator Component
    ══════════════════════════════════════════════════════════════ */
 function PaymentLink({ lead, onUpdate }: { lead: Lead, onUpdate: () => void }) {
-  const { toast } = useToast()
+  const toast = useToast()
   const [isLoading, setIsLoading] = useState(false)
 
   const handleCreateLink = async () => {
@@ -111,7 +112,8 @@ function PaymentLink({ lead, onUpdate }: { lead: Lead, onUpdate: () => void }) {
       toast.success('לינק תשלום נוצר ונשלח')
       onUpdate()
     } catch (err) {
-      toast.error('שגיאה ביצירת לינק')
+      const message = err instanceof Error ? err.message : 'שגיאה ביצירת לינק'
+      toast.error(message)
     } finally {
       setIsLoading(false)
     }

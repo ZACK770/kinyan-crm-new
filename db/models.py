@@ -280,6 +280,18 @@ class Lead(Base):
     first_lesson: Mapped[bool] = mapped_column(Boolean, default=False)
     approved_terms: Mapped[bool] = mapped_column(Boolean, default=False)
     conversion_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    
+    # Lead response and follow-up tracking
+    lead_response: Mapped[Optional[str]] = mapped_column(String(100))  # תגובת הליד: מעוניין / צריך לחשוב / לא זמין / לא מעוניין
+    follow_up_count: Mapped[int] = mapped_column(Integer, default=0)  # מספר ניסיונות מעקב
+    last_contact_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))  # תאריך שיחה אחרונה
+    
+    # Discount tracking
+    discount_notes: Mapped[Optional[str]] = mapped_column(Text)  # הערות על ההנחה שניתנה
+    
+    # Terms approval tracking
+    approval_method: Mapped[Optional[str]] = mapped_column(String(50))  # שיטת אישור: טלפון / מייל / חתימה דיגיטלית / SMS
+    approval_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))  # תאריך אישור תקנון
 
     # Links
     student_id: Mapped[Optional[int]] = mapped_column(ForeignKey("students.id"))

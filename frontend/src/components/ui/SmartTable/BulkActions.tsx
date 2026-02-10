@@ -4,7 +4,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Check, Trash2, Edit3, X, ChevronDown } from 'lucide-react'
-import type { BulkAction, SmartColumn, FieldType } from './types'
+import type { BulkAction, SmartColumn } from './types'
 import s from './SmartTable.module.css'
 import shared from '@/styles/shared.module.css'
 
