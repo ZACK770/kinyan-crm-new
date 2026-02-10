@@ -63,28 +63,40 @@ app.include_router(users_api.router, prefix="/api/users", tags=["users"])
 app.include_router(audit_logs_api.router, prefix="/api/audit-logs", tags=["audit-logs"])
 
 
-@app.get("/")
-async def root():
-    return {"status": "ok", "app": "Kinyan CRM", "version": "1.0.0"}
-
-
+# Health check endpoint (for Render and monitoring)
 @app.get("/health")
 async def health():
     return {"status": "healthy"}
+
+
+# API status endpoint
+@app.get("/api/status")
+async def api_status():
+    return {"status": "ok", "app": "Kinyan CRM", "version": "1.0.0"}
 
 
 # --- Serve Frontend (SPA) ---
 # Mount static assets if frontend is built
 if FRONTEND_DIR.exists():
     # Serve static assets (JS, CSS, images)
-    app.mount("/assets", StaticFiles(directory=FRONTEND_DIR / "assets"), name="assets")
+    if (FRONTEND_DIR / "assets").exists():
+        app.mount("/assets", StaticFiles(directory=FRONTEND_DIR / "assets"), name="assets")
+    
+    # Root route - serve frontend
+    @app.get("/")
+    async def serve_root():
+        """Serve the React SPA at root."""
+        index_file = FRONTEND_DIR / "index.html"
+        if index_file.exists():
+            return FileResponse(index_file)
+        return {"detail": "Frontend not built. Run: cd frontend && npm run build"}
     
     # Catch-all route for SPA - must be LAST
     @app.get("/{full_path:path}")
     async def serve_spa(request: Request, full_path: str):
         """Serve the React SPA for all non-API routes."""
         # Don't serve frontend for API/webhooks routes
-        if full_path.startswith(("api/", "webhooks/", "docs", "openapi.json", "redoc")):
+        if full_path.startswith(("api/", "webhooks/", "docs", "openapi.json", "redoc", "health")):
             return {"detail": "Not Found"}
         
         # Serve index.html for all other routes (SPA handles routing)
@@ -92,3 +104,8 @@ if FRONTEND_DIR.exists():
         if index_file.exists():
             return FileResponse(index_file)
         return {"detail": "Frontend not built. Run: cd frontend && npm run build"}
+else:
+    # No frontend built - show API status at root
+    @app.get("/")
+    async def root():
+        return {"status": "ok", "app": "Kinyan CRM", "version": "1.0.0", "frontend": "not built"}
