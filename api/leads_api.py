@@ -395,3 +395,92 @@ async def get_lead_payment_status(
             for p in payments
         ]
     }
+
+
+class UpdateDiscountRequest(BaseModel):
+    discount_amount: float = Field(ge=0, description="סכום הנחה בש\"ח")
+    installments_override: int | None = Field(None, ge=1, description="דריסת מספר תשלומים")
+
+
+@router.patch("/{lead_id}/update-discount")
+async def update_lead_discount(
+    lead_id: int,
+    data: UpdateDiscountRequest,
+    request: Request,
+    user = Depends(require_entity_access("leads", "edit")),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    עדכון הנחה ומחיר סופי לליד.
+    מחשב אוטומטית את המחיר הסופי והתשלום החודשי.
+    """
+    try:
+        result = await lead_svc.update_lead_product_discount(
+            db=db,
+            lead_id=lead_id,
+            discount_amount=data.discount_amount,
+            installments_override=data.installments_override
+        )
+        await db.commit()
+        
+        # Log discount update
+        await audit_logs.log_update(
+            db=db,
+            user=user,
+            entity_type="leads",
+            entity_id=lead_id,
+            description=f"עודכנה הנחה: {data.discount_amount} ש\"ח",
+            changes={
+                "discount_amount": data.discount_amount,
+                "final_price": result["final_price"],
+                "installments": data.installments_override
+            },
+            request=request,
+        )
+        
+        return result
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+class GetPricingRequest(BaseModel):
+    product_id: int
+    discount_amount: float = 0
+
+
+@router.post("/{lead_id}/calculate-pricing")
+async def calculate_lead_pricing(
+    lead_id: int,
+    data: GetPricingRequest,
+    user = Depends(require_entity_access("leads", "view")),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    חישוב מקדים של מחיר סופי עם הנחה (ללא שמירה).
+    שימושי לתצוגה בזמן אמת בממשק.
+    """
+    from db.models import Product
+    from sqlalchemy import select
+    
+    # Get product
+    stmt = select(Product).where(Product.id == data.product_id)
+    result = await db.execute(stmt)
+    product = result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(404, "Product not found")
+    
+    original_price = float(product.price or 0)
+    _, final_price = lead_svc.calculate_discount(original_price, data.discount_amount)
+    
+    payments_count = product.payments_count or 1
+    monthly_payment = final_price / payments_count if payments_count > 0 else final_price
+    
+    return {
+        "product_id": data.product_id,
+        "product_name": product.name,
+        "original_price": original_price,
+        "discount_amount": data.discount_amount,
+        "final_price": final_price,
+        "payments_count": payments_count,
+        "monthly_payment": monthly_payment,
+    }

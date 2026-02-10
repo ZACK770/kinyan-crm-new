@@ -154,10 +154,11 @@ async def ensure_payer_exists(db: AsyncSession, student_id: int) -> str:
 async def create_lead_payment_link(
     db: AsyncSession,
     lead_id: int,
-    amount: float,
+    amount: float = None,
     currency: str = "ILS",
     payment_method: str = "credit_card",
-    installments: int = 1,
+    installments: int = None,
+    payment_day: int = None,
     redirect_url: Optional[str] = None,
     course_id: Optional[int] = None,
     product_id: Optional[int] = None,
@@ -165,6 +166,8 @@ async def create_lead_payment_link(
     """
     Create a payment link for a Lead (before conversion to student).
     Used by sales team to charge leads directly.
+    
+    If amount/installments/payment_day not provided, will use values from selected LeadProduct.
     
     Returns:
         dict with: payment_id, nedarim_donation_id, payment_link, lead_id
@@ -177,6 +180,28 @@ async def create_lead_payment_link(
     lead = result.scalar_one_or_none()
     if not lead:
         raise ValueError(f"Lead {lead_id} not found")
+    
+    # Get selected product details if not provided
+    lead_product = None
+    if lead.selected_product_id:
+        stmt = select(LeadProduct).where(LeadProduct.id == lead.selected_product_id)
+        result = await db.execute(stmt)
+        lead_product = result.scalar_one_or_none()
+    
+    # Use LeadProduct values as defaults
+    if lead_product:
+        if amount is None:
+            amount = float(lead_product.final_price or lead_product.price or 0)
+        if installments is None:
+            installments = lead_product.payments_count or 1
+        if payment_day is None:
+            payment_day = lead_product.payment_day
+    
+    # Fallback defaults
+    if amount is None:
+        raise ValueError("Amount must be provided or product must be selected")
+    if installments is None:
+        installments = 1
     
     # Create payer from lead data (temporary, not a Student yet)
     client = NedarimClient()
@@ -199,6 +224,7 @@ async def create_lead_payment_link(
         currency=currency,
         payment_method=payment_method,
         installments=installments,
+        charge_day=payment_day,
         transaction_type="נדרים פלוס",
         status="ממתין",
     )
@@ -222,9 +248,14 @@ async def create_lead_payment_link(
         "webhook_url": webhook_url,
         "metadata": {
             "lead_id": lead_id,
-            "product_id": product_id,
+            "product_id": product_id or (lead_product.product_id if lead_product else None),
+            "payment_day": payment_day,
         }
     }
+    
+    # Add payment_day for recurring payments
+    if installments > 1 and payment_day:
+        payment_payload["recurring_day"] = payment_day
     
     response = await client.post("/donations", payment_payload)
     
@@ -238,13 +269,16 @@ async def create_lead_payment_link(
     
     await db.flush()
     
-    logger.info(f"Created Nedarim payment link for lead {lead_id}: {response['payment_link']}")
+    logger.info(f"Created Nedarim payment link for lead {lead_id}: {response['payment_link']} (amount={amount}, installments={installments}, day={payment_day})")
     
     return {
         "payment_id": payment.id,
         "lead_id": lead_id,
         "nedarim_donation_id": response["donation_id"],
         "payment_link": response["payment_link"],
+        "amount": amount,
+        "installments": installments,
+        "payment_day": payment_day,
         "status": "ממתין"
     }
 

@@ -7,7 +7,6 @@ build/
 venv/
 *.db
 *.sqlite3
-alembic/versions/*.py
 !alembic/versions/__init__.py
 .idea/
 .vscode/
