@@ -3,11 +3,13 @@ Email service — async SMTP for password reset and notifications.
 Available system-wide via: from services.email_service import send_email, send_password_reset_email
 """
 import logging
-from typing import Optional
+from typing import Optional, List, Dict
 
 import aiosmtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 
 from db import settings
 
@@ -20,25 +22,53 @@ async def send_email(
     html_body: str,
     text_body: Optional[str] = None,
     reply_to: Optional[str] = None,
+    attachments: Optional[List[Dict]] = None,
 ) -> bool:
     """
     Send an email via SMTP.
-    Returns True on success, False on failure (logs the error).
+    
+    Args:
+        to_email: Recipient email address
+        subject: Email subject
+        html_body: HTML body content
+        text_body: Plain text body (optional)
+        reply_to: Reply-To address (optional)
+        attachments: List of dicts with 'filename', 'content' (bytes), 'content_type'
+    
+    Returns:
+        True on success, False on failure (logs the error).
     """
     if not settings.SMTP_HOST:
         logger.warning("SMTP not configured — email not sent to %s", to_email)
         return False
 
-    msg = MIMEMultipart("alternative")
+    msg = MIMEMultipart("mixed")
     msg["From"] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>"
     msg["To"] = to_email
     msg["Subject"] = subject
     if reply_to:
         msg["Reply-To"] = reply_to
 
+    # Create alternative part for text/html
+    msg_alternative = MIMEMultipart("alternative")
     if text_body:
-        msg.attach(MIMEText(text_body, "plain", "utf-8"))
-    msg.attach(MIMEText(html_body, "html", "utf-8"))
+        msg_alternative.attach(MIMEText(text_body, "plain", "utf-8"))
+    msg_alternative.attach(MIMEText(html_body, "html", "utf-8"))
+    msg.attach(msg_alternative)
+    
+    # Add attachments if provided
+    if attachments:
+        for attachment in attachments:
+            part = MIMEBase("application", "octet-stream")
+            part.set_payload(attachment["content"])
+            encoders.encode_base64(part)
+            part.add_header(
+                "Content-Disposition",
+                f"attachment; filename={attachment['filename']}"
+            )
+            if "content_type" in attachment:
+                part.set_type(attachment["content_type"])
+            msg.attach(part)
 
     try:
         await aiosmtplib.send(
@@ -107,11 +137,15 @@ async def send_lead_email(
     subject: str,
     body_html: str,
     body_text: Optional[str] = None,
+    attachments: Optional[List[Dict]] = None,
 ) -> bool:
     """
     Send an email to a lead.
     Reply-To is set to the system email so replies come back to us.
     Wraps the body in a branded RTL template.
+    
+    Args:
+        attachments: List of dicts with 'filename', 'content' (bytes), 'content_type'
     """
     html_body = f"""
     <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -127,4 +161,5 @@ async def send_lead_email(
         html_body=html_body,
         text_body=body_text,
         reply_to=settings.SMTP_FROM_EMAIL,
+        attachments=attachments,
     )

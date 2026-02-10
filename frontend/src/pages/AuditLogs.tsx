@@ -206,7 +206,7 @@ export const AuditLogsPage: FC = () => {
   ]
 
   return (
-    <div style={{ padding: '1.5rem', maxWidth: '100%' }}>
+    <>
       {/* Header */}
       <div className={s['page-header']}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -339,6 +339,6 @@ export const AuditLogsPage: FC = () => {
           </button>
         </div>
       )}
-    </div>
+    </>
   )
 }

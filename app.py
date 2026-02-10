@@ -20,7 +20,7 @@ from db import init_db
 from api import leads_api, students_api, courses_api, dashboard_api, webhooks_api
 from api import inquiries_api, exams_api, payments_api, expenses_api, attendance_api, collections_api
 from api import auth_api, users_api, audit_logs_api, campaigns_api, files_api, sales_assignment_api
-from api import course_tracks_api, lecturers_api, messages_api
+from api import course_tracks_api, lecturers_api, messages_api, templates_api
 
 # Frontend build directory
 FRONTEND_DIR = Path(__file__).parent / "frontend" / "dist"
@@ -73,6 +73,7 @@ app.include_router(audit_logs_api.router, prefix="/api/audit-logs", tags=["audit
 app.include_router(files_api.router, prefix="/api/files", tags=["files"])
 app.include_router(sales_assignment_api.router, prefix="/api/sales-assignment-rules", tags=["sales-assignment"])
 app.include_router(messages_api.router, prefix="/api/messages", tags=["messages"])
+app.include_router(templates_api.router, prefix="/api/templates", tags=["templates"])
 
 
 # Health check endpoint (for Render and monitoring)

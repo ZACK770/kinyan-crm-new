@@ -750,6 +750,28 @@ class TaskReport(Base):
 
 
 # ============================================================
+# EmailTemplate (תבניות מייל) — email templates with attachments
+# ============================================================
+class EmailTemplate(Base):
+    __tablename__ = "email_templates"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    subject: Mapped[str] = mapped_column(String(300), nullable=False)
+    body_html: Mapped[str] = mapped_column(Text, nullable=False)
+    category: Mapped[Optional[str]] = mapped_column(String(50))  # התרשמות / מעקב / כללי
+    track_type: Mapped[Optional[str]] = mapped_column(String(100))  # מסלול התעניינות
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_email_templates_category", "category"),
+        Index("idx_email_templates_active", "is_active"),
+    )
+
+
+# ============================================================
 # LeadMessage (הודעות לידים) — entity 6
 # ============================================================
 class LeadMessage(Base):
@@ -762,6 +784,7 @@ class LeadMessage(Base):
     lead_id: Mapped[Optional[int]] = mapped_column(ForeignKey("leads.id"))
     campaign_id: Mapped[Optional[int]] = mapped_column(ForeignKey("campaigns.id"))
     salesperson_id: Mapped[Optional[int]] = mapped_column(ForeignKey("salespeople.id"))
+    template_id: Mapped[Optional[int]] = mapped_column(ForeignKey("email_templates.id"))  # תבנית ששימשה
     phone: Mapped[Optional[str]] = mapped_column(String(50))
     send_method: Mapped[Optional[str]] = mapped_column(String(50))  # מייל / SMS / וואצאפ
     body: Mapped[str] = mapped_column(Text, nullable=False)
@@ -986,7 +1009,7 @@ class File(Base):
     size_bytes: Mapped[Optional[int]] = mapped_column(Integer)
     
     # Link to any entity (polymorphic)
-    entity_type: Mapped[Optional[str]] = mapped_column(String(100))  # leads/students/expenses/etc
+    entity_type: Mapped[Optional[str]] = mapped_column(String(100))  # leads/students/expenses/messages/templates
     entity_id: Mapped[Optional[int]] = mapped_column(Integer)
     
     # Metadata

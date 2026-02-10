@@ -2,15 +2,17 @@
 Messages API — send emails to leads, track sent messages.
 Prefix: /api/messages
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File as FastAPIFile, Form
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from typing import Optional, List
 
 from db import get_db
-from db.models import Lead, LeadMessage, Inquiry, LeadInteraction
+from db.models import Lead, LeadMessage, Inquiry, LeadInteraction, EmailTemplate, File
 from services import messages as msg_svc
 from services.email_service import send_lead_email
+from services.storage import storage_service
 from .dependencies import require_entity_access
 
 router = APIRouter(tags=["messages"])
@@ -21,6 +23,8 @@ class SendEmailRequest(BaseModel):
     lead_id: int
     subject: str
     body: str  # HTML body content
+    template_id: Optional[int] = None
+    file_ids: List[int] = []  # IDs of already-uploaded files to attach
 
 
 class SendEmailResponse(BaseModel):
@@ -37,9 +41,9 @@ async def send_email_to_lead(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Send an email to a lead.
+    Send an email to a lead with optional attachments.
     - Saves the message in lead_messages table
-    - Actually sends via SMTP
+    - Actually sends via SMTP with attachments
     - Adds an interaction record to the lead's history
     - On failure, marks the message as failed
     """
@@ -61,13 +65,53 @@ async def send_email_to_lead(
         recipient_type="lead",
         lead_id=data.lead_id,
     )
+    
+    # Update template_id if provided
+    if data.template_id:
+        message.template_id = data.template_id
+    
     await db.flush()
+
+    # Prepare attachments if file_ids provided
+    attachments = []
+    if data.file_ids:
+        for file_id in data.file_ids:
+            file_result = await db.execute(select(File).where(File.id == file_id))
+            file_obj = file_result.scalar_one_or_none()
+            if file_obj:
+                try:
+                    # Get presigned URL to download file content
+                    presigned_url = await storage_service.get_presigned_url(file_obj.storage_key)
+                    # Download file content
+                    import aiohttp
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(presigned_url) as resp:
+                            if resp.status == 200:
+                                content = await resp.read()
+                                attachments.append({
+                                    'filename': file_obj.filename,
+                                    'content': content,
+                                    'content_type': file_obj.content_type or 'application/octet-stream'
+                                })
+                except Exception as e:
+                    # Log but don't fail - continue without this attachment
+                    pass
+        
+        # Link files to message
+        for file_id in data.file_ids:
+            file_result = await db.execute(select(File).where(File.id == file_id))
+            file_obj = file_result.scalar_one_or_none()
+            if file_obj and file_obj.entity_type == "temp":
+                # Move temp file to message
+                file_obj.entity_type = "messages"
+                file_obj.entity_id = message.id
 
     # Send via SMTP
     success = await send_lead_email(
         to_email=lead.email,
         subject=data.subject,
         body_html=data.body,
+        attachments=attachments if attachments else None,
     )
 
     if success:
@@ -77,7 +121,7 @@ async def send_email_to_lead(
         interaction = LeadInteraction(
             lead_id=data.lead_id,
             interaction_type="email",
-            description=f"נשלח מייל: {data.subject}",
+            description=f"נשלח מייל: {data.subject}" + (f" ({len(attachments)} קבצים מצורפים)" if attachments else ""),
             user_name=user.full_name if hasattr(user, 'full_name') else None,
         )
         db.add(interaction)
@@ -86,7 +130,7 @@ async def send_email_to_lead(
         return SendEmailResponse(
             message_id=message.id,
             status="נשלח",
-            detail=f"המייל נשלח בהצלחה ל-{lead.email}",
+            detail=f"המייל נשלח בהצלחה ל-{lead.email}" + (f" עם {len(attachments)} קבצים מצורפים" if attachments else ""),
         )
     else:
         await msg_svc.mark_failed(db, message.id)
@@ -141,7 +185,7 @@ async def get_lead_messages(
     user=Depends(require_entity_access("leads", "view")),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get all messages sent to a specific lead."""
+    """Get all messages sent to a specific lead with attachments."""
     stmt = (
         select(LeadMessage)
         .where(LeadMessage.lead_id == lead_id)
@@ -150,8 +194,17 @@ async def get_lead_messages(
     result = await db.execute(stmt)
     items = result.scalars().all()
 
-    return [
-        {
+    response = []
+    for m in items:
+        # Get attachments for this message
+        attachments_query = select(File).where(
+            File.entity_type == "messages",
+            File.entity_id == m.id
+        )
+        attachments_result = await db.execute(attachments_query)
+        attachments = attachments_result.scalars().all()
+        
+        response.append({
             "id": m.id,
             "subject": m.subject,
             "body": m.body,
@@ -159,6 +212,15 @@ async def get_lead_messages(
             "send_method": m.send_method,
             "created_at": str(m.created_at),
             "sent_at": str(m.sent_at) if m.sent_at else None,
-        }
-        for m in items
-    ]
+            "attachments": [
+                {
+                    "id": a.id,
+                    "filename": a.filename,
+                    "size_bytes": a.size_bytes,
+                    "content_type": a.content_type,
+                }
+                for a in attachments
+            ]
+        })
+    
+    return response

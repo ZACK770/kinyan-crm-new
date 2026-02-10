@@ -56,6 +56,11 @@ class NedarimClient:
     
     async def post(self, endpoint: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """POST request with automatic mosad_id injection."""
+        # Mock mode for development (if API_KEY is 'ou946')
+        if self.api_key == "ou946":
+            logger.warning("Using MOCK mode for Nedarim Plus API (dev environment)")
+            return self._mock_response(endpoint, data)
+        
         data["mosad_id"] = self.mosad_id
         
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -77,6 +82,21 @@ class NedarimClient:
                 )
             
             return response.json()
+    
+    def _mock_response(self, endpoint: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Mock responses for development."""
+        if endpoint == "/payers":
+            return {
+                "payer_id": f"MOCK_PAYER_{data.get('payer_tz', '000000000')}",
+                "status": "success"
+            }
+        elif endpoint == "/donations":
+            return {
+                "donation_id": f"MOCK_DONATION_{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                "payment_link": f"https://mock-nedarim.example.com/pay/{data.get('mosad_id')}/{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                "status": "pending"
+            }
+        return {"status": "success", "mock": True}
     
     async def get(self, endpoint: str) -> Dict[str, Any]:
         """GET request with auth."""
