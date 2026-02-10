@@ -1,0 +1,582 @@
+import { useEffect, useState, useCallback, type FormEvent } from 'react'
+import {
+  Plus,
+  Search,
+  Phone,
+  Eye,
+  Pencil,
+  MessageSquarePlus,
+} from 'lucide-react'
+import { api } from '@/lib/api'
+import { getStatus, getSourceLabel, formatDate, formatDateTime } from '@/lib/status'
+import { useModal } from '@/components/ui/Modal'
+import { useToast } from '@/components/ui/Toast'
+import { DataTable, type Column } from '@/components/ui/DataTable'
+import type { Lead, LeadInteraction, Salesperson } from '@/types'
+import s from '@/styles/shared.module.css'
+
+/* ── status badge helper ── */
+function Badge({ entity, value }: { entity: string; value?: string }) {
+  const { label, color } = getStatus(entity, value)
+  return <span className={`${s.badge} ${s[`badge-${color}`]}`}>{label}</span>
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Lead Create / Edit Form
+   ══════════════════════════════════════════════════════════════ */
+function LeadForm({
+  initial,
+  salespersons,
+  onSubmit,
+}: {
+  initial?: Partial<Lead>
+  salespersons: Salesperson[]
+  onSubmit: (data: Record<string, unknown>) => void
+}) {
+  const [form, setForm] = useState({
+    full_name: initial?.full_name ?? '',
+    family_name: initial?.family_name ?? '',
+    phone: initial?.phone ?? '',
+    phone2: initial?.phone2 ?? '',
+    email: initial?.email ?? '',
+    city: initial?.city ?? '',
+    source_type: initial?.source_type ?? '',
+    campaign_name: initial?.campaign_name ?? '',
+    notes: initial?.notes ?? '',
+    salesperson_id: initial?.salesperson_id ?? '',
+    status: initial?.status ?? 'new',
+  })
+
+  const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+    setForm(prev => ({ ...prev, [key]: e.target.value }))
+
+  const handle = (e: FormEvent) => {
+    e.preventDefault()
+    const data: Record<string, unknown> = { ...form }
+    if (data.salesperson_id) data.salesperson_id = Number(data.salesperson_id)
+    else delete data.salesperson_id
+    // Remove empty strings
+    Object.keys(data).forEach(k => { if (data[k] === '') delete data[k] })
+    onSubmit(data)
+  }
+
+  return (
+    <form onSubmit={handle} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className={s['form-row']}>
+        <div className={s['form-group']}>
+          <label className={s['form-label']}>שם פרטי *</label>
+          <input className={s.input} value={form.full_name} onChange={set('full_name')} required />
+        </div>
+        <div className={s['form-group']}>
+          <label className={s['form-label']}>שם משפחה</label>
+          <input className={s.input} value={form.family_name} onChange={set('family_name')} />
+        </div>
+      </div>
+
+      <div className={s['form-row']}>
+        <div className={s['form-group']}>
+          <label className={s['form-label']}>טלפון *</label>
+          <input className={s.input} value={form.phone} onChange={set('phone')} required dir="ltr" />
+        </div>
+        <div className={s['form-group']}>
+          <label className={s['form-label']}>טלפון 2</label>
+          <input className={s.input} value={form.phone2} onChange={set('phone2')} dir="ltr" />
+        </div>
+      </div>
+
+      <div className={s['form-row']}>
+        <div className={s['form-group']}>
+          <label className={s['form-label']}>אימייל</label>
+          <input className={s.input} type="email" value={form.email} onChange={set('email')} dir="ltr" />
+        </div>
+        <div className={s['form-group']}>
+          <label className={s['form-label']}>עיר</label>
+          <input className={s.input} value={form.city} onChange={set('city')} />
+        </div>
+      </div>
+
+      <div className={s['form-row']}>
+        <div className={s['form-group']}>
+          <label className={s['form-label']}>מקור</label>
+          <select className={s.select} value={form.source_type} onChange={set('source_type')}>
+            <option value="">— בחר —</option>
+            <option value="yemot">ימות המשיח</option>
+            <option value="elementor">אלמנטור</option>
+            <option value="manual">ידני</option>
+            <option value="referral">הפניה</option>
+            <option value="other">אחר</option>
+          </select>
+        </div>
+        <div className={s['form-group']}>
+          <label className={s['form-label']}>קמפיין</label>
+          <input className={s.input} value={form.campaign_name} onChange={set('campaign_name')} />
+        </div>
+      </div>
+
+      <div className={s['form-row']}>
+        <div className={s['form-group']}>
+          <label className={s['form-label']}>איש מכירות</label>
+          <select className={s.select} value={form.salesperson_id} onChange={set('salesperson_id')}>
+            <option value="">— ללא —</option>
+            {salespersons.map(sp => (
+              <option key={sp.id} value={sp.id}>{sp.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className={s['form-group']}>
+          <label className={s['form-label']}>סטטוס</label>
+          <select className={s.select} value={form.status} onChange={set('status')}>
+            <option value="new">חדש</option>
+            <option value="contacted">נוצר קשר</option>
+            <option value="interested">מעוניין</option>
+            <option value="converted">הומר</option>
+            <option value="irrelevant">לא רלוונטי</option>
+          </select>
+        </div>
+      </div>
+
+      <div className={s['form-group']}>
+        <label className={s['form-label']}>הערות</label>
+        <textarea className={s.textarea} value={form.notes} onChange={set('notes')} rows={3} />
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-start', gap: 8, paddingTop: 8 }}>
+        <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>
+          {initial?.id ? 'עדכן' : 'צור ליד'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Add Interaction Form
+   ══════════════════════════════════════════════════════════════ */
+function InteractionForm({ onSubmit }: { onSubmit: (data: Record<string, unknown>) => void }) {
+  const [form, setForm] = useState({
+    interaction_type: 'call',
+    call_status: '',
+    description: '',
+  })
+  const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+    setForm(prev => ({ ...prev, [key]: e.target.value }))
+
+  const handle = (e: FormEvent) => {
+    e.preventDefault()
+    const data: Record<string, unknown> = { ...form }
+    Object.keys(data).forEach(k => { if (data[k] === '') delete data[k] })
+    onSubmit(data)
+  }
+
+  return (
+    <form onSubmit={handle} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div className={s['form-row']}>
+        <div className={s['form-group']}>
+          <label className={s['form-label']}>סוג</label>
+          <select className={s.select} value={form.interaction_type} onChange={set('interaction_type')}>
+            <option value="call">שיחה</option>
+            <option value="sms">SMS</option>
+            <option value="whatsapp">וואטסאפ</option>
+            <option value="email">אימייל</option>
+            <option value="meeting">פגישה</option>
+            <option value="note">הערה</option>
+          </select>
+        </div>
+        <div className={s['form-group']}>
+          <label className={s['form-label']}>סטטוס שיחה</label>
+          <select className={s.select} value={form.call_status} onChange={set('call_status')}>
+            <option value="">— —</option>
+            <option value="answered">ענה</option>
+            <option value="no_answer">לא ענה</option>
+            <option value="busy">תפוס</option>
+            <option value="voicemail">תא קולי</option>
+          </select>
+        </div>
+      </div>
+      <div className={s['form-group']}>
+        <label className={s['form-label']}>תיאור</label>
+        <textarea className={s.textarea} value={form.description} onChange={set('description')} rows={3} />
+      </div>
+      <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>הוסף</button>
+    </form>
+  )
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Lead Detail (shown in modal)
+   ══════════════════════════════════════════════════════════════ */
+function LeadDetail({
+  lead,
+  salespersons,
+  onEdit,
+  onAddInteraction,
+}: {
+  lead: Lead
+  salespersons: Salesperson[]
+  onEdit: () => void
+  onAddInteraction: () => void
+}) {
+  const sp = salespersons.find(s => s.id === lead.salesperson_id)
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Info section */}
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>פרטי ליד</h4>
+          <button className={`${s.btn} ${s['btn-secondary']} ${s['btn-sm']}`} onClick={onEdit}>
+            <Pencil size={14} strokeWidth={1.5} /> עריכה
+          </button>
+        </div>
+        <div className={s['detail-row']}>
+          <span className={s['detail-key']}>שם</span>
+          <span className={s['detail-value']}>{lead.full_name} {lead.family_name ?? ''}</span>
+        </div>
+        <div className={s['detail-row']}>
+          <span className={s['detail-key']}>טלפון</span>
+          <span className={s['detail-value']} dir="ltr" style={{ textAlign: 'left' }}>{lead.phone}</span>
+        </div>
+        {lead.email && (
+          <div className={s['detail-row']}>
+            <span className={s['detail-key']}>אימייל</span>
+            <span className={s['detail-value']} dir="ltr">{lead.email}</span>
+          </div>
+        )}
+        {lead.city && (
+          <div className={s['detail-row']}>
+            <span className={s['detail-key']}>עיר</span>
+            <span className={s['detail-value']}>{lead.city}</span>
+          </div>
+        )}
+        <div className={s['detail-row']}>
+          <span className={s['detail-key']}>סטטוס</span>
+          <span className={s['detail-value']}><Badge entity="lead" value={lead.status} /></span>
+        </div>
+        <div className={s['detail-row']}>
+          <span className={s['detail-key']}>מקור</span>
+          <span className={s['detail-value']}>{getSourceLabel(lead.source_type)}</span>
+        </div>
+        <div className={s['detail-row']}>
+          <span className={s['detail-key']}>איש מכירות</span>
+          <span className={s['detail-value']}>{sp?.name ?? '—'}</span>
+        </div>
+        <div className={s['detail-row']}>
+          <span className={s['detail-key']}>תאריך יצירה</span>
+          <span className={s['detail-value']}>{formatDateTime(lead.created_at)}</span>
+        </div>
+        {lead.notes && (
+          <div className={s['detail-row']}>
+            <span className={s['detail-key']}>הערות</span>
+            <span className={s['detail-value']}>{lead.notes}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Interactions timeline */}
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>אינטראקציות</h4>
+          <button className={`${s.btn} ${s['btn-secondary']} ${s['btn-sm']}`} onClick={onAddInteraction}>
+            <MessageSquarePlus size={14} strokeWidth={1.5} /> הוסף
+          </button>
+        </div>
+        {lead.interactions?.length ? (
+          <div className={s.timeline}>
+            {lead.interactions.map((ia: LeadInteraction) => (
+              <div key={ia.id} className={s['timeline-item']}>
+                <span className={s['timeline-dot']} />
+                <div className={s['timeline-content']}>
+                  <div className={s['timeline-date']}>{formatDateTime(ia.interaction_date || ia.created_at)}</div>
+                  <div className={s['timeline-text']}>
+                    <strong>{ia.interaction_type}</strong>
+                    {ia.call_status && ` — ${ia.call_status}`}
+                    {ia.description && ` · ${ia.description}`}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className={s.empty} style={{ padding: 20 }}>
+            <span className={s['empty-text']}>אין אינטראקציות עדיין</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Leads Page
+   ══════════════════════════════════════════════════════════════ */
+export function LeadsPage() {
+  const { openModal, closeModal } = useModal()
+  const toast = useToast()
+
+  const [leads, setLeads] = useState<Lead[]>([])
+  const [salespersons, setSalespersons] = useState<Salesperson[]>([])
+  const [loading, setLoading] = useState(true)
+  const [statusFilter, setStatusFilter] = useState('')
+  const [spFilter, setSpFilter] = useState('')
+  const [phoneSearch, setPhoneSearch] = useState('')
+
+  /* ── Fetch ── */
+  const fetchLeads = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (statusFilter) params.set('status', statusFilter)
+      if (spFilter) params.set('salesperson_id', spFilter)
+      params.set('limit', '200')
+      const qs = params.toString()
+      const data = await api.get<Lead[]>(`leads?${qs}`)
+      setLeads(data)
+    } catch (err: unknown) {
+      toast.error((err as { message?: string }).message ?? 'שגיאה בטעינת לידים')
+    } finally {
+      setLoading(false)
+    }
+  }, [statusFilter, spFilter, toast])
+
+  useEffect(() => { fetchLeads() }, [fetchLeads])
+
+  useEffect(() => {
+    api.get<Salesperson[]>('leads/salespersons').catch(() =>
+      // fallback — endpoint might not exist; use dashboard salespeople
+      api.get<{ id: number; name: string }[]>('dashboard/salespeople').catch(() => [])
+    ).then(data => {
+      if (Array.isArray(data)) setSalespersons(data as Salesperson[])
+    })
+  }, [])
+
+  /* ── Phone search ── */
+  const handlePhoneSearch = async () => {
+    if (!phoneSearch.trim()) return fetchLeads()
+    setLoading(true)
+    try {
+      const data = await api.get<Lead[]>(`leads/search?phone=${encodeURIComponent(phoneSearch.trim())}`)
+      setLeads(data)
+    } catch {
+      toast.error('שגיאה בחיפוש')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  /* ── Create ── */
+  const openCreate = () => {
+    openModal({
+      title: 'ליד חדש',
+      size: 'lg',
+      content: (
+        <LeadForm
+          salespersons={salespersons}
+          onSubmit={async data => {
+            try {
+              await api.post('leads', data)
+              toast.success('ליד נוצר בהצלחה')
+              closeModal()
+              fetchLeads()
+            } catch (err: unknown) {
+              toast.error((err as { message?: string }).message ?? 'שגיאה')
+            }
+          }}
+        />
+      ),
+    })
+  }
+
+  /* ── Detail ── */
+  const openDetail = async (lead: Lead) => {
+    try {
+      const full = await api.get<Lead>(`leads/${lead.id}`)
+      showDetailModal(full)
+    } catch {
+      toast.error('שגיאה בטעינת פרטי ליד')
+    }
+  }
+
+  const showDetailModal = (lead: Lead) => {
+    openModal({
+      title: `${lead.full_name} ${lead.family_name ?? ''}`.trim(),
+      size: 'lg',
+      content: (
+        <LeadDetail
+          lead={lead}
+          salespersons={salespersons}
+          onEdit={() => {
+            closeModal()
+            openEdit(lead)
+          }}
+          onAddInteraction={() => {
+            closeModal()
+            openAddInteraction(lead.id)
+          }}
+        />
+      ),
+    })
+  }
+
+  /* ── Edit ── */
+  const openEdit = (lead: Lead) => {
+    openModal({
+      title: `עריכת ליד — ${lead.full_name}`,
+      size: 'lg',
+      content: (
+        <LeadForm
+          initial={lead}
+          salespersons={salespersons}
+          onSubmit={async data => {
+            try {
+              await api.patch(`leads/${lead.id}`, data)
+              toast.success('ליד עודכן')
+              closeModal()
+              fetchLeads()
+            } catch (err: unknown) {
+              toast.error((err as { message?: string }).message ?? 'שגיאה')
+            }
+          }}
+        />
+      ),
+    })
+  }
+
+  /* ── Add Interaction ── */
+  const openAddInteraction = (leadId: number) => {
+    openModal({
+      title: 'הוספת אינטראקציה',
+      size: 'md',
+      content: (
+        <InteractionForm
+          onSubmit={async data => {
+            try {
+              await api.post(`leads/${leadId}/interactions`, data)
+              toast.success('אינטראקציה נוספה')
+              closeModal()
+              // Refresh and reopen detail
+              const fresh = await api.get<Lead>(`leads/${leadId}`)
+              showDetailModal(fresh)
+            } catch (err: unknown) {
+              toast.error((err as { message?: string }).message ?? 'שגיאה')
+            }
+          }}
+        />
+      ),
+    })
+  }
+
+  /* ── Columns ── */
+  const columns: Column<Lead>[] = [
+    { key: 'full_name', header: 'שם מלא', render: r => `${r.full_name} ${r.family_name ?? ''}`.trim() },
+    { key: 'phone', header: 'טלפון', className: s.mono, render: r => <span dir="ltr">{r.phone}</span> },
+    { key: 'status', header: 'סטטוס', render: r => <Badge entity="lead" value={r.status} /> },
+    { key: 'source_type', header: 'מקור', render: r => getSourceLabel(r.source_type) },
+    {
+      key: 'salesperson_id',
+      header: 'איש מכירות',
+      render: r => salespersons.find(sp => sp.id === r.salesperson_id)?.name ?? '—',
+    },
+    { key: 'created_at', header: 'תאריך', render: r => formatDate(r.created_at), className: s.muted },
+    {
+      key: '_actions',
+      header: '',
+      render: r => (
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button
+            className={`${s.btn} ${s['btn-ghost']} ${s['btn-xs']}`}
+            onClick={e => { e.stopPropagation(); openDetail(r) }}
+            title="צפה"
+          >
+            <Eye size={14} strokeWidth={1.5} />
+          </button>
+          <button
+            className={`${s.btn} ${s['btn-ghost']} ${s['btn-xs']}`}
+            onClick={e => { e.stopPropagation(); openEdit(r) }}
+            title="ערוך"
+          >
+            <Pencil size={14} strokeWidth={1.5} />
+          </button>
+        </div>
+      ),
+    },
+  ]
+
+  return (
+    <div>
+      {/* Page header */}
+      <div className={s['page-header']}>
+        <h1 className={s['page-title']}>לידים</h1>
+        <div className={s['page-actions']}>
+          <button className={`${s.btn} ${s['btn-primary']}`} onClick={openCreate}>
+            <Plus size={16} strokeWidth={1.5} /> ליד חדש
+          </button>
+        </div>
+      </div>
+
+      {/* Card with toolbar + table */}
+      <div className={s.card}>
+        <div className={s.toolbar}>
+          {/* Phone search */}
+          <div style={{ display: 'flex', gap: 4, flex: 1, maxWidth: 280 }}>
+            <input
+              className={`${s.input} ${s['input-sm']}`}
+              placeholder="חיפוש לפי טלפון..."
+              value={phoneSearch}
+              onChange={e => setPhoneSearch(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handlePhoneSearch()}
+              dir="ltr"
+              style={{ flex: 1 }}
+            />
+            <button className={`${s.btn} ${s['btn-secondary']} ${s['btn-sm']}`} onClick={handlePhoneSearch}>
+              <Search size={14} strokeWidth={1.5} />
+            </button>
+          </div>
+
+          {/* Status filter */}
+          <select
+            className={`${s.select} ${s['select-sm']}`}
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+          >
+            <option value="">כל הסטטוסים</option>
+            <option value="new">חדש</option>
+            <option value="contacted">נוצר קשר</option>
+            <option value="interested">מעוניין</option>
+            <option value="converted">הומר</option>
+            <option value="irrelevant">לא רלוונטי</option>
+          </select>
+
+          {/* Salesperson filter */}
+          <select
+            className={`${s.select} ${s['select-sm']}`}
+            value={spFilter}
+            onChange={e => setSpFilter(e.target.value)}
+          >
+            <option value="">כל אנשי המכירות</option>
+            {salespersons.map(sp => (
+              <option key={sp.id} value={sp.id}>{sp.name}</option>
+            ))}
+          </select>
+
+          {phoneSearch && (
+            <button
+              className={`${s.btn} ${s['btn-ghost']} ${s['btn-sm']}`}
+              onClick={() => { setPhoneSearch(''); fetchLeads() }}
+            >
+              נקה חיפוש
+            </button>
+          )}
+        </div>
+
+        <DataTable
+          columns={columns}
+          data={leads}
+          loading={loading}
+          emptyText="לא נמצאו לידים"
+          emptyIcon={<Phone size={40} strokeWidth={1.5} />}
+          onRowClick={openDetail}
+          keyExtractor={r => r.id}
+        />
+      </div>
+    </div>
+  )
+}

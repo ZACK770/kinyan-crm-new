@@ -12,19 +12,31 @@ async def create_payment(
     db: AsyncSession,
     student_id: int | None = None,
     lead_id: int | None = None,
+    course_id: int | None = None,
+    commitment_id: int | None = None,
     amount: float = 0,
     payment_method: str | None = None,
     reference: str | None = None,
+    currency: str | None = "₪",
+    transaction_type: str | None = None,
+    installments: int | None = None,
+    charge_day: int | None = None,
 ) -> Payment:
     """Record a payment."""
     payment = Payment(
         student_id=student_id,
         lead_id=lead_id,
+        course_id=course_id,
+        commitment_id=commitment_id,
         amount=amount,
         payment_date=date.today(),
         payment_method=payment_method,
         status="שולם",
         reference=reference,
+        currency=currency,
+        transaction_type=transaction_type,
+        installments=installments,
+        charge_day=charge_day,
     )
     db.add(payment)
     await db.flush()

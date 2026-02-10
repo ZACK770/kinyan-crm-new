@@ -8,12 +8,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db import get_db
 from db.models import Lead, Student, Enrollment, Payment, Salesperson
 from services import sales as sales_svc
+from .dependencies import require_permission
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
 @router.get("/overview")
-async def overview(db: AsyncSession = Depends(get_db)):
+async def overview(
+    user = Depends(require_permission("viewer")),
+    db: AsyncSession = Depends(get_db)
+):
     """System-wide dashboard stats."""
     total_leads = (await db.execute(select(func.count()).select_from(Lead))).scalar() or 0
     new_leads = (
@@ -41,7 +45,10 @@ async def overview(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/salespeople")
-async def salespeople_stats(db: AsyncSession = Depends(get_db)):
+async def salespeople_stats(
+    user = Depends(require_permission("manager")),
+    db: AsyncSession = Depends(get_db)
+):
     """Per-salesperson stats."""
     people = await sales_svc.get_active_salespeople(db)
     result = []

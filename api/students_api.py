@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_db
 from services import students as student_svc
+from .dependencies import require_entity_access
 
 router = APIRouter(prefix="/students", tags=["students"])
 
@@ -33,6 +34,7 @@ async def list_students(
     status: str | None = Query(None),
     limit: int = Query(50, le=200),
     offset: int = Query(0),
+    user = Depends(require_entity_access("students", "view")),
     db: AsyncSession = Depends(get_db),
 ):
     items = await student_svc.list_students(db, status=status, limit=limit, offset=offset)
@@ -49,7 +51,11 @@ async def list_students(
 
 
 @router.post("/convert")
-async def convert_lead(data: ConvertLead, db: AsyncSession = Depends(get_db)):
+async def convert_lead(
+    data: ConvertLead,
+    user = Depends(require_entity_access("students", "create")),
+    db: AsyncSession = Depends(get_db)
+):
     try:
         student = await student_svc.create_from_lead(db, data.lead_id)
         await db.commit()
@@ -59,7 +65,11 @@ async def convert_lead(data: ConvertLead, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{student_id}")
-async def get_student(student_id: int, db: AsyncSession = Depends(get_db)):
+async def get_student(
+    student_id: int,
+    user = Depends(require_entity_access("students", "view")),
+    db: AsyncSession = Depends(get_db)
+):
     dashboard = await student_svc.get_student_dashboard(db, student_id)
     if not dashboard:
         raise HTTPException(404, "Student not found")
@@ -84,7 +94,12 @@ async def get_student(student_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/{student_id}/enroll")
-async def enroll(student_id: int, data: EnrollStudent, db: AsyncSession = Depends(get_db)):
+async def enroll(
+    student_id: int,
+    data: EnrollStudent,
+    user = Depends(require_entity_access("students", "edit")),
+    db: AsyncSession = Depends(get_db)
+):
     try:
         enrollment = await student_svc.enroll_in_course(
             db, student_id, data.course_id, data.entry_module_order, data.start_date
@@ -101,7 +116,11 @@ async def enroll(student_id: int, data: EnrollStudent, db: AsyncSession = Depend
 
 @router.patch("/{student_id}/enrollments/{enrollment_id}/progress")
 async def update_progress(
-    student_id: int, enrollment_id: int, data: UpdateProgress, db: AsyncSession = Depends(get_db)
+    student_id: int,
+    enrollment_id: int,
+    data: UpdateProgress,
+    user = Depends(require_entity_access("students", "edit")),
+    db: AsyncSession = Depends(get_db)
 ):
     enrollment = await student_svc.update_progress(db, enrollment_id, data.current_module)
     if not enrollment:

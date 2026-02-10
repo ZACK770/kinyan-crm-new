@@ -12,13 +12,45 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "dev-secret"
     API_KEY: str = "dev-api-key"
 
+    # JWT
+    JWT_SECRET_KEY: str = "jwt-secret-change-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRATION_MINUTES: int = 1440  # 24 hours
+
+    # Google OAuth
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = "http://localhost:5173/auth/google/callback"
+
+    # Email (SMTP)
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = ""
+    SMTP_FROM_NAME: str = "Kinyan CRM"
+
+    # Frontend URL (for reset links, welcome page, etc.)
+    FRONTEND_URL: str = "http://localhost:5173"
+
     class Config:
         env_file = ".env"
+
+    @property
+    def async_database_url(self) -> str:
+        """Convert Render's postgres:// to postgresql+asyncpg:// for async SQLAlchemy."""
+        url = self.DATABASE_URL
+        if url.startswith("postgres://"):
+            return url.replace("postgres://", "postgresql+asyncpg://", 1)
+        elif url.startswith("postgresql://") and "+asyncpg" not in url:
+            return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return url
 
 
 settings = Settings()
 
-engine = create_async_engine(settings.DATABASE_URL, echo=False)
+# Use async_database_url to ensure correct driver for Render deployments
+engine = create_async_engine(settings.async_database_url, echo=False)
 SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 

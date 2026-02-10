@@ -1,6 +1,7 @@
 """
 All SQLAlchemy models in one place.
 Maps directly to PostgreSQL tables.
+Full spec: ENTITIES_SPEC.md (17 entities + child tables)
 """
 from datetime import datetime, date
 from typing import Optional, List
@@ -13,7 +14,52 @@ from db import Base
 
 
 # ============================================================
-# Salespeople (אנשי מכירות) - replaces e_94
+# User (משתמשי מערכת) — הרשאות ואימות
+# ============================================================
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(300), unique=True, nullable=False, index=True)
+    full_name: Mapped[str] = mapped_column(String(300), nullable=False)
+    hashed_password: Mapped[Optional[str]] = mapped_column(String(500))  # null if Google-only
+    google_id: Mapped[Optional[str]] = mapped_column(String(200), unique=True)
+    avatar_url: Mapped[Optional[str]] = mapped_column(String(500))
+
+    # Permission level: 0=pending, 10=viewer, 20=editor, 30=manager, 40=admin
+    permission_level: Mapped[int] = mapped_column(Integer, default=0)
+    role_name: Mapped[str] = mapped_column(String(50), default="pending")  # pending/viewer/editor/manager/admin
+
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    last_login: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        Index("idx_users_email", "email"),
+        Index("idx_users_google_id", "google_id"),
+    )
+
+
+# ============================================================
+# EntityPermission (הרשאות לפי ישות) — מגדיר רמת הרשאה נדרשת לכל ישות
+# ============================================================
+class EntityPermission(Base):
+    __tablename__ = "entity_permissions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    entity_name: Mapped[str] = mapped_column(String(100), nullable=False)  # e.g. "leads", "students"
+    action: Mapped[str] = mapped_column(String(50), nullable=False)  # "view" / "create" / "edit" / "delete"
+    required_level: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
+
+    __table_args__ = (
+        UniqueConstraint("entity_name", "action", name="uq_entity_action"),
+        Index("idx_entity_perm_name", "entity_name"),
+    )
+
+
+# ============================================================
+# Salespeople (אנשי מכירות) — entity 4
 # ============================================================
 class Salesperson(Base):
     __tablename__ = "salespeople"
@@ -23,33 +69,73 @@ class Salesperson(Base):
     email: Mapped[Optional[str]] = mapped_column(String(200))
     phone: Mapped[Optional[str]] = mapped_column(String(50))
     ref_code: Mapped[Optional[str]] = mapped_column(String(50))
+    notes: Mapped[Optional[str]] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # Relations
     leads: Mapped[List["Lead"]] = relationship(back_populates="salesperson")
     tasks: Mapped[List["SalesTask"]] = relationship(back_populates="salesperson")
+    campaign_links: Mapped[List["CampaignSalespersonLink"]] = relationship(back_populates="salesperson")
 
 
 # ============================================================
-# Campaigns (קמפיינים) - replaces e_90
+# Campaigns (קמפיינים) — entity 3
 # ============================================================
 class Campaign(Base):
     __tablename__ = "campaigns"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(300), nullable=False)
+    course_id: Mapped[Optional[int]] = mapped_column(ForeignKey("courses.id"))
     campaign_type: Mapped[Optional[str]] = mapped_column(String(100))
+    platforms: Mapped[Optional[str]] = mapped_column(Text)  # comma-separated: פייסבוק, גוגל, ימות
     start_date: Mapped[Optional[date]] = mapped_column(Date)
     end_date: Mapped[Optional[date]] = mapped_column(Date)
+    form_name: Mapped[Optional[str]] = mapped_column(String(300))
+    landing_page_url: Mapped[Optional[str]] = mapped_column(String(500))
+    description: Mapped[Optional[str]] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    # Relations
     leads: Mapped[List["Lead"]] = relationship(back_populates="campaign")
+    course: Mapped[Optional["Course"]] = relationship(back_populates="campaigns")
+    salesperson_links: Mapped[List["CampaignSalespersonLink"]] = relationship(back_populates="campaign", cascade="all, delete-orphan")
+    landing_links: Mapped[List["CampaignLandingLink"]] = relationship(back_populates="campaign", cascade="all, delete-orphan")
 
 
 # ============================================================
-# Products (מוצרים) - replaces e_73
+# CampaignSalespersonLink (לינקים לאנשי מכירות בקמפיין)
+# ============================================================
+class CampaignSalespersonLink(Base):
+    __tablename__ = "campaign_salesperson_links"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    campaign_id: Mapped[int] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False)
+    salesperson_id: Mapped[int] = mapped_column(ForeignKey("salespeople.id"), nullable=False)
+    message_text: Mapped[Optional[str]] = mapped_column(Text)
+
+    campaign: Mapped["Campaign"] = relationship(back_populates="salesperson_links")
+    salesperson: Mapped["Salesperson"] = relationship(back_populates="campaign_links")
+
+
+# ============================================================
+# CampaignLandingLink (לינקים לדף נחיתה בקמפיין)
+# ============================================================
+class CampaignLandingLink(Base):
+    __tablename__ = "campaign_landing_links"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    campaign_id: Mapped[int] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False)
+    source_label: Mapped[Optional[str]] = mapped_column(String(200))  # UTM source
+    url_with_source: Mapped[Optional[str]] = mapped_column(String(500))
+
+    campaign: Mapped["Campaign"] = relationship(back_populates="landing_links")
+
+
+# ============================================================
+# Products (מוצרים)
 # ============================================================
 class Product(Base):
     __tablename__ = "products"
@@ -65,7 +151,7 @@ class Product(Base):
 
 
 # ============================================================
-# Courses (קורסים) - replaces e_80
+# Courses (קורסים) — entity 8
 # ============================================================
 class Course(Base):
     __tablename__ = "courses"
@@ -76,15 +162,21 @@ class Course(Base):
     start_date: Mapped[Optional[date]] = mapped_column(Date)
     end_date: Mapped[Optional[date]] = mapped_column(Date)
     semester: Mapped[Optional[str]] = mapped_column(String(100))
+    syllabus_url: Mapped[Optional[str]] = mapped_column(String(500))
+    website_url: Mapped[Optional[str]] = mapped_column(String(500))
+    zoom_url: Mapped[Optional[str]] = mapped_column(String(500))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    # Relations
     modules: Mapped[List["CourseModule"]] = relationship(back_populates="course", order_by="CourseModule.module_order")
     enrollments: Mapped[List["Enrollment"]] = relationship(back_populates="course")
+    campaigns: Mapped[List["Campaign"]] = relationship(back_populates="course")
+    exams: Mapped[List["Exam"]] = relationship(back_populates="course")
 
 
 # ============================================================
-# CourseModules (שיעורים/מודולים) - replaces e_83
+# CourseModules (שיעורים/מודולים) — entity 9
 # ============================================================
 class CourseModule(Base):
     __tablename__ = "course_modules"
@@ -92,10 +184,18 @@ class CourseModule(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     course_id: Mapped[int] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"), nullable=False)
     name: Mapped[str] = mapped_column(String(300), nullable=False)
+    lecturer_id: Mapped[Optional[int]] = mapped_column(ForeignKey("lecturers.id"))
     module_order: Mapped[int] = mapped_column(Integer, nullable=False)
     sessions_count: Mapped[Optional[int]] = mapped_column(Integer)
     hours_estimate: Mapped[Optional[Numeric]] = mapped_column(Numeric(5, 1))
     start_date: Mapped[Optional[date]] = mapped_column(Date)
+    start_time: Mapped[Optional[str]] = mapped_column(String(10))   # HH:MM
+    end_time: Mapped[Optional[str]] = mapped_column(String(10))     # HH:MM
+    zoom_url: Mapped[Optional[str]] = mapped_column(String(500))
+    recording_drive_url: Mapped[Optional[str]] = mapped_column(String(500))
+    recording_youtube_url: Mapped[Optional[str]] = mapped_column(String(500))
+    assignment_url: Mapped[Optional[str]] = mapped_column(String(500))
+    extra_details: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
@@ -104,24 +204,47 @@ class CourseModule(Base):
     )
 
     course: Mapped["Course"] = relationship(back_populates="modules")
+    lecturer: Mapped[Optional["Lecturer"]] = relationship(back_populates="modules")
 
 
 # ============================================================
-# Coupons (קופונים) - replaces e_95
+# Lecturers (מרצים) — entity 10
+# ============================================================
+class Lecturer(Base):
+    __tablename__ = "lecturers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    specialty: Mapped[Optional[str]] = mapped_column(String(300))
+    phone: Mapped[Optional[str]] = mapped_column(String(50))
+    email: Mapped[Optional[str]] = mapped_column(String(200))
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    # Relations
+    modules: Mapped[List["CourseModule"]] = relationship(back_populates="lecturer")
+    exams: Mapped[List["Exam"]] = relationship(back_populates="lecturer")
+
+
+# ============================================================
+# Coupons (קופונים) — entity 15
 # ============================================================
 class Coupon(Base):
     __tablename__ = "coupons"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    description: Mapped[Optional[str]] = mapped_column(String(300))
     code: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    discount_type: Mapped[Optional[str]] = mapped_column(String(50))
+    discount_type: Mapped[Optional[str]] = mapped_column(String(50))  # אחוז / סכום קבוע
     discount_value: Mapped[Optional[Numeric]] = mapped_column(Numeric(10, 2))
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    max_uses: Mapped[Optional[int]] = mapped_column(Integer)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 # ============================================================
-# Leads (לידים) - replaces e_79
+# Leads (לידים) — entity 1
 # ============================================================
 class Lead(Base):
     __tablename__ = "leads"
@@ -160,6 +283,7 @@ class Lead(Base):
     # Links
     student_id: Mapped[Optional[int]] = mapped_column(ForeignKey("students.id"))
     campaign_id: Mapped[Optional[int]] = mapped_column(ForeignKey("campaigns.id"))
+    active_task_id: Mapped[Optional[int]] = mapped_column(ForeignKey("sales_tasks.id", use_alter=True))
 
     # Meta
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -170,6 +294,7 @@ class Lead(Base):
         Index("idx_leads_phone", "phone"),
         Index("idx_leads_status", "status"),
         Index("idx_leads_salesperson", "salesperson_id"),
+        Index("idx_leads_campaign", "campaign_id"),
     )
 
     # Relations
@@ -181,7 +306,7 @@ class Lead(Base):
 
 
 # ============================================================
-# LeadInteraction (פניות/שיחות) - replaces g_286 + g_286_dup_123 + g_183
+# LeadInteraction (פניות/שיחות) — תקשורת + IVR + אתר
 # ============================================================
 class LeadInteraction(Base):
     __tablename__ = "lead_interactions"
@@ -257,7 +382,7 @@ class LeadProduct(Base):
 
 
 # ============================================================
-# Students (תלמידים) - replaces clients
+# Students (תלמידים) — entity 2
 # ============================================================
 class Student(Base):
     __tablename__ = "students"
@@ -284,6 +409,7 @@ class Student(Base):
     total_price: Mapped[Optional[Numeric]] = mapped_column(Numeric(10, 2))
     total_paid: Mapped[Optional[Numeric]] = mapped_column(Numeric(10, 2), default=0)
     payment_status: Mapped[str] = mapped_column(String(50), default="חייב")
+    shipping_status: Mapped[Optional[str]] = mapped_column(String(50))  # ממתין / נשלח / התקבל
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -295,12 +421,15 @@ class Student(Base):
 
     lead: Mapped[Optional["Lead"]] = relationship(back_populates="student", foreign_keys=[lead_id])
     enrollments: Mapped[List["Enrollment"]] = relationship(back_populates="student")
-    exams: Mapped[List["Exam"]] = relationship(back_populates="student")
+    exam_submissions: Mapped[List["ExamSubmission"]] = relationship(back_populates="student")
     payments: Mapped[List["Payment"]] = relationship(back_populates="student")
+    commitments: Mapped[List["Commitment"]] = relationship(back_populates="student")
+    attendance_records: Mapped[List["Attendance"]] = relationship(back_populates="student")
+    collections: Mapped[List["Collection"]] = relationship(back_populates="student")
 
 
 # ============================================================
-# Enrollments (הרשמות לקורסים) - replaces g_191
+# Enrollments (הרשמות לקורסים)
 # ============================================================
 class Enrollment(Base):
     __tablename__ = "enrollments"
@@ -336,57 +465,91 @@ class Enrollment(Base):
 
 
 # ============================================================
-# Payments (תשלומים) - replaces e_88
+# Payments (תשלומים) — entity 13
 # ============================================================
 class Payment(Base):
     __tablename__ = "payments"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    reference: Mapped[Optional[str]] = mapped_column(String(200))  # אסמכתא נדרים פלוס
     student_id: Mapped[Optional[int]] = mapped_column(ForeignKey("students.id"))
     lead_id: Mapped[Optional[int]] = mapped_column(ForeignKey("leads.id"))
+    course_id: Mapped[Optional[int]] = mapped_column(ForeignKey("courses.id"))
+    commitment_id: Mapped[Optional[int]] = mapped_column(ForeignKey("commitments.id"))
 
-    amount: Mapped[Numeric] = mapped_column(Numeric(10, 2), nullable=False)
     payment_date: Mapped[Optional[date]] = mapped_column(Date)
-    payment_method: Mapped[Optional[str]] = mapped_column(String(50))
-    status: Mapped[str] = mapped_column(String(50), default="ממתין")
-    reference: Mapped[Optional[str]] = mapped_column(String(200))
+    amount: Mapped[Numeric] = mapped_column(Numeric(10, 2), nullable=False)
+    currency: Mapped[Optional[str]] = mapped_column(String(10), default="₪")
+    transaction_type: Mapped[Optional[str]] = mapped_column(String(50))  # רגיל / הוראת קבע / החזר
+    installments: Mapped[Optional[int]] = mapped_column(Integer)
+    charge_day: Mapped[Optional[int]] = mapped_column(Integer)
+    payment_method: Mapped[Optional[str]] = mapped_column(String(50))  # אשראי / העברה / מזומן
+    status: Mapped[str] = mapped_column(String(50), default="ממתין")  # שולם / ממתין / נכשל / הוחזר
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
         Index("idx_payments_student", "student_id"),
+        Index("idx_payments_status", "status"),
+        Index("idx_payments_commitment", "commitment_id"),
     )
 
     student: Mapped[Optional["Student"]] = relationship(back_populates="payments")
+    course: Mapped[Optional["Course"]] = relationship()
+    commitment: Mapped[Optional["Commitment"]] = relationship(back_populates="payments")
 
 
 # ============================================================
-# Exams (מבחנים וציונים) - replaces e_85/e_86/g_313
+# Exams (מבחנים) — entity 11 (now general exam, submissions are children)
 # ============================================================
 class Exam(Base):
     __tablename__ = "exams"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    student_id: Mapped[int] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
-
-    exam_name: Mapped[str] = mapped_column(String(300), nullable=False)
-    course_id: Mapped[Optional[int]] = mapped_column(ForeignKey("courses.id"))
-    score: Mapped[Optional[Numeric]] = mapped_column(Numeric(5, 2))
+    name: Mapped[str] = mapped_column(String(300), nullable=False)
+    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), nullable=False)
+    lecturer_id: Mapped[Optional[int]] = mapped_column(ForeignKey("lecturers.id"))
     exam_date: Mapped[Optional[date]] = mapped_column(Date)
-    notes: Mapped[Optional[str]] = mapped_column(Text)
-
+    exam_type: Mapped[str] = mapped_column(String(50), default="בכתב")  # בעל-פה / בכתב / מטלה
+    questionnaire_url: Mapped[Optional[str]] = mapped_column(String(500))
+    answers_url: Mapped[Optional[str]] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
-        Index("idx_exams_student", "student_id"),
+        Index("idx_exams_course", "course_id"),
     )
 
-    student: Mapped["Student"] = relationship(back_populates="exams")
-    course: Mapped[Optional["Course"]] = relationship()
+    course: Mapped["Course"] = relationship(back_populates="exams")
+    lecturer: Mapped[Optional["Lecturer"]] = relationship(back_populates="exams")
+    submissions: Mapped[List["ExamSubmission"]] = relationship(back_populates="exam", cascade="all, delete-orphan")
 
 
 # ============================================================
-# SalesTask (משימות לאנשי מכירות) - replaces e_108
+# ExamSubmission (הגשות מבחנים) — child of Exam
+# ============================================================
+class ExamSubmission(Base):
+    __tablename__ = "exam_submissions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    exam_id: Mapped[int] = mapped_column(ForeignKey("exams.id", ondelete="CASCADE"), nullable=False)
+    student_id: Mapped[int] = mapped_column(ForeignKey("students.id"), nullable=False)
+    submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    score: Mapped[Optional[int]] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(50), default="הוגש")  # הוגש / נבדק / עבר / נכשל
+    student_notes: Mapped[Optional[str]] = mapped_column(Text)
+    internal_notes: Mapped[Optional[str]] = mapped_column(Text)
+
+    __table_args__ = (
+        Index("idx_exam_sub_exam", "exam_id"),
+        Index("idx_exam_sub_student", "student_id"),
+    )
+
+    exam: Mapped["Exam"] = relationship(back_populates="submissions")
+    student: Mapped["Student"] = relationship(back_populates="exam_submissions")
+
+
+# ============================================================
+# SalesTask (משימות מכירות) — entity 5
 # ============================================================
 class SalesTask(Base):
     __tablename__ = "sales_tasks"
@@ -399,8 +562,8 @@ class SalesTask(Base):
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
     due_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    status: Mapped[str] = mapped_column(String(50), default="פתוח")
-    priority: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(50), default="חדש")  # חדש / בטיפול / הושלם
+    priority: Mapped[int] = mapped_column(Integer, default=0)  # 0-3
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
@@ -408,6 +571,189 @@ class SalesTask(Base):
     __table_args__ = (
         Index("idx_tasks_salesperson", "salesperson_id"),
         Index("idx_tasks_status", "status"),
+        Index("idx_tasks_lead", "lead_id"),
     )
 
     salesperson: Mapped["Salesperson"] = relationship(back_populates="tasks")
+    reports: Mapped[List["TaskReport"]] = relationship(back_populates="task", cascade="all, delete-orphan")
+
+
+# ============================================================
+# TaskReport (דיווחי ביצוע) — child of SalesTask
+# ============================================================
+class TaskReport(Base):
+    __tablename__ = "task_reports"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("sales_tasks.id", ondelete="CASCADE"), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    duration: Mapped[Optional[str]] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    task: Mapped["SalesTask"] = relationship(back_populates="reports")
+
+
+# ============================================================
+# LeadMessage (הודעות לידים) — entity 6
+# ============================================================
+class LeadMessage(Base):
+    __tablename__ = "lead_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    subject: Mapped[str] = mapped_column(String(300), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="טיוטה")  # טיוטה / נשלח / נכשל
+    recipient_type: Mapped[Optional[str]] = mapped_column(String(50))  # lead / campaign / salesperson
+    lead_id: Mapped[Optional[int]] = mapped_column(ForeignKey("leads.id"))
+    campaign_id: Mapped[Optional[int]] = mapped_column(ForeignKey("campaigns.id"))
+    salesperson_id: Mapped[Optional[int]] = mapped_column(ForeignKey("salespeople.id"))
+    phone: Mapped[Optional[str]] = mapped_column(String(50))
+    send_method: Mapped[Optional[str]] = mapped_column(String(50))  # מייל / SMS / וואצאפ
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+# ============================================================
+# Inquiry (פניות נכנסות) — entity 7
+# ============================================================
+class Inquiry(Base):
+    __tablename__ = "inquiries"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    subject: Mapped[str] = mapped_column(String(300), nullable=False)
+    inquiry_type: Mapped[str] = mapped_column(String(50), nullable=False)  # מייל / דואר קולי / טלפון / אחר
+    lead_id: Mapped[Optional[int]] = mapped_column(ForeignKey("leads.id"))
+    student_id: Mapped[Optional[int]] = mapped_column(ForeignKey("students.id"))
+    phone: Mapped[Optional[str]] = mapped_column(String(50))
+    status: Mapped[str] = mapped_column(String(50), default="חדש")  # חדש / בטיפול / טופל / סגור
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    handled_by: Mapped[Optional[str]] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_inquiries_status", "status"),
+        Index("idx_inquiries_lead", "lead_id"),
+        Index("idx_inquiries_student", "student_id"),
+    )
+
+    responses: Mapped[List["InquiryResponse"]] = relationship(back_populates="inquiry", cascade="all, delete-orphan")
+
+
+# ============================================================
+# InquiryResponse (שרשור תגובות) — child of Inquiry
+# ============================================================
+class InquiryResponse(Base):
+    __tablename__ = "inquiry_responses"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    inquiry_id: Mapped[int] = mapped_column(ForeignKey("inquiries.id", ondelete="CASCADE"), nullable=False)
+    author: Mapped[Optional[str]] = mapped_column(String(200))
+    content: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    inquiry: Mapped["Inquiry"] = relationship(back_populates="responses")
+
+
+# ============================================================
+# Attendance (נוכחות ומטלות) — entity 12
+# ============================================================
+class Attendance(Base):
+    __tablename__ = "attendance"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
+    module_id: Mapped[int] = mapped_column(ForeignKey("course_modules.id", ondelete="CASCADE"), nullable=False)
+    lecturer_id: Mapped[Optional[int]] = mapped_column(ForeignKey("lecturers.id"))
+    attendance_date: Mapped[date] = mapped_column(Date, server_default=func.current_date())
+    is_present: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    assignment_done: Mapped[bool] = mapped_column(Boolean, default=False)
+    score: Mapped[Optional[int]] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_attendance_student", "student_id"),
+        Index("idx_attendance_module", "module_id"),
+    )
+
+    student: Mapped["Student"] = relationship(back_populates="attendance_records")
+    module: Mapped["CourseModule"] = relationship()
+    lecturer: Mapped[Optional["Lecturer"]] = relationship()
+
+
+# ============================================================
+# Commitment (התחייבויות — הוראות קבע/סליקה) — entity 14
+# ============================================================
+class Commitment(Base):
+    __tablename__ = "commitments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    reference: Mapped[Optional[str]] = mapped_column(String(200))
+    student_id: Mapped[int] = mapped_column(ForeignKey("students.id"), nullable=False)
+    course_id: Mapped[Optional[int]] = mapped_column(ForeignKey("courses.id"))
+    end_date: Mapped[Optional[date]] = mapped_column(Date)
+    monthly_amount: Mapped[Numeric] = mapped_column(Numeric(10, 2), nullable=False)
+    total_amount: Mapped[Optional[Numeric]] = mapped_column(Numeric(10, 2))
+    installments: Mapped[Optional[int]] = mapped_column(Integer)
+    charge_day: Mapped[Optional[int]] = mapped_column(Integer)
+    payment_method: Mapped[Optional[str]] = mapped_column(String(50))  # אשראי / הוראת קבע
+    status: Mapped[str] = mapped_column(String(50), default="פעיל")  # פעיל / מושהה / הסתיים / בוטל
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_commitments_student", "student_id"),
+        Index("idx_commitments_status", "status"),
+    )
+
+    student: Mapped["Student"] = relationship(back_populates="commitments")
+    course: Mapped[Optional["Course"]] = relationship()
+    payments: Mapped[List["Payment"]] = relationship(back_populates="commitment")
+
+
+# ============================================================
+# Collection (גביה) — entity 16
+# ============================================================
+class Collection(Base):
+    __tablename__ = "collections"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("students.id"), nullable=False)
+    commitment_id: Mapped[Optional[int]] = mapped_column(ForeignKey("commitments.id"))
+    amount: Mapped[Numeric] = mapped_column(Numeric(10, 2), nullable=False)
+    due_date: Mapped[date] = mapped_column(Date, nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="ממתין")  # ממתין / נגבה / נכשל / בוטל
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    collected_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    reference: Mapped[Optional[str]] = mapped_column(String(200))
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_collections_student", "student_id"),
+        Index("idx_collections_status", "status"),
+        Index("idx_collections_due_date", "due_date"),
+    )
+
+    student: Mapped["Student"] = relationship(back_populates="collections")
+    commitment: Mapped[Optional["Commitment"]] = relationship()
+
+
+# ============================================================
+# Expense (הוצאות) — entity 17
+# ============================================================
+class Expense(Base):
+    __tablename__ = "expenses"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    vendor: Mapped[str] = mapped_column(String(300), nullable=False)
+    expense_date: Mapped[date] = mapped_column(Date, nullable=False)
+    amount: Mapped[Numeric] = mapped_column(Numeric(10, 2), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    course_id: Mapped[Optional[int]] = mapped_column(ForeignKey("courses.id"))
+    campaign_id: Mapped[Optional[int]] = mapped_column(ForeignKey("campaigns.id"))
+    payment_method: Mapped[Optional[str]] = mapped_column(String(50))
+    invoice_file: Mapped[Optional[str]] = mapped_column(String(500))  # path/URL
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    course: Mapped[Optional["Course"]] = relationship()
+    campaign: Mapped[Optional["Campaign"]] = relationship()

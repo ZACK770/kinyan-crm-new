@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_db
 from services import leads as lead_svc
+from .dependencies import require_entity_access
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
@@ -48,6 +49,7 @@ async def list_leads(
     salesperson_id: int | None = Query(None),
     limit: int = Query(50, le=200),
     offset: int = Query(0),
+    user = Depends(require_entity_access("leads", "view")),
     db: AsyncSession = Depends(get_db),
 ):
     items = await lead_svc.list_leads(db, status=status, salesperson_id=salesperson_id, limit=limit, offset=offset)
@@ -65,7 +67,11 @@ async def list_leads(
 
 
 @router.get("/search")
-async def search_lead(phone: str = Query(...), db: AsyncSession = Depends(get_db)):
+async def search_lead(
+    phone: str = Query(...),
+    user = Depends(require_entity_access("leads", "view")),
+    db: AsyncSession = Depends(get_db)
+):
     lead = await lead_svc.search_by_phone(db, phone)
     if not lead:
         raise HTTPException(404, "Lead not found")
@@ -73,7 +79,11 @@ async def search_lead(phone: str = Query(...), db: AsyncSession = Depends(get_db
 
 
 @router.get("/{lead_id}")
-async def get_lead(lead_id: int, db: AsyncSession = Depends(get_db)):
+async def get_lead(
+    lead_id: int,
+    user = Depends(require_entity_access("leads", "view")),
+    db: AsyncSession = Depends(get_db)
+):
     lead = await lead_svc.get_lead_with_history(db, lead_id)
     if not lead:
         raise HTTPException(404, "Lead not found")
@@ -98,13 +108,22 @@ async def get_lead(lead_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/")
-async def create_lead(data: LeadCreate, db: AsyncSession = Depends(get_db)):
+async def create_lead(
+    data: LeadCreate,
+    user = Depends(require_entity_access("leads", "create")),
+    db: AsyncSession = Depends(get_db)
+):
     result = await lead_svc.process_incoming_lead(db, **data.model_dump())
     return result
 
 
 @router.patch("/{lead_id}")
-async def update_lead(lead_id: int, data: LeadUpdate, db: AsyncSession = Depends(get_db)):
+async def update_lead(
+    lead_id: int,
+    data: LeadUpdate,
+    user = Depends(require_entity_access("leads", "edit")),
+    db: AsyncSession = Depends(get_db)
+):
     lead = await lead_svc.update_lead(db, lead_id, **data.model_dump(exclude_unset=True))
     if not lead:
         raise HTTPException(404, "Lead not found")
@@ -113,7 +132,12 @@ async def update_lead(lead_id: int, data: LeadUpdate, db: AsyncSession = Depends
 
 
 @router.post("/{lead_id}/interactions")
-async def add_interaction(lead_id: int, data: InteractionCreate, db: AsyncSession = Depends(get_db)):
+async def add_interaction(
+    lead_id: int,
+    data: InteractionCreate,
+    user = Depends(require_entity_access("leads", "edit")),
+    db: AsyncSession = Depends(get_db)
+):
     interaction = await lead_svc.add_interaction(db, lead_id, **data.model_dump())
     await db.commit()
     return {"id": interaction.id}
