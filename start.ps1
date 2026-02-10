@@ -24,6 +24,11 @@ $env:JWT_ALGORITHM = "HS256"
 $env:JWT_EXPIRATION_MINUTES = "1440"
 $env:FRONTEND_URL = "http://localhost:8000"
 
+# Google OAuth
+$env:GOOGLE_CLIENT_ID = "638402661079-pjfnm1g84il9uvj9vtgh4v5jqj6uk1gi.apps.googleusercontent.com"
+$env:GOOGLE_CLIENT_SECRET = "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"
+$env:GOOGLE_REDIRECT_URI = "http://localhost:8000/api/auth/google/callback"
+
 Write-Host "[OK] Environment configured" -ForegroundColor Green
 Write-Host "[DB] Render PostgreSQL (Frankfurt)" -ForegroundColor Yellow
 
