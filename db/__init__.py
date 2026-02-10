@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
     SMTP_FROM_EMAIL: str = ""
-    SMTP_FROM_NAME: str = "Kinyan CRM"
+    SMTP_FROM_NAME: str = "קניין הוראה - מחלקת רישום"
 
     # Nedarim Plus API
     NEDARIM_API_URL: str = "https://api.nedarimplus.co.il/v1"

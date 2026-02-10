@@ -19,6 +19,7 @@ async def send_email(
     subject: str,
     html_body: str,
     text_body: Optional[str] = None,
+    reply_to: Optional[str] = None,
 ) -> bool:
     """
     Send an email via SMTP.
@@ -32,6 +33,8 @@ async def send_email(
     msg["From"] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>"
     msg["To"] = to_email
     msg["Subject"] = subject
+    if reply_to:
+        msg["Reply-To"] = reply_to
 
     if text_body:
         msg.attach(MIMEText(text_body, "plain", "utf-8"))
@@ -97,3 +100,31 @@ async def send_welcome_email(to_email: str, full_name: str) -> bool:
     </div>
     """
     return await send_email(to_email, "ברוכים הבאים — Kinyan CRM", html_body)
+
+
+async def send_lead_email(
+    to_email: str,
+    subject: str,
+    body_html: str,
+    body_text: Optional[str] = None,
+) -> bool:
+    """
+    Send an email to a lead.
+    Reply-To is set to the system email so replies come back to us.
+    Wraps the body in a branded RTL template.
+    """
+    html_body = f"""
+    <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        {body_html}
+        <hr style="border: none; border-top: 1px solid #eee; margin-top: 30px;">
+        <p style="color: #999; font-size: 12px;">קניין הוראה — מחלקת רישום</p>
+    </div>
+    """
+
+    return await send_email(
+        to_email=to_email,
+        subject=subject,
+        html_body=html_body,
+        text_body=body_text,
+        reply_to=settings.SMTP_FROM_EMAIL,
+    )

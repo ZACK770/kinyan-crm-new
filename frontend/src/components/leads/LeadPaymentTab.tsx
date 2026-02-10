@@ -144,7 +144,7 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
 
   // Create payment link
   const handleCreateLink = async () => {
-    if (!lead.selected_course_id) {
+    if (!selectedCourseId) {
       setError('יש לבחור ולשמור קורס קודם')
       return
     }
@@ -155,8 +155,9 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
       await api.post(`/leads/${lead.id}/create-payment-link`, {})
       toast.success('לינק תשלום נוצר בהצלחה')
       onUpdate()
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'שגיאה ביצירת לינק'
+    } catch (err: any) {
+      console.error('Payment link error:', err)
+      const message = err?.message || 'שגיאה ביצירת לינק'
       setError(message)
     } finally {
       setIsCreatingLink(false)
@@ -305,7 +306,7 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
           <button
             className={`${s.btn} ${s['btn-primary']}`}
             onClick={handleCreateLink}
-            disabled={isCreatingLink || !lead.selected_course_id}
+            disabled={isCreatingLink || !selectedCourseId}
           >
             <CreditCard size={16} /> {isCreatingLink ? 'יוצר לינק...' : 'צור לינק תשלום'}
           </button>

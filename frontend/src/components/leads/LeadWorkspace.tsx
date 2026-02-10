@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, type ReactNode, type FormEvent } from 'react'
+import { useState, useCallback, useEffect, useMemo, type ReactNode, type FormEvent } from 'react'
 import {
   MessageSquarePlus,
   UserCheck,
@@ -9,6 +9,10 @@ import {
   History,
   Save,
   ChevronDown,
+  Mail,
+  Send,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, formatDateTime } from '@/lib/status'
@@ -88,7 +92,7 @@ interface LeadWorkspaceProps {
   onConvert?: () => void
 }
 
-type TabId = 'interactions' | 'tasks' | 'payments' | 'inquiries'
+type TabId = 'interactions' | 'tasks' | 'payments' | 'inquiries' | 'emails'
 
 export function LeadWorkspace({
   lead,
@@ -583,6 +587,13 @@ export function LeadWorkspace({
             icon={<MessageCircle size={14} />}
             label="פניות"
           />
+          <TabButton 
+            id="emails" 
+            active={activeTab === 'emails'}
+            onClick={() => setActiveTab('emails')}
+            icon={<Mail size={14} />}
+            label="מיילים"
+          />
         </div>
 
         {/* Tab Content */}
@@ -601,6 +612,9 @@ export function LeadWorkspace({
           )}
           {activeTab === 'inquiries' && (
             <InquiriesTab leadId={lead!.id} />
+          )}
+          {activeTab === 'emails' && (
+            <EmailsTab lead={lead!} onUpdate={onUpdate} />
           )}
         </div>
       </div>
@@ -732,6 +746,181 @@ function InquiriesTab({ leadId: _leadId }: { leadId: number }) {
       <MessageCircle size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
       <div>אין פניות נכנסות</div>
       <div style={{ fontSize: 12, marginTop: 4 }}>פניות נכנסות מהליד יופיעו כאן</div>
+    </div>
+  )
+}
+
+// Emails Tab — Send emails to lead + view history
+interface SentEmail {
+  id: number
+  subject: string
+  body: string
+  status: string
+  send_method: string
+  created_at: string
+  sent_at: string | null
+}
+
+function EmailsTab({ lead, onUpdate }: { lead: Lead; onUpdate: () => void }) {
+  const [emails, setEmails] = useState<SentEmail[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showCompose, setShowCompose] = useState(false)
+  const [subject, setSubject] = useState('')
+  const [body, setBody] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sendResult, setSendResult] = useState<{ ok: boolean; msg: string } | null>(null)
+
+  const fetchEmails = useCallback(async () => {
+    try {
+      const data = await api.get<SentEmail[]>(`/messages/lead/${lead.id}`)
+      setEmails(data)
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false)
+    }
+  }, [lead.id])
+
+  useEffect(() => { fetchEmails() }, [fetchEmails])
+
+  const handleSend = async () => {
+    if (!subject.trim() || !body.trim()) return
+    setSending(true)
+    setSendResult(null)
+    try {
+      await api.post('/messages/send-email', {
+        lead_id: lead.id,
+        subject: subject.trim(),
+        body: body.trim(),
+      })
+      setSendResult({ ok: true, msg: `המייל נשלח בהצלחה ל-${lead.email}` })
+      setSubject('')
+      setBody('')
+      setShowCompose(false)
+      fetchEmails()
+      onUpdate()
+    } catch (err: any) {
+      setSendResult({ ok: false, msg: err?.message || 'שליחת המייל נכשלה' })
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className={s.workspace__section_content}>
+      {/* Compose / Action bar */}
+      <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--color-border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {!lead.email ? (
+          <span style={{ color: 'var(--color-warning, #d97706)', fontSize: 13 }}>⚠ לליד אין כתובת מייל — הוסף מייל בפרטי הקשר</span>
+        ) : (
+          <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{lead.email}</span>
+        )}
+        <button
+          className={`${s.btn} ${s['btn-primary']} ${s['btn-sm']}`}
+          onClick={() => setShowCompose(!showCompose)}
+          disabled={!lead.email}
+        >
+          <Mail size={14} /> {showCompose ? 'סגור' : 'כתוב מייל'}
+        </button>
+      </div>
+
+      {/* Send result toast */}
+      {sendResult && (
+        <div style={{
+          padding: '10px 16px',
+          background: sendResult.ok ? 'var(--color-success-light, #f0fdf4)' : 'var(--color-danger-light, #fef2f2)',
+          color: sendResult.ok ? 'var(--color-success, #16a34a)' : 'var(--color-danger, #dc2626)',
+          display: 'flex', alignItems: 'center', gap: 8, fontSize: 13,
+          borderBottom: '1px solid var(--color-border-light)',
+        }}>
+          {sendResult.ok ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
+          {sendResult.msg}
+        </div>
+      )}
+
+      {/* Compose form */}
+      {showCompose && (
+        <div style={{ padding: 16, borderBottom: '2px solid var(--color-primary)', background: 'var(--color-bg-secondary, #f8fafc)' }}>
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-text-secondary)' }}>נושא</label>
+            <input
+              type="text"
+              value={subject}
+              onChange={e => setSubject(e.target.value)}
+              placeholder="נושא המייל..."
+              style={{
+                width: '100%', padding: '8px 12px', borderRadius: 6,
+                border: '1px solid var(--color-border)', fontSize: 14,
+                direction: 'rtl',
+              }}
+            />
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-text-secondary)' }}>תוכן</label>
+            <textarea
+              value={body}
+              onChange={e => setBody(e.target.value)}
+              placeholder="תוכן המייל..."
+              rows={6}
+              style={{
+                width: '100%', padding: '8px 12px', borderRadius: 6,
+                border: '1px solid var(--color-border)', fontSize: 14,
+                resize: 'vertical', direction: 'rtl', fontFamily: 'inherit',
+              }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button className={`${s.btn} ${s['btn-ghost']} ${s['btn-sm']}`} onClick={() => setShowCompose(false)}>ביטול</button>
+            <button
+              className={`${s.btn} ${s['btn-primary']} ${s['btn-sm']}`}
+              onClick={handleSend}
+              disabled={sending || !subject.trim() || !body.trim()}
+            >
+              <Send size={14} /> {sending ? 'שולח...' : 'שלח מייל'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Email history */}
+      {loading ? (
+        <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)' }}>טוען...</div>
+      ) : emails.length === 0 ? (
+        <div className={s['empty-state']}>
+          <Mail size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
+          <div>לא נשלחו מיילים לליד זה</div>
+          {lead.email && (
+            <button className={`${s.btn} ${s['btn-primary']} ${s['btn-sm']}`} onClick={() => setShowCompose(true)} style={{ marginTop: 12 }}>
+              <Mail size={14} /> שלח מייל ראשון
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className={s.timeline} style={{ padding: 16 }}>
+          {emails.map(email => (
+            <div key={email.id} className={s['timeline-item']}>
+              <div className={s['timeline-dot']} style={{
+                background: email.status === 'נשלח' ? 'var(--color-success, #16a34a)' : email.status === 'נכשל' ? 'var(--color-danger, #dc2626)' : 'var(--color-border)',
+              }} />
+              <div className={s['timeline-content']}>
+                <div className={s['timeline-date']}>
+                  {formatDateTime(email.sent_at || email.created_at)}
+                  <span style={{
+                    marginRight: 8, fontSize: 11, padding: '1px 6px', borderRadius: 4,
+                    background: email.status === 'נשלח' ? 'var(--color-success-light, #f0fdf4)' : 'var(--color-danger-light, #fef2f2)',
+                    color: email.status === 'נשלח' ? 'var(--color-success, #16a34a)' : 'var(--color-danger, #dc2626)',
+                  }}>{email.status}</span>
+                </div>
+                <div style={{ fontWeight: 600, fontSize: 14, marginTop: 4 }}>{email.subject}</div>
+                <div style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-secondary)', whiteSpace: 'pre-wrap', maxHeight: 100, overflow: 'hidden' }}>
+                  {email.body.replace(/<[^>]*>/g, '').substring(0, 200)}
+                  {email.body.length > 200 && '...'}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
