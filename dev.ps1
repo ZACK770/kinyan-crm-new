@@ -34,6 +34,12 @@ $env:SECRET_KEY = "dev-secret"
 $env:JWT_SECRET_KEY = "dev-jwt"
 $env:DEV_SKIP_AUTH = "true"
 
+# Nedarim Plus API
+$env:NEDARIM_API_URL = "https://api.nedarimplus.co.il/v1"
+$env:NEDARIM_API_KEY = "ou946"
+$env:NEDARIM_MOSAD_ID = "7009959"
+$env:NEDARIM_WEBHOOK_SECRET = "change-this-to-webhook-secret"
+
 Write-Host "Starting server on http://localhost:8000 ..." -ForegroundColor Cyan
 Write-Host "Press Ctrl+C to stop" -ForegroundColor Gray
 Write-Host ""
