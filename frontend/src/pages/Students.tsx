@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Plus, GraduationCap, Eye, BookOpen } from 'lucide-react'
+import { Plus, GraduationCap, Eye, BookOpen, ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, formatDate, formatCurrency } from '@/lib/status'
 import { useModal } from '@/components/ui/Modal'
@@ -14,7 +14,7 @@ function Badge({ entity, value }: { entity: string; value?: string }) {
 }
 
 /* ── Convert Lead to Student Form ── */
-function ConvertForm({ onSubmit }: { onSubmit: (leadId: number) => void }) {
+function ConvertForm({ onSubmit, onCancel }: { onSubmit: (leadId: number) => void; onCancel?: () => void }) {
   const [leadId, setLeadId] = useState('')
   return (
     <form onSubmit={e => { e.preventDefault(); onSubmit(Number(leadId)) }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -22,7 +22,12 @@ function ConvertForm({ onSubmit }: { onSubmit: (leadId: number) => void }) {
         <label className={s['form-label']}>מזהה ליד</label>
         <input className={s.input} type="number" value={leadId} onChange={e => setLeadId(e.target.value)} required dir="ltr" />
       </div>
-      <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>המר לתלמיד</button>
+      <div style={{ display: 'flex', gap: 8, paddingTop: 8 }}>
+        <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>המר לתלמיד</button>
+        {onCancel && (
+          <button type="button" className={`${s.btn} ${s['btn-secondary']}`} onClick={onCancel}>ביטול</button>
+        )}
+      </div>
     </form>
   )
 }
@@ -34,10 +39,21 @@ function EnrollForm({ courses, onSubmit }: { courses: Course[]; onSubmit: (cours
     <form onSubmit={e => { e.preventDefault(); if (courseId) onSubmit(Number(courseId)) }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div className={s['form-group']}>
         <label className={s['form-label']}>קורס</label>
-        <select className={s.select} value={courseId} onChange={e => setCourseId(e.target.value)} required>
-          <option value="">— בחר קורס —</option>
-          {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <select className={s.select} value={courseId} onChange={e => setCourseId(e.target.value)} required style={{ flex: 1 }}>
+            <option value="">— בחר קורס —</option>
+            {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <button
+            type="button"
+            className={`${s.btn} ${s['btn-icon']} ${s['btn-ghost']}`}
+            title="צור חדש"
+            onClick={() => window.open('/courses?create=true', '_blank')}
+            style={{ flexShrink: 0, padding: 6 }}
+          >
+            <Plus size={16} />
+          </button>
+        </div>
       </div>
       <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>רשום לקורס</button>
     </form>
@@ -161,6 +177,12 @@ export function StudentsPage() {
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('')
 
+  // Workspace view state
+  type ViewMode = 'list' | 'convert'
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
+
+  const backToList = () => setViewMode('list')
+
   const fetchStudents = useCallback(async () => {
     setLoading(true)
     try {
@@ -224,20 +246,7 @@ export function StudentsPage() {
 
   /* Convert lead */
   const openConvert = () => {
-    openModal({
-      title: 'המרת ליד לתלמיד',
-      size: 'sm',
-      content: (
-        <ConvertForm onSubmit={async leadId => {
-          try {
-            await api.post('students/convert', { lead_id: leadId })
-            toast.success('ליד הומר לתלמיד')
-            closeModal()
-            fetchStudents()
-          } catch (err: unknown) { toast.error((err as { message?: string }).message ?? 'שגיאה') }
-        }} />
-      ),
-    })
+    setViewMode('convert')
   }
 
   const columns: Column<Student>[] = [
@@ -257,6 +266,37 @@ export function StudentsPage() {
       ),
     },
   ]
+
+  /* ── Workspace: convert lead ── */
+  if (viewMode === 'convert') {
+    return (
+      <div>
+        <div className={s['page-header']}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button className={`${s.btn} ${s['btn-ghost']}`} onClick={backToList} style={{ padding: '6px 10px' }}>
+              <ArrowRight size={18} /> חזרה לרשימה
+            </button>
+            <h1 className={s['page-title']} style={{ fontSize: '1.2rem' }}>המרת ליד לתלמיד</h1>
+          </div>
+        </div>
+        <div className={s.card} style={{ padding: 24, maxWidth: 600 }}>
+          <ConvertForm
+            onSubmit={async leadId => {
+              try {
+                await api.post('students/convert', { lead_id: leadId })
+                toast.success('ליד הומר לתלמיד')
+                fetchStudents()
+                backToList()
+              } catch (err: unknown) {
+                toast.error((err as { message?: string }).message ?? 'שגיאה')
+              }
+            }}
+            onCancel={backToList}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>

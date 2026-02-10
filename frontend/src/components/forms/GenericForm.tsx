@@ -3,9 +3,10 @@
  * Renders a form based on schema definition with entity-linked dropdowns
  */
 import { useState, type FormEvent, type ChangeEvent, useMemo } from 'react'
+import { Plus } from 'lucide-react'
 import { useEntityData } from '@/hooks/useEntityData'
 import type { EntityFormSchema, FormField, FormSection } from './formSchemas'
-import { buildInitialState } from './formSchemas'
+import { buildInitialState, entityRefRoutes } from './formSchemas'
 import s from '@/styles/shared.module.css'
 
 interface GenericFormProps {
@@ -171,19 +172,34 @@ export function GenericForm({ schema, initial, onSubmit, isEdit = false, loading
         
       case 'entity-select':
         const options = field.entityRef ? entityOptions[field.entityRef] : []
+        const createRoute = field.entityRef ? entityRefRoutes[field.entityRef] : null
         return (
-          <select
-            className={s.select}
-            value={String(value ?? '')}
-            onChange={handleChange(field.key, field.type)}
-            required={field.required}
-            disabled={refLoading}
-          >
-            <option value="">— {refLoading ? 'טוען...' : 'בחר'} —</option>
-            {options.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <select
+              className={s.select}
+              value={String(value ?? '')}
+              onChange={handleChange(field.key, field.type)}
+              required={field.required}
+              disabled={refLoading}
+              style={{ flex: 1 }}
+            >
+              <option value="">— {refLoading ? 'טוען...' : 'בחר'} —</option>
+              {options.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            {createRoute && (
+              <button
+                type="button"
+                className={`${s.btn} ${s['btn-icon']} ${s['btn-ghost']}`}
+                title="צור חדש"
+                onClick={() => window.open(`${createRoute}?create=true`, '_blank')}
+                style={{ flexShrink: 0, padding: 6 }}
+              >
+                <Plus size={16} />
+              </button>
+            )}
+          </div>
         )
         
       default:

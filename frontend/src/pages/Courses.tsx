@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, type FormEvent } from 'react'
-import { BookOpen, Eye, Plus, Pencil } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { BookOpen, Eye, Plus, Pencil, ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatDate } from '@/lib/status'
 import { useModal } from '@/components/ui/Modal'
@@ -12,9 +13,11 @@ import s from '@/styles/shared.module.css'
 function CourseForm({
   initial,
   onSubmit,
+  onCancel,
 }: {
   initial?: Partial<Course>
   onSubmit: (data: Record<string, unknown>) => void
+  onCancel?: () => void
 }) {
   const [form, setForm] = useState({
     name: initial?.name ?? '',
@@ -72,9 +75,16 @@ function CourseForm({
         <input type="checkbox" checked={form.is_active} onChange={set('is_active')} />
         <span>פעיל</span>
       </label>
-      <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>
-        {initial?.id ? 'עדכן' : 'צור קורס'}
-      </button>
+      <div style={{ display: 'flex', gap: 8, paddingTop: 8 }}>
+        <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>
+          {initial?.id ? 'עדכן' : 'צור קורס'}
+        </button>
+        {onCancel && (
+          <button type="button" className={`${s.btn} ${s['btn-secondary']}`} onClick={onCancel}>
+            ביטול
+          </button>
+        )}
+      </div>
     </form>
   )
 }
@@ -168,11 +178,26 @@ function CourseDetail({ course }: { course: Course & { modules?: CourseModule[] 
    Courses Page
    ══════════════════════════════════════════════════════════════ */
 export function CoursesPage() {
-  const { openModal, closeModal } = useModal()
+  const { openModal } = useModal()
   const toast = useToast()
 
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
+  
+  // Workspace view state
+  type ViewMode = 'list' | 'create'
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Auto-open create form when ?create=true (from entity '+' button)
+  useEffect(() => {
+    if (searchParams.get('create') === 'true') {
+      setViewMode('create')
+      setSelectedCourse(null)
+      setSearchParams({}, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   const fetchCourses = useCallback(async () => {
     setLoading(true)
@@ -188,49 +213,22 @@ export function CoursesPage() {
 
   useEffect(() => { fetchCourses() }, [fetchCourses])
 
+  /* ── Back to list ── */
+  const backToList = () => {
+    setSelectedCourse(null)
+    setViewMode('list')
+  }
+
   /* ── Create ── */
   const openCreate = () => {
-    openModal({
-      title: 'קורס חדש',
-      size: 'md',
-      content: (
-        <CourseForm
-          onSubmit={async data => {
-            try {
-              await api.post('courses', data)
-              toast.success('קורס נוצר בהצלחה')
-              closeModal()
-              fetchCourses()
-            } catch (err: unknown) {
-              toast.error((err as { message?: string }).message ?? 'שגיאה')
-            }
-          }}
-        />
-      ),
-    })
+    setSelectedCourse(null)
+    setViewMode('create')
   }
 
   /* ── Edit ── */
   const openEdit = (course: Course) => {
-    openModal({
-      title: `עריכת קורס — ${course.name}`,
-      size: 'md',
-      content: (
-        <CourseForm
-          initial={course}
-          onSubmit={async data => {
-            try {
-              await api.patch(`courses/${course.id}`, data)
-              toast.success('קורס עודכן')
-              closeModal()
-              fetchCourses()
-            } catch (err: unknown) {
-              toast.error((err as { message?: string }).message ?? 'שגיאה')
-            }
-          }}
-        />
-      ),
-    })
+    setSelectedCourse(course)
+    setViewMode('list')
   }
 
   const openDetail = async (course: Course) => {
@@ -275,6 +273,45 @@ export function CoursesPage() {
       ),
     },
   ]
+
+  // Show workspace for create or edit
+  if (viewMode === 'create' || selectedCourse) {
+    return (
+      <div>
+        <div className={s['page-header']}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button className={`${s.btn} ${s['btn-ghost']}`} onClick={backToList} style={{ padding: '6px 10px' }}>
+              <ArrowRight size={18} /> חזרה לרשימה
+            </button>
+            <h1 className={s['page-title']} style={{ fontSize: '1.2rem' }}>
+              {selectedCourse ? `עריכת קורס — ${selectedCourse.name}` : 'קורס חדש'}
+            </h1>
+          </div>
+        </div>
+        <div className={s.card} style={{ padding: 24, maxWidth: 600 }}>
+          <CourseForm
+            initial={selectedCourse ?? undefined}
+            onSubmit={async data => {
+              try {
+                if (selectedCourse) {
+                  await api.patch(`courses/${selectedCourse.id}`, data)
+                  toast.success('קורס עודכן')
+                } else {
+                  await api.post('courses', data)
+                  toast.success('קורס נוצר בהצלחה')
+                }
+                fetchCourses()
+                backToList()
+              } catch (err: unknown) {
+                toast.error((err as { message?: string }).message ?? 'שגיאה')
+              }
+            }}
+            onCancel={backToList}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>

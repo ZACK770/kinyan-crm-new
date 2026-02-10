@@ -18,10 +18,19 @@ class ApiClient {
     this.authToken = token
   }
 
-  private getHeaders(customHeaders?: HeadersInit): HeadersInit {
-    const headers: HeadersInit = {
+  private getHeaders(customHeaders?: HeadersInit): Record<string, string> {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...customHeaders,
+    }
+
+    if (customHeaders) {
+      if (customHeaders instanceof Headers) {
+        customHeaders.forEach((v, k) => { headers[k] = v })
+      } else if (Array.isArray(customHeaders)) {
+        customHeaders.forEach(([k, v]) => { headers[k] = v })
+      } else {
+        Object.assign(headers, customHeaders)
+      }
     }
 
     if (this.authToken) {
@@ -32,7 +41,9 @@ class ApiClient {
   }
 
   async request<T>(path: string, options?: RequestInit): Promise<T> {
-    const url = path.startsWith('/') ? path : `${BASE}${path}`
+    // Always prepend BASE (/api) unless path already includes it
+    const cleanPath = path.startsWith('/') ? path : `/${path}`
+    const url = cleanPath.startsWith(BASE) ? cleanPath : `${BASE}${cleanPath}`
 
     const res = await fetch(url, {
       headers: this.getHeaders(options?.headers),

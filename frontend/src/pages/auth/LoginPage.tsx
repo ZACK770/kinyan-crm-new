@@ -37,9 +37,13 @@ export function LoginPage() {
 
   const handleGoogleLogin = async () => {
     try {
-      // הפעלת Google Auth flow - בפועל צריך להתממש עם Google SDK
-      const authUrl = `https://accounts.google.com/oauth/authorize?client_id=${import.meta.env.VITE_GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(window.location.origin + '/auth/google/callback')}&response_type=code&scope=openid+email+profile`
-      window.location.href = authUrl
+      // Get Google auth URL from backend
+      const response = await fetch('/api/auth/google/login-url')
+      if (!response.ok) {
+        throw new Error('Failed to get Google login URL')
+      }
+      const data = await response.json()
+      window.location.href = data.url
     } catch {
       showError('שגיאה בהתחברות עם Google')
     }

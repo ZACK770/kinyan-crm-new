@@ -1,7 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
 import { AppLayout } from '@/components/layout'
 import { ProtectedRoute, ViewerRoute, AdminRoute, ManagerRoute } from '@/components/ProtectedRoute'
-import { LoginPage, RegisterPage, WelcomePage } from '@/pages/auth'
+import { LoginPage, RegisterPage, WelcomePage, GoogleCallbackPage } from '@/pages/auth'
 import { Dashboard } from '@/pages/Dashboard'
 import { LeadsPage } from '@/pages/Leads'
 import { StudentsPage } from '@/pages/Students'
@@ -14,7 +14,9 @@ import { TasksPage } from '@/pages/Tasks'
 import { InquiriesPage } from '@/pages/Inquiries'
 import { MessagesPage } from '@/pages/Messages'
 import { LecturersPage } from '@/pages/Lecturers'
-import { ExpensesPage } from '@/pages/Expenses'import { AuditLogsPage } from '@/pages/AuditLogs'import { UsersManagePage } from '@/pages/UsersManagePage'
+import { ExpensesPage } from '@/pages/Expenses'
+import { AuditLogsPage } from '@/pages/AuditLogs'
+import { UsersManagePage } from '@/pages/UsersManagePage'
 import { PlaceholderPage } from '@/pages/Placeholder'
 
 export function App() {
@@ -23,6 +25,7 @@ export function App() {
       {/* Public Auth Routes */}
       <Route path="/auth/login" element={<LoginPage />} />
       <Route path="/auth/register" element={<RegisterPage />} />
+      <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
       
       {/* Pending user welcome page */}
       <Route path="/welcome" element={<WelcomePage />} />

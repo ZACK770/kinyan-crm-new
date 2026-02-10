@@ -9,6 +9,13 @@ export type FieldType = 'text' | 'email' | 'tel' | 'number' | 'select' | 'textar
 // Entity reference types for linked dropdowns
 export type EntityRef = 'courses' | 'campaigns' | 'salespeople'
 
+// Route paths for creating new entities (opened in new tab via '+' button)
+export const entityRefRoutes: Record<EntityRef, string> = {
+  courses: '/courses',
+  campaigns: '/campaigns',
+  salespeople: '/leads',  // Salespeople managed via Leads page
+}
+
 export interface FieldOption {
   value: string
   label: string

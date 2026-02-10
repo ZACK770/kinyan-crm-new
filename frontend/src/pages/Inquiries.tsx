@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, type FormEvent } from 'react'
-import { Plus, Inbox, Eye, MessageSquarePlus } from 'lucide-react'
+import { Plus, Inbox, Eye, MessageSquarePlus, ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, formatDateTime } from '@/lib/status'
 import { useModal } from '@/components/ui/Modal'
@@ -14,7 +14,7 @@ function Badge({ entity, value }: { entity: string; value?: string }) {
 }
 
 /* ── Create Inquiry Form ── */
-function InquiryForm({ onSubmit }: { onSubmit: (data: Record<string, unknown>) => void }) {
+function InquiryForm({ onSubmit, onCancel }: { onSubmit: (data: Record<string, unknown>) => void; onCancel?: () => void }) {
   const [form, setForm] = useState({
     subject: '',
     inquiry_type: 'general',
@@ -58,7 +58,12 @@ function InquiryForm({ onSubmit }: { onSubmit: (data: Record<string, unknown>) =
         <label className={s['form-label']}>הערות</label>
         <textarea className={s.textarea} value={form.notes} onChange={set('notes')} rows={3} />
       </div>
-      <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>צור פנייה</button>
+      <div style={{ display: 'flex', gap: 8, paddingTop: 8 }}>
+        <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>צור פנייה</button>
+        {onCancel && (
+          <button type="button" className={`${s.btn} ${s['btn-secondary']}`} onClick={onCancel}>ביטול</button>
+        )}
+      </div>
     </form>
   )
 }
@@ -181,6 +186,12 @@ export function InquiriesPage() {
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('')
 
+  // Workspace view state
+  type ViewMode = 'list' | 'create'
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
+
+  const backToList = () => setViewMode('list')
+
   const fetchInquiries = useCallback(async () => {
     setLoading(true)
     try {
@@ -196,22 +207,7 @@ export function InquiriesPage() {
   useEffect(() => { fetchInquiries() }, [fetchInquiries])
 
   const openCreate = () => {
-    openModal({
-      title: 'פנייה חדשה',
-      size: 'md',
-      content: (
-        <InquiryForm
-          onSubmit={async data => {
-            try {
-              await api.post('inquiries', data)
-              toast.success('פנייה נוצרה')
-              closeModal()
-              fetchInquiries()
-            } catch (err: unknown) { toast.error((err as { message?: string }).message ?? 'שגיאה') }
-          }}
-        />
-      ),
-    })
+    setViewMode('create')
   }
 
   const openDetail = async (inq: Inquiry) => {
@@ -284,6 +280,37 @@ export function InquiriesPage() {
       ),
     },
   ]
+
+  /* ── Workspace: create ── */
+  if (viewMode === 'create') {
+    return (
+      <div>
+        <div className={s['page-header']}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button className={`${s.btn} ${s['btn-ghost']}`} onClick={backToList} style={{ padding: '6px 10px' }}>
+              <ArrowRight size={18} /> חזרה לרשימה
+            </button>
+            <h1 className={s['page-title']} style={{ fontSize: '1.2rem' }}>פנייה חדשה</h1>
+          </div>
+        </div>
+        <div className={s.card} style={{ padding: 24, maxWidth: 600 }}>
+          <InquiryForm
+            onSubmit={async data => {
+              try {
+                await api.post('inquiries', data)
+                toast.success('פנייה נוצרה בהצלחה')
+                fetchInquiries()
+                backToList()
+              } catch (err: unknown) {
+                toast.error((err as { message?: string }).message ?? 'שגיאה')
+              }
+            }}
+            onCancel={backToList}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>

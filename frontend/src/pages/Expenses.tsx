@@ -1,15 +1,14 @@
 import { useEffect, useState, useCallback, type FormEvent } from 'react'
-import { Plus, TrendingDown } from 'lucide-react'
+import { Plus, TrendingDown, ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatDate, formatCurrency } from '@/lib/status'
-import { useModal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { DataTable, type Column } from '@/components/ui/DataTable'
 import type { Expense } from '@/types'
 import s from '@/styles/shared.module.css'
 
 /* ── Expense Form ── */
-function ExpenseForm({ onSubmit }: { onSubmit: (data: Record<string, unknown>) => void }) {
+function ExpenseForm({ onSubmit, onCancel }: { onSubmit: (data: Record<string, unknown>) => void; onCancel?: () => void }) {
   const [form, setForm] = useState({
     description: '',
     category: '',
@@ -73,7 +72,12 @@ function ExpenseForm({ onSubmit }: { onSubmit: (data: Record<string, unknown>) =
         <label className={s['form-label']}>הערות</label>
         <textarea className={s.textarea} value={form.notes} onChange={set('notes')} rows={2} />
       </div>
-      <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>שמור הוצאה</button>
+      <div style={{ display: 'flex', gap: 8, paddingTop: 8 }}>
+        <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>שמור הוצאה</button>
+        {onCancel && (
+          <button type="button" className={`${s.btn} ${s['btn-secondary']}`} onClick={onCancel}>ביטול</button>
+        )}
+      </div>
     </form>
   )
 }
@@ -82,12 +86,17 @@ function ExpenseForm({ onSubmit }: { onSubmit: (data: Record<string, unknown>) =
    Expenses Page
    ══════════════════════════════════════════════════════════════ */
 export function ExpensesPage() {
-  const { openModal, closeModal } = useModal()
   const toast = useToast()
 
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [total, setTotal] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // Workspace view state
+  type ViewMode = 'list' | 'create'
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
+
+  const backToList = () => setViewMode('list')
 
   const fetchExpenses = useCallback(async () => {
     setLoading(true)
@@ -108,22 +117,7 @@ export function ExpensesPage() {
   useEffect(() => { fetchExpenses() }, [fetchExpenses])
 
   const openCreate = () => {
-    openModal({
-      title: 'הוצאה חדשה',
-      size: 'md',
-      content: (
-        <ExpenseForm
-          onSubmit={async data => {
-            try {
-              await api.post('expenses', data)
-              toast.success('הוצאה נוצרה')
-              closeModal()
-              fetchExpenses()
-            } catch (err: unknown) { toast.error((err as { message?: string }).message ?? 'שגיאה') }
-          }}
-        />
-      ),
-    })
+    setViewMode('create')
   }
 
   const columns: Column<Expense>[] = [
@@ -133,6 +127,35 @@ export function ExpensesPage() {
     { key: 'vendor', header: 'ספק', render: r => r.vendor ?? '—' },
     { key: 'expense_date', header: 'תאריך', render: r => formatDate(r.expense_date ?? r.created_at), className: s.muted },
   ]
+
+  // Show workspace for create
+  if (viewMode === 'create') {
+    return (
+      <div>
+        <div className={s['page-header']}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button className={`${s.btn} ${s['btn-ghost']}`} onClick={backToList} style={{ padding: '6px 10px' }}>
+              <ArrowRight size={18} /> חזרה לרשימה
+            </button>
+            <h1 className={s['page-title']} style={{ fontSize: '1.2rem' }}>הוצאה חדשה</h1>
+          </div>
+        </div>
+        <div className={s.card} style={{ padding: 24, maxWidth: 600 }}>
+          <ExpenseForm
+            onSubmit={async data => {
+              try {
+                await api.post('expenses', data)
+                toast.success('הוצאה נוצרה')
+                fetchExpenses()
+                backToList()
+              } catch (err: unknown) { toast.error((err as { message?: string }).message ?? 'שגיאה') }
+            }}
+            onCancel={backToList}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>

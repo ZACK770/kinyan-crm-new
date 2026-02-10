@@ -1,15 +1,27 @@
 """
 Elementor form webhook handler.
 Parses incoming lead data from Elementor forms submitted on the website.
+
+Supports the standard Elementor webhook format where fields is a dict of objects:
+{
+    "form": {"id": "xxx", "name": "Form Name"},
+    "fields": {
+        "field_id": {"id": "xxx", "type": "text", "title": "שם", "value": "..."},
+        ...
+    },
+    "meta": {"date": {...}, "time": {...}, "page_url": {...}}
+}
 """
+from datetime import datetime
 from db import get_db
 from services.leads import process_incoming_lead
 
-# Field mapping: Elementor field names → our field names
+# Field mapping: Elementor field titles → our field names
 FIELD_MAP = {
+    # Hebrew titles
     "שם מלא": "name",
-    "name": "name",
     "שם": "name",
+    "name": "name",
     "טלפון": "phone",
     "phone": "phone",
     "נייד": "phone",
@@ -18,58 +30,126 @@ FIELD_MAP = {
     "עיר": "city",
     "city": "city",
     "הודעה": "source_message",
+    "תוכן ההודעה": "source_message",
     "message": "source_message",
+    # Product selection
+    "בחר מסלול": "form_product",
+    "מוצר": "form_product",
+    "קורס": "form_product",
+    # UTM fields
+    "מקור": "utm_source",
+    "utm_source": "utm_source",
+    "utm": "utm_data",
+    "מוצר משווק": "marketing_product",
 }
 
 
 def parse_elementor_payload(data: dict) -> dict:
     """
     Parse Elementor form submission into normalized lead data.
-    Supports various form field naming conventions.
+    Supports various form field naming conventions and formats.
+    
+    Format 1: fields as dict of objects (new Elementor format)
+    Format 2: fields as array of {id, value} objects
+    Format 3: flat key-value pairs
     """
     parsed = {
         "source_type": "elementor",
-        "interaction_type": "form",
+        "interaction_type": "website_form",
     }
 
-    # Try to extract from structured fields (array of {id, value})
-    fields = data.get("fields", [])
-    if isinstance(fields, list):
+    # Handle array wrapper (webhook might send as array with single item)
+    if isinstance(data, list) and len(data) > 0:
+        data = data[0]
+
+    # Extract form metadata
+    form_info = data.get("form", {})
+    if form_info:
+        parsed["source_name"] = form_info.get("name", form_info.get("id", "elementor"))
+    
+    # Extract fields
+    fields = data.get("fields", {})
+    
+    # Format 1: dict of field objects (e.g., {"field_id": {"title": "שם", "value": "..."}})
+    if isinstance(fields, dict):
+        for field_key, field_obj in fields.items():
+            if not isinstance(field_obj, dict):
+                # Simple key-value
+                _map_field(parsed, field_key, str(field_obj))
+                continue
+                
+            title = str(field_obj.get("title", field_key)).strip()
+            value = str(field_obj.get("value", field_obj.get("raw_value", ""))).strip()
+            
+            if not value or value == "on":  # Skip empty or boolean acceptance fields
+                if field_obj.get("type") == "acceptance":
+                    continue
+                    
+            _map_field(parsed, title, value)
+            
+            # Also try by field ID
+            field_id = str(field_obj.get("id", field_key)).strip()
+            if field_id != title:
+                _map_field(parsed, field_id, value)
+    
+    # Format 2: array of field objects
+    elif isinstance(fields, list):
         for field in fields:
+            if not isinstance(field, dict):
+                continue
             field_id = str(field.get("id", "")).strip()
             field_name = str(field.get("name", field_id)).strip()
             value = str(field.get("value", "")).strip()
             if not value:
                 continue
-
-            # Try mapping by name
-            mapped = FIELD_MAP.get(field_name) or FIELD_MAP.get(field_id)
-            if mapped:
-                parsed[mapped] = value
-    elif isinstance(fields, dict):
-        for key, value in fields.items():
-            mapped = FIELD_MAP.get(key)
-            if mapped:
-                parsed[mapped] = str(value).strip()
+            _map_field(parsed, field_name, value) or _map_field(parsed, field_id, value)
 
     # Also check top-level keys
     for key, mapped in FIELD_MAP.items():
         if key in data and mapped not in parsed:
             parsed[mapped] = str(data[key]).strip()
 
-    # Source details
-    parsed["source_name"] = data.get("form_name", data.get("form_id", "elementor"))
-    parsed["source_details"] = data.get("page_url", "")
+    # Extract meta info (date, time, page_url)
+    meta = data.get("meta", {})
+    if meta:
+        page_url_info = meta.get("page_url", {})
+        if isinstance(page_url_info, dict):
+            parsed["source_details"] = page_url_info.get("value", "")
+        elif isinstance(page_url_info, str):
+            parsed["source_details"] = page_url_info
+        
+        # Parse date/time
+        date_info = meta.get("date", {})
+        time_info = meta.get("time", {})
+        if date_info and time_info:
+            date_str = date_info.get("value", "") if isinstance(date_info, dict) else str(date_info)
+            time_str = time_info.get("value", "") if isinstance(time_info, dict) else str(time_info)
+            parsed["form_content"] = f"תאריך: {date_str}, שעה: {time_str}"
 
     # Campaign from UTM
-    utm_source = data.get("utm_source", "")
-    utm_campaign = data.get("utm_campaign", "")
-    if utm_campaign:
-        parsed["campaign_name"] = utm_campaign
-    elif utm_source:
+    utm_source = parsed.pop("utm_source", "") or ""
+    utm_data = parsed.pop("utm_data", "") or ""
+    marketing_product = parsed.pop("marketing_product", "") or ""
+    
+    if utm_source:
         parsed["campaign_name"] = utm_source
+    if utm_data:
+        parsed["source_details"] = (parsed.get("source_details", "") + f" UTM: {utm_data}").strip()
+    if marketing_product:
+        parsed["form_product"] = parsed.get("form_product") or marketing_product
 
     return parsed
+
+
+def _map_field(parsed: dict, field_name: str, value: str) -> bool:
+    """Map a field name to our internal field name if recognized."""
+    field_name_lower = field_name.lower().strip()
+    for key, mapped in FIELD_MAP.items():
+        if key.lower() == field_name_lower or key == field_name:
+            if mapped not in parsed or not parsed[mapped]:
+                parsed[mapped] = value
+            return True
+    return False
 
 
 async def handle_elementor_webhook(data: dict) -> dict:

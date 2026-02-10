@@ -1,8 +1,7 @@
 import { useState, type FormEvent } from 'react'
-import { Plus, CreditCard, Search } from 'lucide-react'
+import { Plus, CreditCard, Search, ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, formatDate, formatCurrency } from '@/lib/status'
-import { useModal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { DataTable, type Column } from '@/components/ui/DataTable'
 import type { Payment } from '@/types'
@@ -14,7 +13,7 @@ function Badge({ entity, value }: { entity: string; value?: string }) {
 }
 
 /* ── Payment Form ── */
-function PaymentForm({ onSubmit }: { onSubmit: (data: Record<string, unknown>) => void }) {
+function PaymentForm({ onSubmit, onCancel }: { onSubmit: (data: Record<string, unknown>) => void; onCancel?: () => void }) {
   const [form, setForm] = useState({
     student_id: '',
     amount: '',
@@ -85,7 +84,12 @@ function PaymentForm({ onSubmit }: { onSubmit: (data: Record<string, unknown>) =
           <input className={s.input} value={form.reference} onChange={set('reference')} dir="ltr" />
         </div>
       </div>
-      <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>שמור תשלום</button>
+      <div style={{ display: 'flex', gap: 8, paddingTop: 8 }}>
+        <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>שמור תשלום</button>
+        {onCancel && (
+          <button type="button" className={`${s.btn} ${s['btn-secondary']}`} onClick={onCancel}>ביטול</button>
+        )}
+      </div>
     </form>
   )
 }
@@ -94,12 +98,17 @@ function PaymentForm({ onSubmit }: { onSubmit: (data: Record<string, unknown>) =
    Payments Page
    ══════════════════════════════════════════════════════════════ */
 export function PaymentsPage() {
-  const { openModal, closeModal } = useModal()
   const toast = useToast()
 
   const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(false)
   const [studentId, setStudentId] = useState('')
+
+  // Workspace view state
+  type ViewMode = 'list' | 'create'
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
+
+  const backToList = () => setViewMode('list')
 
   const fetchPayments = async (sid?: string) => {
     const id = sid ?? studentId
@@ -117,22 +126,7 @@ export function PaymentsPage() {
   }
 
   const openCreate = () => {
-    openModal({
-      title: 'תשלום חדש',
-      size: 'md',
-      content: (
-        <PaymentForm
-          onSubmit={async data => {
-            try {
-              await api.post('finance/payments', data)
-              toast.success('תשלום נוצר בהצלחה')
-              closeModal()
-              if (studentId) fetchPayments()
-            } catch (err: unknown) { toast.error((err as { message?: string }).message ?? 'שגיאה') }
-          }}
-        />
-      ),
-    })
+    setViewMode('create')
   }
 
   const columns: Column<Payment>[] = [
@@ -143,6 +137,35 @@ export function PaymentsPage() {
     { key: 'reference', header: 'אסמכתא', render: r => r.reference ?? '—', className: s.mono },
     { key: 'payment_date', header: 'תאריך', render: r => formatDate(r.payment_date ?? r.created_at), className: s.muted },
   ]
+
+  // Show workspace for create
+  if (viewMode === 'create') {
+    return (
+      <div>
+        <div className={s['page-header']}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button className={`${s.btn} ${s['btn-ghost']}`} onClick={backToList} style={{ padding: '6px 10px' }}>
+              <ArrowRight size={18} /> חזרה לרשימה
+            </button>
+            <h1 className={s['page-title']} style={{ fontSize: '1.2rem' }}>תשלום חדש</h1>
+          </div>
+        </div>
+        <div className={s.card} style={{ padding: 24, maxWidth: 600 }}>
+          <PaymentForm
+            onSubmit={async data => {
+              try {
+                await api.post('finance/payments', data)
+                toast.success('תשלום נוצר בהצלחה')
+                backToList()
+                if (studentId) fetchPayments()
+              } catch (err: unknown) { toast.error((err as { message?: string }).message ?? 'שגיאה') }
+            }}
+            onCancel={backToList}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>

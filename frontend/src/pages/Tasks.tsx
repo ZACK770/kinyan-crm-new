@@ -1,8 +1,7 @@
 import { useEffect, useState, useCallback, type FormEvent } from 'react'
-import { Plus, CheckSquare } from 'lucide-react'
+import { Plus, CheckSquare, ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, getPriority, formatDate } from '@/lib/status'
-import { useModal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { DataTable, type Column } from '@/components/ui/DataTable'
 import type { SalesTask, Salesperson } from '@/types'
@@ -22,9 +21,11 @@ function PriorityBadge({ value }: { value?: number }) {
 function TaskForm({
   salespersons,
   onSubmit,
+  onCancel,
 }: {
   salespersons: Salesperson[]
   onSubmit: (data: Record<string, unknown>) => void
+  onCancel?: () => void
 }) {
   const [form, setForm] = useState({
     title: '',
@@ -87,7 +88,12 @@ function TaskForm({
           <input className={s.input} type="date" value={form.due_date} onChange={set('due_date')} dir="ltr" />
         </div>
       </div>
-      <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>צור משימה</button>
+      <div style={{ display: 'flex', gap: 8, paddingTop: 8 }}>
+        <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>צור משימה</button>
+        {onCancel && (
+          <button type="button" className={`${s.btn} ${s['btn-secondary']}`} onClick={onCancel}>ביטול</button>
+        )}
+      </div>
     </form>
   )
 }
@@ -96,13 +102,18 @@ function TaskForm({
    Tasks Page
    ══════════════════════════════════════════════════════════════ */
 export function TasksPage() {
-  const { openModal, closeModal } = useModal()
   const toast = useToast()
 
   const [tasks, setTasks] = useState<SalesTask[]>([])
   const [salespersons, setSalespersons] = useState<Salesperson[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('')
+
+  // Workspace view state
+  type ViewMode = 'list' | 'create'
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
+
+  const backToList = () => setViewMode('list')
 
   const fetchTasks = useCallback(async () => {
     setLoading(true)
@@ -126,23 +137,7 @@ export function TasksPage() {
   }, [])
 
   const openCreate = () => {
-    openModal({
-      title: 'משימה חדשה',
-      size: 'md',
-      content: (
-        <TaskForm
-          salespersons={salespersons}
-          onSubmit={async data => {
-            try {
-              await api.post('leads/tasks', data)
-              toast.success('משימה נוצרה')
-              closeModal()
-              fetchTasks()
-            } catch (err: unknown) { toast.error((err as { message?: string }).message ?? 'שגיאה ביצירת משימה') }
-          }}
-        />
-      ),
-    })
+    setViewMode('create')
   }
 
   const columns: Column<SalesTask>[] = [
@@ -157,6 +152,36 @@ export function TasksPage() {
     { key: 'due_date', header: 'יעד', render: r => formatDate(r.due_date), className: s.muted },
     { key: 'created_at', header: 'נוצר', render: r => formatDate(r.created_at), className: s.muted },
   ]
+
+  // Show workspace for create
+  if (viewMode === 'create') {
+    return (
+      <div>
+        <div className={s['page-header']}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button className={`${s.btn} ${s['btn-ghost']}`} onClick={backToList} style={{ padding: '6px 10px' }}>
+              <ArrowRight size={18} /> חזרה לרשימה
+            </button>
+            <h1 className={s['page-title']} style={{ fontSize: '1.2rem' }}>משימה חדשה</h1>
+          </div>
+        </div>
+        <div className={s.card} style={{ padding: 24, maxWidth: 600 }}>
+          <TaskForm
+            salespersons={salespersons}
+            onSubmit={async data => {
+              try {
+                await api.post('leads/tasks', data)
+                toast.success('משימה נוצרה')
+                fetchTasks()
+                backToList()
+              } catch (err: unknown) { toast.error((err as { message?: string }).message ?? 'שגיאה ביצירת משימה') }
+            }}
+            onCancel={backToList}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>

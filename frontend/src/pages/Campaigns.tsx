@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, type FormEvent } from 'react'
-import { Megaphone, Plus, Pencil, Eye } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { Megaphone, Plus, Pencil, ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatDate } from '@/lib/status'
-import { useModal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { DataTable, type Column } from '@/components/ui/DataTable'
 import type { Campaign, Course } from '@/types'
@@ -13,10 +13,12 @@ function CampaignForm({
   initial,
   courses,
   onSubmit,
+  onCancel,
 }: {
   initial?: Partial<Campaign>
   courses: Course[]
   onSubmit: (data: Record<string, unknown>) => void
+  onCancel?: () => void
 }) {
   const [form, setForm] = useState({
     name: initial?.name ?? '',
@@ -48,12 +50,23 @@ function CampaignForm({
       <div className={s['form-row']}>
         <div className={s['form-group']}>
           <label className={s['form-label']}>קורס</label>
-          <select className={s.select} value={form.course_id} onChange={set('course_id')}>
-            <option value="">— בחר קורס —</option>
-            {courses.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <select className={s.select} value={form.course_id} onChange={set('course_id')} style={{ flex: 1 }}>
+              <option value="">— בחר קורס —</option>
+              {courses.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className={`${s.btn} ${s['btn-icon']} ${s['btn-ghost']}`}
+              title="צור חדש"
+              onClick={() => window.open('/courses?create=true', '_blank')}
+              style={{ flexShrink: 0, padding: 6 }}
+            >
+              <Plus size={16} />
+            </button>
+          </div>
         </div>
         <div className={s['form-group']}>
           <label className={s['form-label']}>פלטפורמות</label>
@@ -74,9 +87,16 @@ function CampaignForm({
         <input type="checkbox" checked={form.is_active} onChange={set('is_active')} />
         <span>פעיל</span>
       </label>
-      <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>
-        {initial?.id ? 'עדכן' : 'צור קמפיין'}
-      </button>
+      <div style={{ display: 'flex', gap: 8, paddingTop: 8 }}>
+        <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>
+          {initial?.id ? 'עדכן' : 'צור קמפיין'}
+        </button>
+        {onCancel && (
+          <button type="button" className={`${s.btn} ${s['btn-secondary']}`} onClick={onCancel}>
+            ביטול
+          </button>
+        )}
+      </div>
     </form>
   )
 }
@@ -85,12 +105,26 @@ function CampaignForm({
    Campaigns Page
    ══════════════════════════════════════════════════════════════ */
 export function CampaignsPage() {
-  const { openModal, closeModal } = useModal()
   const toast = useToast()
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Workspace view state
+  type ViewMode = 'list' | 'create'
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Auto-open create form when ?create=true (from entity '+' button)
+  useEffect(() => {
+    if (searchParams.get('create') === 'true') {
+      setViewMode('create')
+      setSelectedCampaign(null)
+      setSearchParams({}, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   useEffect(() => {
     api.get<Course[]>('courses').catch(() => []).then(setCourses)
@@ -110,51 +144,22 @@ export function CampaignsPage() {
 
   useEffect(() => { fetchCampaigns() }, [fetchCampaigns])
 
+  /* ── Back to list ── */
+  const backToList = () => {
+    setSelectedCampaign(null)
+    setViewMode('list')
+  }
+
   /* ── Create ── */
   const openCreate = () => {
-    openModal({
-      title: 'קמפיין חדש',
-      size: 'md',
-      content: (
-        <CampaignForm
-          courses={courses}
-          onSubmit={async data => {
-            try {
-              await api.post('campaigns', data)
-              toast.success('קמפיין נוצר בהצלחה')
-              closeModal()
-              fetchCampaigns()
-            } catch (err: unknown) {
-              toast.error((err as { message?: string }).message ?? 'שגיאה')
-            }
-          }}
-        />
-      ),
-    })
+    setSelectedCampaign(null)
+    setViewMode('create')
   }
 
   /* ── Edit ── */
   const openEdit = (campaign: Campaign) => {
-    openModal({
-      title: `עריכת קמפיין — ${campaign.name}`,
-      size: 'md',
-      content: (
-        <CampaignForm
-          initial={campaign}
-          courses={courses}
-          onSubmit={async data => {
-            try {
-              await api.patch(`campaigns/${campaign.id}`, data)
-              toast.success('קמפיין עודכן')
-              closeModal()
-              fetchCampaigns()
-            } catch (err: unknown) {
-              toast.error((err as { message?: string }).message ?? 'שגיאה')
-            }
-          }}
-        />
-      ),
-    })
+    setSelectedCampaign(campaign)
+    setViewMode('list')
   }
 
   const columns: Column<Campaign>[] = [
@@ -181,6 +186,46 @@ export function CampaignsPage() {
       ),
     },
   ]
+
+  // Show workspace for create or edit
+  if (viewMode === 'create' || selectedCampaign) {
+    return (
+      <div>
+        <div className={s['page-header']}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button className={`${s.btn} ${s['btn-ghost']}`} onClick={backToList} style={{ padding: '6px 10px' }}>
+              <ArrowRight size={18} /> חזרה לרשימה
+            </button>
+            <h1 className={s['page-title']} style={{ fontSize: '1.2rem' }}>
+              {selectedCampaign ? `עריכת קמפיין — ${selectedCampaign.name}` : 'קמפיין חדש'}
+            </h1>
+          </div>
+        </div>
+        <div className={s.card} style={{ padding: 24, maxWidth: 600 }}>
+          <CampaignForm
+            initial={selectedCampaign ?? undefined}
+            courses={courses}
+            onSubmit={async data => {
+              try {
+                if (selectedCampaign) {
+                  await api.patch(`campaigns/${selectedCampaign.id}`, data)
+                  toast.success('קמפיין עודכן')
+                } else {
+                  await api.post('campaigns', data)
+                  toast.success('קמפיין נוצר בהצלחה')
+                }
+                fetchCampaigns()
+                backToList()
+              } catch (err: unknown) {
+                toast.error((err as { message?: string }).message ?? 'שגיאה')
+              }
+            }}
+            onCancel={backToList}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>

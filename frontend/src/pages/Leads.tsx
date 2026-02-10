@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Plus,
   Search,
@@ -124,33 +125,66 @@ function LeadForm({
         </div>
         <div className={s['form-group']}>
           <label className={s['form-label']}>קמפיין</label>
-          <select className={s.select} value={form.campaign_id} onChange={set('campaign_id')}>
-            <option value="">— בחר קמפיין —</option>
-            {campaigns.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <select className={s.select} value={form.campaign_id} onChange={set('campaign_id')} style={{ flex: 1 }}>
+              <option value="">— בחר קמפיין —</option>
+              {campaigns.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className={`${s.btn} ${s['btn-icon']} ${s['btn-ghost']}`}
+              title="צור חדש"
+              onClick={() => window.open('/campaigns?create=true', '_blank')}
+              style={{ flexShrink: 0, padding: 6 }}
+            >
+              <Plus size={16} />
+            </button>
+          </div>
         </div>
       </div>
 
       <div className={s['form-row']}>
         <div className={s['form-group']}>
           <label className={s['form-label']}>קורס מבוקש</label>
-          <select className={s.select} value={form.course_id} onChange={set('course_id')}>
-            <option value="">— בחר קורס —</option>
-            {courses.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <select className={s.select} value={form.course_id} onChange={set('course_id')} style={{ flex: 1 }}>
+              <option value="">— בחר קורס —</option>
+              {courses.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className={`${s.btn} ${s['btn-icon']} ${s['btn-ghost']}`}
+              title="צור חדש"
+              onClick={() => window.open('/courses?create=true', '_blank')}
+              style={{ flexShrink: 0, padding: 6 }}
+            >
+              <Plus size={16} />
+            </button>
+          </div>
         </div>
         <div className={s['form-group']}>
           <label className={s['form-label']}>איש מכירות</label>
-          <select className={s.select} value={form.salesperson_id} onChange={set('salesperson_id')}>
-            <option value="">— ללא —</option>
-            {salespersons.map(sp => (
-              <option key={sp.id} value={sp.id}>{sp.name}</option>
-            ))}
-          </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <select className={s.select} value={form.salesperson_id} onChange={set('salesperson_id')} style={{ flex: 1 }}>
+              <option value="">— ללא —</option>
+              {salespersons.map(sp => (
+                <option key={sp.id} value={sp.id}>{sp.name}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className={`${s.btn} ${s['btn-icon']} ${s['btn-ghost']}`}
+              title="צור חדש"
+              onClick={() => window.open('/leads?create=true', '_blank')}
+              style={{ flexShrink: 0, padding: 6 }}
+            >
+              <Plus size={16} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -298,7 +332,7 @@ function ConvertLeadForm({
 function LeadDetail({
   lead,
   salespersons,
-  courses,
+  courses: _courses,
   onEdit,
   onAddInteraction,
   onConvert,
@@ -429,8 +463,20 @@ export function LeadsPage() {
   const [spFilter, setSpFilter] = useState('')
   const [phoneSearch, setPhoneSearch] = useState('')
   
-  // Workspace view state
+  // Workspace view state: 'list' | 'create' | Lead object (edit mode)
+  type ViewMode = 'list' | 'create'
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Auto-open create form when ?create=true (from entity '+' button)
+  useEffect(() => {
+    if (searchParams.get('create') === 'true') {
+      setViewMode('create')
+      setSelectedLead(null)
+      setSearchParams({}, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   /* ── Fetch Reference Data ── */
   useEffect(() => {
@@ -480,29 +526,10 @@ export function LeadsPage() {
     }
   }
 
-  /* ── Create ── */
+  /* ── Create — Opens workspace in create mode ── */
   const openCreate = () => {
-    openModal({
-      title: 'ליד חדש',
-      size: 'lg',
-      content: (
-        <LeadForm
-          salespersons={salespersons}
-          campaigns={campaigns}
-          courses={courses}
-          onSubmit={async data => {
-            try {
-              await api.post('leads', data)
-              toast.success('ליד נוצר בהצלחה')
-              closeModal()
-              fetchLeads()
-            } catch (err: unknown) {
-              toast.error((err as { message?: string }).message ?? 'שגיאה')
-            }
-          }}
-        />
-      ),
-    })
+    setSelectedLead(null)
+    setViewMode('create')
   }
 
   /* ── Open Lead Workspace (full view) ── */
@@ -510,9 +537,16 @@ export function LeadsPage() {
     try {
       const full = await api.get<Lead>(`leads/${lead.id}`)
       setSelectedLead(full)
+      setViewMode('list')  // Not 'create' — we have a selected lead
     } catch {
       toast.error('שגיאה בטעינת פרטי ליד')
     }
+  }
+
+  /* ── Back to list ── */
+  const backToList = () => {
+    setSelectedLead(null)
+    setViewMode('list')
   }
 
   const refreshSelectedLead = async () => {
@@ -669,7 +703,49 @@ export function LeadsPage() {
     },
   ]
 
-  // Show workspace if a lead is selected
+  // Handle created lead — go to workspace in edit mode
+  const handleCreatedLead = async (newLead: Lead) => {
+    toast.success('ליד נוצר בהצלחה')
+    fetchLeads()
+    // Open the newly created lead in workspace
+    setSelectedLead(newLead)
+    setViewMode('list')
+  }
+
+  // Show workspace in CREATE mode
+  if (viewMode === 'create') {
+    return (
+      <div>
+        {/* Back button header */}
+        <div className={s['page-header']}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button 
+              className={`${s.btn} ${s['btn-ghost']}`} 
+              onClick={backToList}
+              style={{ padding: '6px 10px' }}
+            >
+              <ArrowRight size={18} />
+              חזרה לרשימה
+            </button>
+            <h1 className={s['page-title']} style={{ fontSize: '1.2rem' }}>ליד חדש</h1>
+          </div>
+        </div>
+        
+        {/* Lead Workspace in create mode */}
+        <LeadWorkspace
+          lead={null}
+          salespersons={salespersons}
+          campaigns={campaigns}
+          courses={courses}
+          onClose={backToList}
+          onUpdate={() => {}}
+          onCreate={handleCreatedLead}
+        />
+      </div>
+    )
+  }
+
+  // Show workspace in EDIT mode (selectedLead exists)
   if (selectedLead) {
     return (
       <div>
@@ -678,7 +754,7 @@ export function LeadsPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button 
               className={`${s.btn} ${s['btn-ghost']}`} 
-              onClick={() => setSelectedLead(null)}
+              onClick={backToList}
               style={{ padding: '6px 10px' }}
             >
               <ArrowRight size={18} />
@@ -696,7 +772,7 @@ export function LeadsPage() {
           salespersons={salespersons}
           campaigns={campaigns}
           courses={courses}
-          onClose={() => setSelectedLead(null)}
+          onClose={backToList}
           onUpdate={refreshSelectedLead}
           onAddInteraction={() => openAddInteraction(selectedLead.id)}
           onConvert={() => openConvert(selectedLead)}
@@ -781,6 +857,8 @@ export function LeadsPage() {
           emptyText="לא נמצאו לידים"
           emptyIcon={<Phone size={40} strokeWidth={1.5} />}
           onRowClick={openLeadWorkspace}
+          keyExtractor={(row) => row.id}
+        />
       </div>
     </div>
   )

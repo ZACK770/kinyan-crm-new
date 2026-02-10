@@ -126,8 +126,8 @@ export function UsersManagePage() {
   const loadUsers = async () => {
     try {
       setLoading(true)
-      const data = await api.get<User[]>('/users')
-      setUsers(data)
+      const res = await api.get<{ items: User[]; total: number }>('/users')
+      setUsers(Array.isArray(res) ? res : res.items ?? [])
     } catch (err: unknown) {
       showError('שגיאה בטעינת רשימת המשתמשים')
     } finally {

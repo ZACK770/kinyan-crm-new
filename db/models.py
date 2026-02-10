@@ -165,6 +165,7 @@ class Course(Base):
     syllabus_url: Mapped[Optional[str]] = mapped_column(String(500))
     website_url: Mapped[Optional[str]] = mapped_column(String(500))
     zoom_url: Mapped[Optional[str]] = mapped_column(String(500))
+    total_sessions: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -801,3 +802,33 @@ class AuditLog(Base):
     )
 
     user: Mapped[Optional["User"]] = relationship()
+
+
+# ============================================================
+# File (קבצים) — file storage tracking
+# ============================================================
+class File(Base):
+    __tablename__ = "files"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    filename: Mapped[str] = mapped_column(String(500), nullable=False)  # original filename
+    storage_key: Mapped[str] = mapped_column(String(500), nullable=False, unique=True)  # R2 object key
+    content_type: Mapped[Optional[str]] = mapped_column(String(100))
+    size_bytes: Mapped[Optional[int]] = mapped_column(Integer)
+    
+    # Link to any entity (polymorphic)
+    entity_type: Mapped[Optional[str]] = mapped_column(String(100))  # leads/students/expenses/etc
+    entity_id: Mapped[Optional[int]] = mapped_column(Integer)
+    
+    # Metadata
+    uploaded_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
+    description: Mapped[Optional[str]] = mapped_column(String(500))
+    is_public: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_files_entity", "entity_type", "entity_id"),
+        Index("idx_files_storage_key", "storage_key"),
+    )
+
+    uploader: Mapped[Optional["User"]] = relationship()

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react'
-import { Check, X, Pencil } from 'lucide-react'
+import { Check, X, Pencil, Plus } from 'lucide-react'
 import s from '@/styles/shared.module.css'
 
 /* ══════════════════════════════════════════════════════════════
@@ -25,6 +25,7 @@ export interface EditableFieldProps {
   onSave: (value: string | number | null) => Promise<void> | void
   disabled?: boolean
   className?: string
+  entityCreatePath?: string  // Route path to open in new tab for creating new entity
 }
 
 export function EditableField({
@@ -38,6 +39,7 @@ export function EditableField({
   onSave,
   disabled = false,
   className = '',
+  entityCreatePath,
 }: EditableFieldProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState(String(value ?? ''))
@@ -127,19 +129,33 @@ export function EditableField({
               disabled={isSaving}
             />
           ) : type === 'select' || type === 'entity-select' ? (
-            <select
-              ref={inputRef as React.RefObject<HTMLSelectElement>}
-              className={s.select}
-              value={editValue}
-              onChange={e => setEditValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={isSaving}
-            >
-              <option value="">— בחר —</option>
-              {options.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
+              <select
+                ref={inputRef as React.RefObject<HTMLSelectElement>}
+                className={s.select}
+                value={editValue}
+                onChange={e => setEditValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={isSaving}
+                style={{ flex: 1 }}
+              >
+                <option value="">— בחר —</option>
+                {options.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              {type === 'entity-select' && entityCreatePath && (
+                <button
+                  type="button"
+                  className={`${s.btn} ${s['btn-icon']} ${s['btn-ghost']}`}
+                  title="צור חדש"
+                  onClick={() => window.open(`${entityCreatePath}?create=true`, '_blank')}
+                  style={{ flexShrink: 0, padding: 4 }}
+                >
+                  <Plus size={14} />
+                </button>
+              )}
+            </div>
           ) : (
             <input
               ref={inputRef as React.RefObject<HTMLInputElement>}
