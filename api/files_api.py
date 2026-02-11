@@ -78,9 +78,7 @@ async def upload_file(
         raise HTTPException(500, f"Upload failed: {str(e)}")
     
     # Create database record
-    # DEBUG: Log entity_id transformation
     final_entity_id = entity_id if entity_id and entity_id > 0 else None
-    print(f"DEBUG: entity_id input={entity_id}, output={final_entity_id}")
     
     db_file = File(
         filename=file.filename or "unnamed",
@@ -90,7 +88,7 @@ async def upload_file(
         size_bytes=result.get('size'),
         entity_type=entity_type if entity_type else None,
         entity_id=final_entity_id,  # 0 is not valid, treat as None
-        uploaded_by=user.id if user else None,
+        uploaded_by=user.id if user and user.id else None,
         description=description,
         is_public=is_public,
     )

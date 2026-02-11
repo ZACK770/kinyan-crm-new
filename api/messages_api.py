@@ -80,22 +80,30 @@ async def send_email_to_lead(
             file_obj = file_result.scalar_one_or_none()
             if file_obj:
                 try:
-                    # Get presigned URL to download file content
-                    presigned_url = await storage_service.get_presigned_url(file_obj.storage_key)
-                    # Download file content
-                    import aiohttp
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get(presigned_url) as resp:
-                            if resp.status == 200:
-                                content = await resp.read()
-                                attachments.append({
-                                    'filename': file_obj.filename,
-                                    'content': content,
-                                    'content_type': file_obj.content_type or 'application/octet-stream'
-                                })
+                    content = None
+                    # Check if file is stored in DB
+                    if file_obj.file_data:
+                        content = file_obj.file_data
+                    # Otherwise try R2
+                    elif file_obj.storage_key:
+                        presigned_url = await storage_service.get_presigned_url(file_obj.storage_key)
+                        if presigned_url:
+                            import aiohttp
+                            async with aiohttp.ClientSession() as session:
+                                async with session.get(presigned_url) as resp:
+                                    if resp.status == 200:
+                                        content = await resp.read()
+                    
+                    if content:
+                        attachments.append({
+                            'filename': file_obj.filename,
+                            'content': content,
+                            'content_type': file_obj.content_type or 'application/octet-stream'
+                        })
                 except Exception as e:
                     # Log but don't fail - continue without this attachment
-                    pass
+                    print(f"ATTACH ERROR for file {file_id}: {e}")
+                    import traceback; traceback.print_exc()
         
         # Link files to message
         for file_id in data.file_ids:
