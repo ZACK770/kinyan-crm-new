@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Users, RefreshCw, Settings, BarChart3, CheckCircle, XCircle } from 'lucide-react'
+import { Users, RefreshCw, Settings, BarChart3, CheckCircle, XCircle, Plus, Trash2, Power } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -31,6 +31,13 @@ interface AssignmentStats {
   availability_reason: string | null
 }
 
+interface SalespersonWithoutRules {
+  id: number
+  name: string
+  email: string | null
+  phone: string | null
+}
+
 export function SalesAssignmentRulesPage() {
   const [rules, setRules] = useState<AssignmentRules[]>([])
   const [stats, setStats] = useState<AssignmentStats[]>([])
@@ -38,6 +45,21 @@ export function SalesAssignmentRulesPage() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editForm, setEditForm] = useState<Partial<AssignmentRules>>({})
   const [activeTab, setActiveTab] = useState<'stats' | 'rules'>('stats')
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [salesWithoutRules, setSalesWithoutRules] = useState<SalespersonWithoutRules[]>([])
+  const [createForm, setCreateForm] = useState<{
+    salesperson_id: number | null
+    daily_lead_limit: number | null
+    priority_weight: number
+    max_open_leads: number | null
+    is_active: boolean
+  }>({
+    salesperson_id: null,
+    daily_lead_limit: null,
+    priority_weight: 5,
+    max_open_leads: null,
+    is_active: true
+  })
   const toast = useToast()
 
   useEffect(() => {
@@ -47,12 +69,14 @@ export function SalesAssignmentRulesPage() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [rulesData, statsData] = await Promise.all([
+      const [rulesData, statsData, withoutRulesData] = await Promise.all([
         api.get<AssignmentRules[]>('/sales-assignment-rules/?include_stats=true'),
-        api.get<AssignmentStats[]>('/sales-assignment-rules/stats')
+        api.get<AssignmentStats[]>('/sales-assignment-rules/stats'),
+        api.get<SalespersonWithoutRules[]>('/sales-assignment-rules/salespeople-without-rules')
       ])
       setRules(rulesData)
       setStats(statsData)
+      setSalesWithoutRules(withoutRulesData)
     } catch (error) {
       toast.error('שגיאה', 'לא ניתן לטעון נתונים')
     } finally {
@@ -92,6 +116,49 @@ export function SalesAssignmentRulesPage() {
     }
   }
 
+  const handleCreate = async () => {
+    if (!createForm.salesperson_id) {
+      toast.error('שגיאה', 'יש לבחור איש מכירות')
+      return
+    }
+    try {
+      await api.post('/sales-assignment-rules/', createForm)
+      toast.success('נוצר', 'כללי שיוך נוצרו בהצלחה')
+      setShowCreateModal(false)
+      setCreateForm({
+        salesperson_id: null,
+        daily_lead_limit: null,
+        priority_weight: 5,
+        max_open_leads: null,
+        is_active: true
+      })
+      loadData()
+    } catch (error) {
+      toast.error('שגיאה', 'לא ניתן ליצור כללים')
+    }
+  }
+
+  const handleDelete = async (salespersonId: number, name: string) => {
+    if (!confirm(`האם למחוק את כללי השיוך של ${name}?\nזה יחזיר אותו למצב round-robin רגיל.`)) return
+    try {
+      await api.delete(`/sales-assignment-rules/${salespersonId}`)
+      toast.success('נמחק', 'כללי השיוך נמחקו בהצלחה')
+      loadData()
+    } catch (error) {
+      toast.error('שגיאה', 'לא ניתן למחוק')
+    }
+  }
+
+  const handleToggleActive = async (salespersonId: number, currentActive: boolean) => {
+    try {
+      await api.patch(`/sales-assignment-rules/${salespersonId}`, { is_active: !currentActive })
+      toast.success('עודכן', currentActive ? 'הכללים הושבתו' : 'הכללים הופעלו')
+      loadData()
+    } catch (error) {
+      toast.error('שגיאה', 'לא ניתן לעדכן')
+    }
+  }
+
   const set = (key: keyof typeof editForm) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.type === 'checkbox' ? e.target.checked : 
                   e.target.type === 'number' ? (e.target.value ? Number(e.target.value) : null) :
@@ -115,7 +182,7 @@ export function SalesAssignmentRulesPage() {
         loading={loading}
       />
 
-      <div style={{ marginBottom: 24, display: 'flex', gap: 12, alignItems: 'center' }}>
+      <div style={{ marginBottom: 24, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <button 
           className={`${s.btn} ${activeTab === 'stats' ? s['btn-primary'] : s['btn-secondary']}`}
           onClick={() => setActiveTab('stats')}
@@ -131,9 +198,15 @@ export function SalesAssignmentRulesPage() {
           כללים
         </button>
         <div style={{ flex: 1 }} />
+        {salesWithoutRules.length > 0 && (
+          <button className={`${s.btn} ${s['btn-success']}`} onClick={() => setShowCreateModal(true)}>
+            <Plus size={16} />
+            הוסף כללים ({salesWithoutRules.length})
+          </button>
+        )}
         <button className={`${s.btn} ${s['btn-secondary']}`} onClick={handleResetDaily}>
           <RefreshCw size={16} />
-          איפוס ספירות יומיות
+          איפוס ספירות
         </button>
       </div>
 
@@ -227,6 +300,25 @@ export function SalesAssignmentRulesPage() {
                 </div>
               </div>
 
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <button
+                  className={`${s.btn} ${s['btn-sm']} ${rule.is_active ? s['btn-warning'] : s['btn-success']}`}
+                  onClick={() => handleToggleActive(rule.salesperson_id, rule.is_active)}
+                  title={rule.is_active ? 'השבת כללים' : 'הפעל כללים'}
+                >
+                  <Power size={14} />
+                  {rule.is_active ? 'השבת' : 'הפעל'}
+                </button>
+                <button
+                  className={`${s.btn} ${s['btn-sm']} ${s['btn-danger']}`}
+                  onClick={() => handleDelete(rule.salesperson_id, rule.salesperson_name)}
+                  title="מחק כללים"
+                >
+                  <Trash2 size={14} />
+                  מחק
+                </button>
+              </div>
+
               {editingId === rule.id ? (
                 <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
                   <div className={s['form-group']}>
@@ -310,6 +402,91 @@ export function SalesAssignmentRulesPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {showCreateModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div className={s.card} style={{ padding: 24, maxWidth: 500, width: '90%' }}>
+            <h3 style={{ marginTop: 0 }}>יצירת כללי שיוך חדשים</h3>
+            
+            <div className={s['form-group']}>
+              <label className={s['form-label']}>בחר איש מכירות</label>
+              <select
+                className={s.input}
+                value={createForm.salesperson_id || ''}
+                onChange={(e) => setCreateForm(prev => ({ ...prev, salesperson_id: Number(e.target.value) }))}
+              >
+                <option value="">-- בחר --</option>
+                {salesWithoutRules.map(sp => (
+                  <option key={sp.id} value={sp.id}>{sp.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'grid', gap: 16, gridTemplateColumns: '1fr 1fr', marginTop: 16 }}>
+              <div className={s['form-group']}>
+                <label className={s['form-label']}>מגבלה יומית</label>
+                <input
+                  className={s.input}
+                  type="number"
+                  value={createForm.daily_lead_limit ?? ''}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, daily_lead_limit: e.target.value ? Number(e.target.value) : null }))}
+                  placeholder="ללא הגבלה"
+                />
+              </div>
+              <div className={s['form-group']}>
+                <label className={s['form-label']}>משקל העדפה (1-10)</label>
+                <input
+                  className={s.input}
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={createForm.priority_weight}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, priority_weight: Number(e.target.value) }))}
+                />
+              </div>
+              <div className={s['form-group']}>
+                <label className={s['form-label']}>מקס' לידים פתוחים</label>
+                <input
+                  className={s.input}
+                  type="number"
+                  value={createForm.max_open_leads ?? ''}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, max_open_leads: e.target.value ? Number(e.target.value) : null }))}
+                  placeholder="ללא הגבלה"
+                />
+              </div>
+              <div className={s['form-group']} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={createForm.is_active}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, is_active: e.target.checked }))}
+                  id="create-active"
+                />
+                <label htmlFor="create-active" style={{ cursor: 'pointer' }}>פעיל</label>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+              <button className={`${s.btn} ${s['btn-primary']}`} onClick={handleCreate}>
+                צור כללים
+              </button>
+              <button className={`${s.btn} ${s['btn-secondary']}`} onClick={() => setShowCreateModal(false)}>
+                ביטול
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -21,7 +21,7 @@ from api import leads_api, students_api, courses_api, dashboard_api, webhooks_ap
 from api import inquiries_api, exams_api, payments_api, expenses_api, attendance_api, collections_api
 from api import auth_api, users_api, audit_logs_api, campaigns_api, files_api, sales_assignment_api
 from api import course_tracks_api, lecturers_api, messages_api, templates_api, lead_conversion_api
-from api import import_api
+from api import import_api, webhook_logs_api
 
 # Frontend build directory
 FRONTEND_DIR = Path(__file__).parent / "frontend" / "dist"
@@ -74,6 +74,7 @@ app.include_router(users_api.router, prefix="/api/users", tags=["users"])
 app.include_router(audit_logs_api.router, prefix="/api/audit-logs", tags=["audit-logs"])
 app.include_router(files_api.router, prefix="/api/files", tags=["files"])
 app.include_router(sales_assignment_api.router, prefix="/api/sales-assignment-rules", tags=["sales-assignment"])
+app.include_router(webhook_logs_api.router, prefix="/api/webhook-logs", tags=["webhook-logs"])
 app.include_router(messages_api.router, prefix="/api/messages", tags=["messages"])
 app.include_router(templates_api.router, prefix="/api/templates", tags=["templates"])
 app.include_router(import_api.router, prefix="/api/admin", tags=["import"])
