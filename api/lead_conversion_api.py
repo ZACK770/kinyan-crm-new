@@ -8,7 +8,7 @@ from typing import Optional, List
 from datetime import datetime
 
 from db import get_db
-from api.dependencies import get_current_user, require_permission
+from api.dependencies import get_current_user, require_entity_access
 from services.lead_conversion import (
     update_payment_status,
     update_kinyan_status,
@@ -68,7 +68,7 @@ async def update_lead_payment(
     lead_id: int,
     data: PaymentUpdateRequest,
     session: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("leads", "edit"))
+    current_user: User = Depends(require_entity_access("leads", "edit"))
 ):
     """
     עדכון סטטוס תשלום - שלב 1 בתהליך ההמרה
@@ -94,7 +94,7 @@ async def update_lead_kinyan(
     lead_id: int,
     data: KinyanUpdateRequest,
     session: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("leads", "edit"))
+    current_user: User = Depends(require_entity_access("leads", "edit"))
 ):
     """
     עדכון סטטוס קניון/תקנון - שלב 2 בתהליך ההמרה
@@ -119,7 +119,7 @@ async def update_lead_shipping(
     lead_id: int,
     data: ShippingUpdateRequest,
     session: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("leads", "edit"))
+    current_user: User = Depends(require_entity_access("leads", "edit"))
 ):
     """
     עדכון פרטי משלוח - שלב 3 בתהליך ההמרה
@@ -146,7 +146,7 @@ async def update_lead_student_chat(
     lead_id: int,
     data: StudentChatUpdateRequest,
     session: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("leads", "edit"))
+    current_user: User = Depends(require_entity_access("leads", "edit"))
 ):
     """
     עדכון הוספה לצ'אט תלמידים - שלב 4 בתהליך ההמרה
@@ -170,7 +170,7 @@ async def handoff_lead_to_manager(
     lead_id: int,
     data: HandoffRequest,
     session: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("leads", "edit"))
+    current_user: User = Depends(require_entity_access("leads", "edit"))
 ):
     """
     העברה למנהל כיתות - שלב 5 בתהליך ההמרה
@@ -193,7 +193,7 @@ async def handoff_lead_to_manager(
 async def get_lead_conversion_status(
     lead_id: int,
     session: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("leads", "view"))
+    current_user: User = Depends(require_entity_access("leads", "view"))
 ):
     """
     קבלת סטטוס המרה של ליד
