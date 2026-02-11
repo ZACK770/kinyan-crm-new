@@ -100,7 +100,7 @@ class NedarimDebitCardService:
         if amount <= 0:
             raise NedarimDebitCardError("Amount must be positive")
         
-        if installments < 1 or installments > 36:
+        if payment_type != 'HK' and (installments < 1 or installments > 36):
             raise NedarimDebitCardError("Installments must be between 1 and 36")
         
         # Prepare payload
@@ -121,18 +121,19 @@ class NedarimDebitCardService:
         }
         
         # Handle Tashloumim based on payment type
-        # For HK (standing order): empty = unlimited, number = limited months
+        # For HK (standing order): DO NOT send Tashloumim at all.
+        #   - Direct/debit cards reject any Tashloumim value with HK
+        #   - The HK itself handles monthly recurring charges
+        #   - Cancellation is done manually through Nedarim Plus
         # For RAGIL (regular): number of installments (must be >= 1)
         if payment_type == 'HK':
-            # For standing order: if installments is 0 or None, leave empty (unlimited)
-            if installments and installments > 0:
-                payload['Tashloumim'] = str(installments)
-            # else: leave Tashloumim empty for unlimited recurring
+            # Never send Tashloumim with HK - causes "direct card" errors
+            pass
         else:
             # For regular payment: must have installments
             payload['Tashloumim'] = str(installments)
         
-        logger.info(f"Charging card via Nedarim DebitCard API: {client_name}, Amount: {amount} ILS, Installments: {installments}")
+        logger.info(f"Charging card via Nedarim DebitCard API: {client_name}, Amount: {amount} ILS, PaymentType: {payment_type}, Tashloumim: {payload.get('Tashloumim', 'NOT SENT')}")
         
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:

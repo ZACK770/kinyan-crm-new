@@ -27,13 +27,16 @@ export function DirectChargeDialog({
   const [expiry, setExpiry] = useState('')
   const [cvv, setCvv] = useState('')
   const [comments, setComments] = useState('')
-  // Default to HK (standing order) with unlimited duration - as per lead's payment_type default
+  // Default to HK (standing order) - as per lead's payment_type default
   const [paymentType, setPaymentType] = useState<'RAGIL' | 'HK'>('HK')
-  const [hkMonths, setHkMonths] = useState<number | null>(null) // null = unlimited (default)
   
   // Use props directly - no local state needed
-  const amount = defaultAmount || 0
-  const installments = paymentType === 'HK' ? (hkMonths || 0) : defaultInstallments
+  const totalAmount = defaultAmount || 0
+  const installments = defaultInstallments || 1
+  // For HK: Amount = monthly payment (total / installments)
+  // For RAGIL: Amount = total amount, Tashloumim = installments
+  const monthlyAmount = installments > 0 ? Math.round((totalAmount / installments) * 100) / 100 : totalAmount
+  const amount = paymentType === 'HK' ? monthlyAmount : totalAmount
   
   const [isProcessing, setIsProcessing] = useState(false)
   const [result, setResult] = useState<any>(null)
@@ -87,7 +90,7 @@ export function DirectChargeDialog({
         expiry: cleanExpiry,
         cvv: cvv,
         amount: amount,
-        installments: installments,
+        installments: paymentType === 'HK' ? 0 : installments, // HK: no Tashloumim (0 = don't send)
         payment_type: paymentType,
         comments: comments || undefined
       })
@@ -221,49 +224,15 @@ export function DirectChargeDialog({
                   </label>
                 </div>
                 {paymentType === 'HK' && (
-                  <div style={{ marginTop: '12px', padding: '12px', background: '#fff3e0', borderRadius: '6px', border: '1px solid #ff9800' }}>
-                    <div style={{ marginBottom: '8px', fontWeight: 500, color: '#e65100' }}>
-                      ⚠️ הוראת קבע - חיוב חודשי אוטומטי
+                  <div style={{ marginTop: '12px', padding: '12px', background: '#e8f5e9', borderRadius: '6px', border: '1px solid #4caf50' }}>
+                    <div style={{ fontWeight: 500, color: '#2e7d32' }}>
+                      ✅ הוראת קבע - חיוב חודשי אוטומטי
                     </div>
-                    <div style={{ display: 'flex', gap: '15px', marginTop: '8px' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                        <input
-                          type="radio"
-                          name="hkDuration"
-                          checked={hkMonths === null}
-                          onChange={() => setHkMonths(null)}
-                          disabled={isProcessing}
-                        />
-                        <span>ללא הגבלה (עד ביטול)</span>
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                        <input
-                          type="radio"
-                          name="hkDuration"
-                          checked={hkMonths !== null}
-                          onChange={() => setHkMonths(12)}
-                          disabled={isProcessing}
-                        />
-                        <span>מוגבל למספר חודשים:</span>
-                        {hkMonths !== null && (
-                          <input
-                            type="number"
-                            className={s.input}
-                            value={hkMonths}
-                            onChange={e => setHkMonths(parseInt(e.target.value) || 1)}
-                            min="1"
-                            max="120"
-                            disabled={isProcessing}
-                            style={{ width: '80px', marginLeft: '6px' }}
-                          />
-                        )}
-                      </label>
-                    </div>
-                    <small style={{ fontSize: '11px', color: '#666', display: 'block', marginTop: '8px' }}>
-                      {hkMonths === null 
-                        ? '💡 הכרטיס יחויב כל חודש עד שתבטל את ההוראת קבע'
-                        : `💡 הכרטיס יחויב ${hkMonths} פעמים (${hkMonths} חודשים)`
-                      }
+                    <small style={{ fontSize: '12px', color: '#555', display: 'block', marginTop: '6px' }}>
+                      💡 הכרטיס יחויב כל חודש ₪{monthlyAmount} (סה"כ ₪{totalAmount} / {installments} תשלומים)
+                    </small>
+                    <small style={{ fontSize: '11px', color: '#888', display: 'block', marginTop: '4px' }}>
+                      ביטול הוראת הקבע נעשה דרך נדרים פלוס
                     </small>
                   </div>
                 )}
@@ -272,7 +241,9 @@ export function DirectChargeDialog({
               {/* Amount & Installments - READ ONLY */}
               <div className={s['form-row']}>
                 <div className={s['form-group']}>
-                  <label className={s['form-label']}>סכום (₪) *</label>
+                  <label className={s['form-label']}>
+                    {paymentType === 'HK' ? 'סכום חודשי (₪)' : 'סכום כולל (₪)'} *
+                  </label>
                   <input
                     type="text"
                     className={s.input}
@@ -282,27 +253,25 @@ export function DirectChargeDialog({
                     style={{ background: '#f5f5f5', cursor: 'not-allowed' }}
                   />
                   <small style={{ fontSize: '12px', color: '#666', display: 'block', marginTop: '4px' }}>
-                    מחיר נלקח אוטומטית מהקורס שנבחר
+                    {paymentType === 'HK'
+                      ? `סכום חודשי: ₪${totalAmount} / ${installments} = ₪${monthlyAmount}`
+                      : 'מחיר נלקח אוטומטית מהקורס שנבחר'
+                    }
                   </small>
                 </div>
                 <div className={s['form-group']}>
-                  <label className={s['form-label']}>
-                    {paymentType === 'HK' ? 'חודשים' : 'תשלומים'} *
-                  </label>
+                  <label className={s['form-label']}>תשלומים *</label>
                   <input
                     type="text"
                     className={s.input}
-                    value={paymentType === 'HK' 
-                      ? (hkMonths === null ? 'ללא הגבלה' : hkMonths)
-                      : installments
-                    }
+                    value={installments}
                     readOnly
                     disabled
                     style={{ background: '#f5f5f5', cursor: 'not-allowed' }}
                   />
                   <small style={{ fontSize: '12px', color: '#666', display: 'block', marginTop: '4px' }}>
                     {paymentType === 'HK'
-                      ? (hkMonths === null ? 'חיוב חודשי ללא הגבלת זמן' : `חיוב חודשי ל-${hkMonths} חודשים`)
+                      ? `${installments} חיובים חודשיים של ₪${monthlyAmount}`
                       : 'מספר תשלומים נלקח אוטומטית מהקורס'
                     }
                   </small>
