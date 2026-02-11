@@ -52,6 +52,7 @@ class NedarimDebitCardService:
         email: Optional[str] = None,
         phone: Optional[str] = None,
         comments: Optional[str] = None,
+        payment_type: str = "RAGIL",  # RAGIL (regular) or HK (standing order)
     ) -> Dict[str, Any]:
         """
         Charge a credit card directly via Nedarim Plus
@@ -66,6 +67,7 @@ class NedarimDebitCardService:
             email: Client email (optional)
             phone: Client phone (optional)
             comments: Transaction comments (optional)
+            payment_type: RAGIL (regular one-time) or HK (standing order/הוראת קבע)
         
         Returns:
             Dict with transaction details:
@@ -114,6 +116,7 @@ class NedarimDebitCardService:
             'Amount': f"{amount:.2f}",
             'Tashloumim': str(installments),
             'Currency': '1',  # 1 = ILS, 2 = USD
+            'PaymentType': payment_type,  # RAGIL or HK
             'Avour': comments or 'תשלום CRM',
             'AjaxId': str(int(time.time() * 1000))
         }
@@ -212,6 +215,15 @@ async def charge_lead_card(
     # Create service and charge card
     service = NedarimDebitCardService()
     
+    # Prepare detailed comments with lead info
+    if not comments:
+        comments_parts = [f"ליד #{lead_id}"]
+        if lead.full_name:
+            comments_parts.append(lead.full_name)
+        if lead.phone:
+            comments_parts.append(f"טל: {lead.phone}")
+        comments = " | ".join(comments_parts)
+    
     try:
         result = await service.charge_card(
             client_name=lead.full_name,
@@ -222,7 +234,7 @@ async def charge_lead_card(
             installments=installments,
             email=lead.email,
             phone=lead.phone,
-            comments=comments or f"תשלום עבור ליד #{lead_id}"
+            comments=comments
         )
         
         # Create payment record
