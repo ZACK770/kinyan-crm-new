@@ -262,3 +262,19 @@ async def log_api_action(db: AsyncSession, action: str, description: str, entity
         description=description,
         request=request,
     )
+
+
+async def log_action(session: AsyncSession, user_id: int, action: str, entity_type: str, entity_id: int, details: str, request: Optional[Request] = None):
+    """Log a generic action with user_id (used by lead_conversion and other services)"""
+    user_result = await session.execute(select(User).where(User.id == user_id))
+    user = user_result.scalar_one_or_none()
+    
+    return await create_audit_log(
+        db=session,
+        action=action,
+        user=user,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        description=details,
+        request=request,
+    )

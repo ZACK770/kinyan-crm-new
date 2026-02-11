@@ -440,16 +440,17 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--color-border-light);
+  padding-bottom: 14px;
+  margin-bottom: 2px;
 }
 .workspace__title {
-  font-size: 1.3rem;
-  font-weight: 600;
+  font-size: 1.2rem;
+  font-weight: 700;
   color: var(--color-text);
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  letter-spacing: -0.01em;
 }
 .workspace__section {
   background: var(--color-surface);
@@ -472,34 +473,32 @@
 /* --- Tabs --- */
 .tabs {
   display: flex;
-  gap: 4px;
-  border-bottom: 2px solid var(--color-border-light);
-  padding: 0 8px;
-  background: var(--color-surface);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  gap: 2px;
+  border-bottom: 1px solid var(--color-border-light);
+  padding: 0 4px;
 }
 .tab {
-  padding: 12px 20px;
+  padding: 10px 16px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--color-text-secondary);
+  color: var(--color-text-muted);
   cursor: pointer;
   border-bottom: 2px solid transparent;
-  transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
-  margin-bottom: -2px;
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+  margin-bottom: -1px;
   display: flex;
   align-items: center;
   gap: 6px;
+  border-radius: 0;
+  background: transparent;
 }
 .tab:hover {
   color: var(--color-text);
-  background: var(--color-border-light);
 }
 .tab--active {
-  color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
-  background: transparent;
+  color: var(--color-text);
+  font-weight: 600;
+  border-bottom-color: var(--color-accent);
 }
 
 /* --- Field Grid (2 columns) --- */
