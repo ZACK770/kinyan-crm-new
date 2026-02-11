@@ -47,6 +47,7 @@ export function SmartTable<T>({
   searchFields,
   searchPlaceholder,
   onSearchSelect,
+  onServerSearch,
   defaultPageSize,
   pageSizeOptions,
   className,
@@ -304,6 +305,7 @@ export function SmartTable<T>({
             searchFields={searchFields}
             onSelect={(row) => searchSelect?.(row)}
             placeholder={searchPlaceholder ?? 'חיפוש...'}
+            onServerSearch={onServerSearch}
           />
           <FilterPanel
             columns={columns}

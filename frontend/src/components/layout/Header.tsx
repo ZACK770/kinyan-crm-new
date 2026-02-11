@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback, type FC, type FormEvent } from 'react'
 import {
   Menu,
-  Search,
   Plus,
   Bell,
   UserPlus,
@@ -92,11 +91,9 @@ export const Header: FC<HeaderProps> = ({ onToggleSidebar }) => {
   const { user, logout } = useAuth()
   const [scrolled, setScrolled] = useState(false)
   const [showQuickAdd, setShowQuickAdd] = useState(false)
-  const [showSearch, setShowSearch] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const quickAddRef = useRef<HTMLDivElement>(null)
   const userMenuRef = useRef<HTMLDivElement>(null)
-  const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Track scroll for shadow
   useEffect(() => {
@@ -104,13 +101,6 @@ export const Header: FC<HeaderProps> = ({ onToggleSidebar }) => {
     window.addEventListener('scroll', handler, { passive: true })
     return () => window.removeEventListener('scroll', handler)
   }, [])
-
-  // Focus search input when overlay opens
-  useEffect(() => {
-    if (showSearch) {
-      setTimeout(() => searchInputRef.current?.focus(), 50)
-    }
-  }, [showSearch])
 
   // Close quick-add on outside click
   useEffect(() => {
@@ -136,15 +126,10 @@ export const Header: FC<HeaderProps> = ({ onToggleSidebar }) => {
     return () => document.removeEventListener('mousedown', handler)
   }, [showUserMenu])
 
-  // Keyboard shortcut: Ctrl+K for search
+  // Keyboard shortcut: Escape to close quick-add
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault()
-        setShowSearch(true)
-      }
       if (e.key === 'Escape') {
-        setShowSearch(false)
         setShowQuickAdd(false)
       }
     }
@@ -218,15 +203,6 @@ export const Header: FC<HeaderProps> = ({ onToggleSidebar }) => {
 
         {/* Actions */}
         <div className={styles.header__actions}>
-          {/* Search */}
-          <button
-            className={styles['header__action-btn']}
-            onClick={() => setShowSearch(true)}
-            aria-label="חיפוש"
-          >
-            <Search size={18} strokeWidth={1.5} />
-          </button>
-
           {/* Quick add */}
           <div ref={quickAddRef} style={{ position: 'relative' }}>
             <button
@@ -336,28 +312,6 @@ export const Header: FC<HeaderProps> = ({ onToggleSidebar }) => {
         </div>
       </header>
 
-      {/* Search overlay */}
-      {showSearch && (
-        <div
-          className={styles['header__search-overlay']}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowSearch(false)
-          }}
-        >
-          <div className={styles['header__search-box']}>
-            <input
-              ref={searchInputRef}
-              className={styles['header__search-input']}
-              type="text"
-              placeholder="חיפוש ליד, תלמיד, טלפון..."
-              onKeyDown={(e) => e.key === 'Escape' && setShowSearch(false)}
-            />
-            <div className={styles['header__search-hint']}>
-              Esc לסגירה &nbsp;·&nbsp; Ctrl+K לפתיחה מהירה
-            </div>
-          </div>
-        </div>
-      )}
     </>
   )
 }

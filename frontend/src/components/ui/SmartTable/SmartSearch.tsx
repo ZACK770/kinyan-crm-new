@@ -3,10 +3,15 @@
    ============================================================
    Reusable component for SmartTable. Shows instant search results
    in neat cards as the user types. No modal needed.
+   
+   Supports two modes:
+   - Client-side: searches through `data` prop (default)
+   - Server-side: when `onServerSearch` is provided, debounces
+     and calls the server to search ALL records in the DB
    ============================================================ */
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
-import { Search, X } from 'lucide-react'
+import { Search, X, Loader2 } from 'lucide-react'
 import type { SmartColumn, SelectOption, SearchFieldConfig } from './types'
 import s from './SmartTable.module.css'
 
@@ -21,6 +26,8 @@ interface SmartSearchProps<T> {
   placeholder?: string
   /** Called when search text changes — parent can use for additional filtering */
   onSearchChange?: (query: string) => void
+  /** Server-side search function. When provided, searches ALL data via API instead of just loaded data */
+  onServerSearch?: (query: string) => Promise<T[]>
 }
 
 export function SmartSearch<T>({
@@ -31,12 +38,16 @@ export function SmartSearch<T>({
   onSelect,
   placeholder = 'חיפוש...',
   onSearchChange,
+  onServerSearch,
 }: SmartSearchProps<T>) {
   const [query, setQuery] = useState('')
   const [isOpen, setIsOpen] = useState(false)
   const [highlightIndex, setHighlightIndex] = useState(-1)
+  const [serverResults, setServerResults] = useState<T[]>([])
+  const [searching, setSearching] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Determine searchable fields
   const fields = useMemo(() => {
@@ -61,8 +72,37 @@ export function SmartSearch<T>({
     return lookup
   }, [columns])
 
-  // Search results
-  const results = useMemo(() => {
+  // Server-side search with debounce
+  useEffect(() => {
+    if (!onServerSearch) return
+    if (!query.trim()) {
+      setServerResults([])
+      setSearching(false)
+      return
+    }
+
+    setSearching(true)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const results = await onServerSearch(query.trim())
+        setServerResults(results)
+      } catch {
+        setServerResults([])
+      } finally {
+        setSearching(false)
+      }
+    }, 300)
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [query, onServerSearch])
+
+  // Client-side search results (only used when no onServerSearch)
+  const clientResults = useMemo(() => {
+    if (onServerSearch) return [] // Skip client search when server search is active
     if (!query.trim()) return []
 
     const q = query.trim().toLowerCase()
@@ -103,7 +143,12 @@ export function SmartSearch<T>({
     // Sort by score descending
     scored.sort((a, b) => b.score - a.score)
     return scored.slice(0, maxResults)
-  }, [query, data, fields, selectLookup, maxResults])
+  }, [query, data, fields, selectLookup, maxResults, onServerSearch])
+
+  // Unified results list
+  const results: { row: T; score: number }[] = onServerSearch
+    ? serverResults.map(row => ({ row, score: 1 }))
+    : clientResults
 
   // Notify parent of search change
   useEffect(() => {
@@ -128,7 +173,7 @@ export function SmartSearch<T>({
   // Reset highlight when results change
   useEffect(() => {
     setHighlightIndex(-1)
-  }, [results])
+  }, [results.length])
 
   // Keyboard navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -214,7 +259,11 @@ export function SmartSearch<T>({
   return (
     <div className={s.smartSearch}>
       <div className={s.searchInputWrapper}>
-        <Search size={16} className={s.searchIcon} />
+        {searching ? (
+          <Loader2 size={16} className={s.searchIcon} style={{ animation: 'spin 1s linear infinite' }} />
+        ) : (
+          <Search size={16} className={s.searchIcon} />
+        )}
         <input
           ref={inputRef}
           type="text"
@@ -237,6 +286,7 @@ export function SmartSearch<T>({
             onClick={() => {
               setQuery('')
               setIsOpen(false)
+              setServerResults([])
               inputRef.current?.focus()
             }}
             type="button"
@@ -249,14 +299,18 @@ export function SmartSearch<T>({
       {/* Dropdown results */}
       {isOpen && query.trim() && (
         <div ref={dropdownRef} className={s.searchDropdown}>
-          {results.length === 0 ? (
+          {searching ? (
+            <div className={s.searchNoResults}>
+              מחפש...
+            </div>
+          ) : results.length === 0 ? (
             <div className={s.searchNoResults}>
               לא נמצאו תוצאות עבור "{query}"
             </div>
           ) : (
             <>
               <div className={s.searchResultsHeader}>
-                {results.length} תוצאות
+                {results.length} תוצאות{onServerSearch ? ' (מכל המערכת)' : ''}
               </div>
               {results.map(({ row }, idx) => {
                 const cardFields = getCardFields(row)

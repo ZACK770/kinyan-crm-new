@@ -400,16 +400,29 @@ async def list_leads(
     db: AsyncSession,
     status: str | None = None,
     salesperson_id: int | None = None,
+    search: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> list[Lead]:
-    """List leads with optional filters."""
+    """List leads with optional filters and server-side search."""
     stmt = select(Lead).order_by(Lead.created_at.desc()).limit(limit).offset(offset)
 
     if status:
         stmt = stmt.where(Lead.status == status)
     if salesperson_id:
         stmt = stmt.where(Lead.salesperson_id == salesperson_id)
+    if search:
+        q = f"%{search.strip()}%"
+        stmt = stmt.where(
+            or_(
+                Lead.full_name.ilike(q),
+                Lead.family_name.ilike(q),
+                Lead.phone.ilike(q),
+                Lead.phone2.ilike(q),
+                Lead.email.ilike(q),
+                Lead.city.ilike(q),
+            )
+        )
 
     result = await db.execute(stmt)
     return list(result.scalars().all())

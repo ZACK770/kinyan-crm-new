@@ -114,6 +114,7 @@ export interface SmartTableProps<T> {
   searchFields?: SearchFieldConfig[] // Fields to search in (defaults to all text/select)
   searchPlaceholder?: string
   onSearchSelect?: (row: T) => void // Called when a search result is clicked
+  onServerSearch?: (query: string) => Promise<T[]> // Server-side search (searches ALL data, not just loaded)
   
   // Pagination
   defaultPageSize?: number // Default items per page (default: 100)

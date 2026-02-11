@@ -501,6 +501,12 @@ export function LeadsPage() {
     }
   }, [toast])
 
+  /* ── Server-side search (searches ALL leads in DB, not just loaded 200) ── */
+  const serverSearch = useCallback(async (query: string): Promise<Lead[]> => {
+    const results = await api.get<Lead[]>(`leads?search=${encodeURIComponent(query)}&limit=20`)
+    return results
+  }, [])
+
   useEffect(() => { fetchLeads() }, [fetchLeads])
 
   /* ── Inline Update ── */
@@ -850,6 +856,7 @@ export function LeadsPage() {
             { key: 'status', label: 'סטטוס', weight: 1 },
           ]}
           onSearchSelect={openLeadWorkspace}
+          onServerSearch={serverSearch}
           defaultPageSize={100}
           pageSizeOptions={[50, 100, 200]}
           bulkActions={[
