@@ -386,7 +386,7 @@ async def reset_daily_counts(
 
 @router.get("/salespeople-without-rules", response_model=list[dict])
 async def get_salespeople_without_rules(
-    user = Depends(require_entity_access("salespeople", "view")),
+    user = Depends(require_permission("viewer")),
     db: AsyncSession = Depends(get_db),
 ):
     """Get list of active salespeople who don't have assignment rules yet."""
