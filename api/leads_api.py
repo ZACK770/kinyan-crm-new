@@ -508,3 +508,56 @@ async def calculate_lead_pricing(
         "payments_count": payments_count,
         "monthly_payment": monthly_payment,
     }
+
+
+class DirectChargeRequest(BaseModel):
+    card_number: str = Field(..., description="מספר כרטיס אשראי (13-16 ספרות)")
+    expiry: str = Field(..., description="תוקף MMYY (4 ספרות)")
+    cvv: str = Field(..., description="CVV (3-4 ספרות)")
+    amount: float | None = Field(None, description="סכום (אם None - לוקח מהליד)")
+    installments: int | None = Field(None, description="מספר תשלומים (אם None - לוקח מהליד)")
+    comments: str | None = Field(None, description="הערות")
+
+
+@router.post("/{lead_id}/charge-card-direct")
+async def charge_lead_card_direct(
+    lead_id: int,
+    data: DirectChargeRequest,
+    request: Request,
+    user = Depends(require_entity_access("leads", "edit")),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Charge lead's credit card directly via Nedarim Plus DebitCard API.
+    This performs immediate credit card charging without payment links.
+    """
+    from services import nedarim_debit_card
+    
+    try:
+        result = await nedarim_debit_card.charge_lead_card(
+            db=db,
+            lead_id=lead_id,
+            card_number=data.card_number,
+            expiry=data.expiry,
+            cvv=data.cvv,
+            amount=data.amount,
+            installments=data.installments,
+            comments=data.comments,
+        )
+        await db.commit()
+        
+        # Log direct charge
+        await audit_logs.log_create(
+            db=db,
+            user=user,
+            entity_type="payments",
+            entity_id=result["payment_id"],
+            description=f"בוצעה סליקה ישירה לליד #{lead_id} - {result['amount']} ש\"ח - אישור: {result['confirmation']}",
+            request=request,
+        )
+        
+        return result
+    except nedarim_debit_card.NedarimDebitCardError as e:
+        raise HTTPException(400, f"סליקה נכשלה: {e.message}")
+    except Exception as e:
+        raise HTTPException(500, str(e))

@@ -4,6 +4,7 @@ import { useToast } from '@/components/ui/Toast'
 import { CreditCard, CheckCircle2, XCircle, Copy, Calculator, Tag } from 'lucide-react'
 import type { Lead, Course, Payment } from '@/types'
 import { formatCurrency, formatDateTime } from '@/lib/status'
+import { DirectChargeDialog } from './DirectChargeDialog'
 import s from '@/styles/shared.module.css'
 import ps from './LeadPaymentTab.module.css'
 
@@ -48,6 +49,9 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
   // Payment link state
   const [isCreatingLink, setIsCreatingLink] = useState(false)
   const [createdPaymentLink, setCreatedPaymentLink] = useState<string | null>(null)
+  
+  // Direct charge dialog
+  const [showDirectChargeDialog, setShowDirectChargeDialog] = useState(false)
   
   // Payment status
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null)
@@ -323,15 +327,40 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
             </div>
           </>
         ) : (
-          <button
-            className={`${s.btn} ${s['btn-primary']}`}
-            onClick={handleCreateLink}
-            disabled={isCreatingLink || !selectedCourseId}
-          >
-            <CreditCard size={16} /> {isCreatingLink ? 'יוצר לינק...' : 'צור לינק תשלום'}
-          </button>
+          <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
+            <button
+              className={`${s.btn} ${s['btn-primary']}`}
+              onClick={() => setShowDirectChargeDialog(true)}
+              disabled={!selectedCourseId}
+              style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+            >
+              <CreditCard size={16} /> סלוק כרטיס אשראי ישירות
+            </button>
+            <button
+              className={`${s.btn} ${s['btn-secondary']}`}
+              onClick={handleCreateLink}
+              disabled={isCreatingLink || !selectedCourseId}
+            >
+              <CreditCard size={16} /> {isCreatingLink ? 'יוצר לינק...' : 'או צור לינק תשלום'}
+            </button>
+          </div>
         )}
       </div>
+
+      {/* Direct Charge Dialog */}
+      {showDirectChargeDialog && (
+        <DirectChargeDialog
+          leadId={lead.id}
+          leadName={lead.full_name}
+          defaultAmount={pricing?.final_price || (selectedCourse?.price ? Number(selectedCourse.price) : undefined)}
+          defaultInstallments={Number(paymentsCount) || 1}
+          onClose={() => setShowDirectChargeDialog(false)}
+          onSuccess={() => {
+            onUpdate()
+            setShowDirectChargeDialog(false)
+          }}
+        />
+      )}
 
       {/* Payment History Section */}
       <div className={ps.card}>
