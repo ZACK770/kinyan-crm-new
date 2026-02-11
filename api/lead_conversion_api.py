@@ -8,7 +8,7 @@ from typing import Optional, List
 from datetime import datetime
 
 from db import get_db
-from services.auth import get_current_user, require_permission
+from api.dependencies import get_current_user, require_permission
 from services.lead_conversion import (
     update_payment_status,
     update_kinyan_status,

@@ -154,21 +154,30 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
     setError(null)
     try {
       const result = await api.post<any>(`/leads/${lead.id}/create-payment-link`, {})
-      console.log('Payment link response:', result)
+      console.log('=== Payment Link Response ===')
+      console.log('Full result:', JSON.stringify(result, null, 2))
+      console.log('result.payment_link:', result.payment_link)
+      console.log('result.nedarim_payment_link:', result.nedarim_payment_link)
+      
       const paymentLink = result.payment_link || result.nedarim_payment_link
       console.log('Extracted payment link:', paymentLink)
+      console.log('Type of paymentLink:', typeof paymentLink)
+      
       if (paymentLink) {
         setCreatedPaymentLink(paymentLink)
-        console.log('Set createdPaymentLink to:', paymentLink)
+        console.log('✓ Set createdPaymentLink state to:', paymentLink)
+        toast.success('לינק תשלום נוצר בהצלחה')
       } else {
-        console.warn('No payment link found in response:', result)
+        console.error('✗ No payment link found in response!')
+        console.error('Available keys:', Object.keys(result))
+        toast.error('לינק נוצר אך לא נמצא בתגובה')
       }
-      toast.success('לינק תשלום נוצר בהצלחה')
       onUpdate()
     } catch (err: any) {
       console.error('Payment link error:', err)
       const message = err?.message || 'שגיאה ביצירת לינק'
       setError(message)
+      toast.error(message)
     } finally {
       setIsCreatingLink(false)
     }

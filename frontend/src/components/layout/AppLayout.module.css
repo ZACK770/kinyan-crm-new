@@ -11,14 +11,15 @@
 .main {
   flex: 1;
   margin-top: var(--header-height);
-  padding: 20px calc(16px + var(--sidebar-width)) 20px 16px;
-  transition: padding var(--transition-slow);
+  margin-right: var(--sidebar-width);
+  padding: 20px 16px 20px 24px;
+  transition: margin var(--transition-slow);
   min-height: calc(100vh - var(--header-height));
   direction: rtl;
 }
 
 .main.sidebar-collapsed {
-  padding-right: calc(16px + var(--sidebar-collapsed));
+  margin-right: var(--sidebar-collapsed);
 }
 
 /* Page header (title + actions row) */
