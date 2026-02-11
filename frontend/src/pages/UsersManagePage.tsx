@@ -96,6 +96,7 @@ function UserForm({
           <option value="pending">ממתין לאישור (0)</option>
           <option value="viewer">צופה (10)</option>
           <option value="editor">עורך (20)</option>
+          <option value="salesperson">איש מכירות (25)</option>
           <option value="manager">מנהל (30)</option>
           <option value="admin">מנהל מערכת (40)</option>
         </select>
@@ -260,6 +261,7 @@ export function UsersManagePage() {
     switch (role) {
       case 'admin': return { label: 'מנהל מערכת', color: '#dc2626' }
       case 'manager': return { label: 'מנהל', color: '#ea580c' }
+      case 'salesperson': return { label: 'איש מכירות', color: '#7c3aed' }
       case 'editor': return { label: 'עורך', color: '#2563eb' }
       case 'viewer': return { label: 'צופה', color: '#16a34a' }
       case 'pending': return { label: 'ממתין לאישור', color: '#ca8a04' }

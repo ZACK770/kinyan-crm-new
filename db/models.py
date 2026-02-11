@@ -65,6 +65,7 @@ class Salesperson(Base):
     __tablename__ = "salespeople"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), unique=True)  # Link to system user
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     email: Mapped[Optional[str]] = mapped_column(String(200))
     phone: Mapped[Optional[str]] = mapped_column(String(50))
@@ -78,6 +79,7 @@ class Salesperson(Base):
     notify_on_new_lead: Mapped[bool] = mapped_column(Boolean, default=True)  # Send notification when new lead assigned
 
     # Relations
+    user: Mapped[Optional["User"]] = relationship()
     leads: Mapped[List["Lead"]] = relationship(back_populates="salesperson")
     tasks: Mapped[List["SalesTask"]] = relationship(back_populates="salesperson")
     campaign_links: Mapped[List["CampaignSalespersonLink"]] = relationship(back_populates="salesperson")

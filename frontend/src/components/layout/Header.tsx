@@ -300,6 +300,7 @@ export const Header: FC<HeaderProps> = ({ onToggleSidebar }) => {
                   <div className={styles['header__user-role']}>
                     {user?.role_name === 'admin' && 'מנהל מערכת'}
                     {user?.role_name === 'manager' && 'מנהל'}
+                    {user?.role_name === 'salesperson' && 'איש מכירות'}
                     {user?.role_name === 'editor' && 'עורך'}
                     {user?.role_name === 'viewer' && 'צופה'}
                     {user?.role_name === 'pending' && 'ממתין לאישור'}

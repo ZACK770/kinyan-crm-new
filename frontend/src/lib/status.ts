@@ -49,10 +49,12 @@ const studentStatus: Record<string, StatusDef> = {
 }
 
 const paymentStatus: Record<string, StatusDef> = {
-  paid:    { label: 'שולם', color: 'green' },
-  partial: { label: 'חלקי', color: 'yellow' },
-  unpaid:  { label: 'טרם שולם', color: 'red' },
-  pending: { label: 'ממתין', color: 'yellow' },
+  paid:     { label: 'שולם', color: 'green' },
+  partial:  { label: 'חלקי', color: 'yellow' },
+  unpaid:   { label: 'טרם שולם', color: 'red' },
+  pending:  { label: 'ממתין', color: 'yellow' },
+  failed:   { label: 'נכשל', color: 'red' },
+  refunded: { label: 'הוחזר', color: 'gray' },
 }
 
 const taskStatus: Record<string, StatusDef> = {

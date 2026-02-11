@@ -713,11 +713,13 @@ export function LeadsPage() {
       header: 'סטטוס', 
       type: 'select',
       options: [
-        { value: 'new', label: 'חדש' },
-        { value: 'contacted', label: 'נוצר קשר' },
-        { value: 'interested', label: 'מעוניין' },
-        { value: 'converted', label: 'הומר' },
-        { value: 'irrelevant', label: 'לא רלוונטי' },
+        { value: 'new', label: 'ליד חדש' },
+        { value: 'first_call', label: 'חיוג ראשון' },
+        { value: 'follow_up', label: 'במעקב' },
+        { value: 'interested', label: 'מתעניין' },
+        { value: 'payment_done', label: 'נסלק' },
+        { value: 'converted', label: 'ליד סגור-לקוח' },
+        { value: 'not_relevant', label: 'ליד סגור-לא רלוונטי' },
       ],
     },
     { 

@@ -260,10 +260,17 @@ async def get_sales_conversion_metrics(
     # אם לא צוין salesperson_id, ננסה למצוא את ה-salesperson של המשתמש
     if not salesperson_id:
         from db.models import Salesperson
+        # קודם מחפשים לפי user_id (הדרך המומלצת)
         result = await session.execute(
-            select(Salesperson).where(Salesperson.email == current_user.email)
+            select(Salesperson).where(Salesperson.user_id == current_user.id)
         )
         salesperson = result.scalar_one_or_none()
+        # אם לא נמצא, fallback לחיפוש לפי email (תמיכה לאחור)
+        if not salesperson:
+            result = await session.execute(
+                select(Salesperson).where(Salesperson.email == current_user.email)
+            )
+            salesperson = result.scalar_one_or_none()
         if salesperson:
             salesperson_id = salesperson.id
     

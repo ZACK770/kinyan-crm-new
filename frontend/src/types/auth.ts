@@ -41,4 +41,4 @@ export interface GoogleAuthRequest {
   id_token?: string
 }
 
-export type UserRole = 'pending' | 'viewer' | 'editor' | 'manager' | 'admin'
+export type UserRole = 'pending' | 'viewer' | 'editor' | 'salesperson' | 'manager' | 'admin'

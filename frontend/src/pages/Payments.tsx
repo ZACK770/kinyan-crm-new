@@ -152,7 +152,8 @@ export function PaymentsPage() {
       options: [
         { value: 'paid', label: 'שולם' },
         { value: 'pending', label: 'ממתין' },
-        { value: 'partial', label: 'חלקי' },
+        { value: 'failed', label: 'נכשל' },
+        { value: 'refunded', label: 'הוחזר' },
       ],
       renderView: r => <Badge entity="payment" value={r.status} /> 
     },

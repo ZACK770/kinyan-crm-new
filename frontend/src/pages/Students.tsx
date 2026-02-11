@@ -282,7 +282,6 @@ export function StudentsPage() {
         { value: 'active', label: 'פעיל' },
         { value: 'inactive', label: 'לא פעיל' },
         { value: 'graduated', label: 'סיים' },
-        { value: 'suspended', label: 'מושהה' },
       ],
       renderView: r => <Badge entity="student" value={r.status} />
     },

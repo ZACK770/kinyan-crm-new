@@ -16,6 +16,7 @@ ROLES = {
     "pending": 0,
     "viewer": 10,
     "editor": 20,
+    "salesperson": 25,  # אנשי מכירות - גישה מלאה ללידים, לא יכולים לנהל משתמשים
     "manager": 30,
     "admin": 40,
 }
@@ -37,18 +38,18 @@ def level_to_role(level: int) -> str:
 # Used when no DB record exists for an entity/action pair
 DEFAULT_ENTITY_PERMISSIONS = {
     # entity_name: { action: required_level }
-    "leads":       {"view": 10, "create": 20, "edit": 20, "delete": 30},
-    "students":    {"view": 10, "create": 20, "edit": 20, "delete": 30},
-    "courses":     {"view": 10, "create": 20, "edit": 20, "delete": 30},
-    "campaigns":   {"view": 10, "create": 20, "edit": 20, "delete": 30},
+    "leads":       {"view": 10, "create": 20, "edit": 20, "delete": 30},  # salesperson (25) יכול ליצור ולערוך
+    "students":    {"view": 10, "create": 20, "edit": 20, "delete": 30},  # salesperson (25) יכול ליצור ולערוך
+    "courses":     {"view": 10, "create": 20, "edit": 20, "delete": 30},  # salesperson (25) יכול לצפות ולערוך
+    "campaigns":   {"view": 10, "create": 20, "edit": 20, "delete": 30},  # salesperson (25) יכול לצפות ולערוך
     "salespeople": {"view": 10, "create": 30, "edit": 30, "delete": 40},
-    "payments":    {"view": 10, "create": 20, "edit": 20, "delete": 30},
-    "expenses":    {"view": 20, "create": 20, "edit": 20, "delete": 30},
-    "exams":       {"view": 10, "create": 20, "edit": 20, "delete": 30},
-    "inquiries":   {"view": 10, "create": 10, "edit": 20, "delete": 30},
-    "collections": {"view": 10, "create": 20, "edit": 20, "delete": 30},
-    "commitments": {"view": 10, "create": 20, "edit": 20, "delete": 30},
-    "users":       {"view": 30, "create": 40, "edit": 40, "delete": 40},
+    "payments":    {"view": 10, "create": 20, "edit": 20, "delete": 30},  # salesperson (25) יכול ליצור ולערוך
+    "expenses":    {"view": 20, "create": 20, "edit": 20, "delete": 30},  # salesperson (25) יכול לצפות ולערוך
+    "exams":       {"view": 10, "create": 20, "edit": 20, "delete": 30},  # salesperson (25) יכול ליצור ולערוך
+    "inquiries":   {"view": 10, "create": 10, "edit": 20, "delete": 30},  # salesperson (25) יכול ליצור ולערוך
+    "collections": {"view": 10, "create": 20, "edit": 20, "delete": 30},  # salesperson (25) יכול ליצור ולערוך
+    "commitments": {"view": 10, "create": 20, "edit": 20, "delete": 30},  # salesperson (25) יכול ליצור ולערוך
+    "users":       {"view": 30, "create": 40, "edit": 40, "delete": 40},  # salesperson (25) לא יכול לנהל משתמשים
     "dashboard":   {"view": 10, "create": 40, "edit": 40, "delete": 40},
 }
 
