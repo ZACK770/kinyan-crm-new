@@ -27,8 +27,9 @@ export function DirectChargeDialog({
   const [expiry, setExpiry] = useState('')
   const [cvv, setCvv] = useState('')
   const [comments, setComments] = useState('')
-  const [paymentType, setPaymentType] = useState<'RAGIL' | 'HK'>('RAGIL')
-  const [hkMonths, setHkMonths] = useState<number | null>(null) // null = unlimited
+  // Default to HK (standing order) with unlimited duration - as per lead's payment_type default
+  const [paymentType, setPaymentType] = useState<'RAGIL' | 'HK'>('HK')
+  const [hkMonths, setHkMonths] = useState<number | null>(null) // null = unlimited (default)
   
   // Use props directly - no local state needed
   const amount = defaultAmount || 0
