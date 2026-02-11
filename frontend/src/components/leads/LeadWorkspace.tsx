@@ -176,8 +176,13 @@ export function LeadWorkspace({
       // Remove empty strings
       Object.keys(data).forEach(k => { if (data[k] === '') delete data[k] })
       
-      const newLead = await api.post<Lead>('leads', data)
-      onCreate?.(newLead)
+      const result = await api.post<{ lead_id: number; action: string }>('leads', data)
+      // API returns {lead_id: N}, fetch the full lead object
+      const fullLead = await api.get<Lead>(`leads/${result.lead_id}`)
+      if (result.action === 'updated') {
+        alert('ליד עם טלפון זה כבר קיים במערכת — פותח את הליד הקיים')
+      }
+      onCreate?.(fullLead)
     } catch (err) {
       console.error('Failed to create lead:', err)
     } finally {
