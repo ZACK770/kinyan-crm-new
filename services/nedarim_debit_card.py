@@ -114,12 +114,23 @@ class NedarimDebitCardService:
             'Tokef': expiry_clean,
             'CVV': cvv,
             'Amount': f"{amount:.2f}",
-            'Tashloumim': str(installments),
             'Currency': '1',  # 1 = ILS, 2 = USD
             'PaymentType': payment_type,  # RAGIL or HK
             'Avour': comments or 'תשלום CRM',
             'AjaxId': str(int(time.time() * 1000))
         }
+        
+        # Handle Tashloumim based on payment type
+        # For HK (standing order): empty = unlimited, number = limited months
+        # For RAGIL (regular): number of installments (must be >= 1)
+        if payment_type == 'HK':
+            # For standing order: if installments is 0 or None, leave empty (unlimited)
+            if installments and installments > 0:
+                payload['Tashloumim'] = str(installments)
+            # else: leave Tashloumim empty for unlimited recurring
+        else:
+            # For regular payment: must have installments
+            payload['Tashloumim'] = str(installments)
         
         logger.info(f"Charging card via Nedarim DebitCard API: {client_name}, Amount: {amount} ILS, Installments: {installments}")
         

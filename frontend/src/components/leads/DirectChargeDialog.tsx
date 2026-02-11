@@ -28,10 +28,11 @@ export function DirectChargeDialog({
   const [cvv, setCvv] = useState('')
   const [comments, setComments] = useState('')
   const [paymentType, setPaymentType] = useState<'RAGIL' | 'HK'>('RAGIL')
+  const [hkMonths, setHkMonths] = useState<number | null>(null) // null = unlimited
   
   // Use props directly - no local state needed
   const amount = defaultAmount || 0
-  const installments = defaultInstallments
+  const installments = paymentType === 'HK' ? (hkMonths || 0) : defaultInstallments
   
   const [isProcessing, setIsProcessing] = useState(false)
   const [result, setResult] = useState<any>(null)
@@ -219,9 +220,51 @@ export function DirectChargeDialog({
                   </label>
                 </div>
                 {paymentType === 'HK' && (
-                  <small style={{ fontSize: '12px', color: '#ff9800', display: 'block', marginTop: '6px' }}>
-                    ⚠️ הוראת קבע - הכרטיס יחויב באופן אוטומטי כל חודש
-                  </small>
+                  <div style={{ marginTop: '12px', padding: '12px', background: '#fff3e0', borderRadius: '6px', border: '1px solid #ff9800' }}>
+                    <div style={{ marginBottom: '8px', fontWeight: 500, color: '#e65100' }}>
+                      ⚠️ הוראת קבע - חיוב חודשי אוטומטי
+                    </div>
+                    <div style={{ display: 'flex', gap: '15px', marginTop: '8px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                        <input
+                          type="radio"
+                          name="hkDuration"
+                          checked={hkMonths === null}
+                          onChange={() => setHkMonths(null)}
+                          disabled={isProcessing}
+                        />
+                        <span>ללא הגבלה (עד ביטול)</span>
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                        <input
+                          type="radio"
+                          name="hkDuration"
+                          checked={hkMonths !== null}
+                          onChange={() => setHkMonths(12)}
+                          disabled={isProcessing}
+                        />
+                        <span>מוגבל למספר חודשים:</span>
+                        {hkMonths !== null && (
+                          <input
+                            type="number"
+                            className={s.input}
+                            value={hkMonths}
+                            onChange={e => setHkMonths(parseInt(e.target.value) || 1)}
+                            min="1"
+                            max="120"
+                            disabled={isProcessing}
+                            style={{ width: '80px', marginLeft: '6px' }}
+                          />
+                        )}
+                      </label>
+                    </div>
+                    <small style={{ fontSize: '11px', color: '#666', display: 'block', marginTop: '8px' }}>
+                      {hkMonths === null 
+                        ? '💡 הכרטיס יחויב כל חודש עד שתבטל את ההוראת קבע'
+                        : `💡 הכרטיס יחויב ${hkMonths} פעמים (${hkMonths} חודשים)`
+                      }
+                    </small>
+                  </div>
                 )}
               </div>
 
@@ -242,17 +285,25 @@ export function DirectChargeDialog({
                   </small>
                 </div>
                 <div className={s['form-group']}>
-                  <label className={s['form-label']}>תשלומים *</label>
+                  <label className={s['form-label']}>
+                    {paymentType === 'HK' ? 'חודשים' : 'תשלומים'} *
+                  </label>
                   <input
                     type="text"
                     className={s.input}
-                    value={installments}
+                    value={paymentType === 'HK' 
+                      ? (hkMonths === null ? 'ללא הגבלה' : hkMonths)
+                      : installments
+                    }
                     readOnly
                     disabled
                     style={{ background: '#f5f5f5', cursor: 'not-allowed' }}
                   />
                   <small style={{ fontSize: '12px', color: '#666', display: 'block', marginTop: '4px' }}>
-                    מספר תשלומים נלקח אוטומטית מהקורס
+                    {paymentType === 'HK'
+                      ? (hkMonths === null ? 'חיוב חודשי ללא הגבלת זמן' : `חיוב חודשי ל-${hkMonths} חודשים`)
+                      : 'מספר תשלומים נלקח אוטומטית מהקורס'
+                    }
                   </small>
                 </div>
               </div>

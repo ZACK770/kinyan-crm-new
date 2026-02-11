@@ -83,13 +83,14 @@ async def load_mappings(session):
     return salespeople, courses
 
 
-async def import_leads(excel_path, limit=None, dry_run=False):
+async def import_leads(excel_path, limit=None, dry_run=False, quiet=False):
     """ייבוא לידים מאקסל"""
     
     # קריאת האקסל
-    print("=" * 80)
-    print("קורא קובץ Excel...")
-    print("=" * 80)
+    if not quiet:
+        print("=" * 80)
+        print("קורא קובץ Excel...")
+        print("=" * 80)
     wb = openpyxl.load_workbook(excel_path)
     ws = wb.active
     headers = [cell.value for cell in ws[1]]
@@ -103,20 +104,23 @@ async def import_leads(excel_path, limit=None, dry_run=False):
         print(f"מייבא רק {limit} לידים ראשונים")
     if dry_run:
         print("⚠️  מצב DRY RUN - לא ישמר כלום ל-DB")
+    if quiet:
+        print("מצב שקט - מציג התקדמות כל 50 לידים")
     print()
     
     async with SessionLocal() as session:
         # טעינת מיפויים
         salespeople_map, courses_map = await load_mappings(session)
         
-        print("מיפויי אנשי מכירות:")
-        for name, sp_id in salespeople_map.items():
-            print(f"  {name} -> ID {sp_id}")
-        
-        print("\nמיפויי קורסים:")
-        for name, c_id in courses_map.items():
-            print(f"  {name} -> ID {c_id}")
-        print()
+        if not quiet:
+            print("מיפויי אנשי מכירות:")
+            for name, sp_id in salespeople_map.items():
+                print(f"  {name} -> ID {sp_id}")
+            
+            print("\nמיפויי קורסים:")
+            for name, c_id in courses_map.items():
+                print(f"  {name} -> ID {c_id}")
+            print()
         
         # סטטיסטיקות
         stats = {
@@ -143,7 +147,8 @@ async def import_leads(excel_path, limit=None, dry_run=False):
             # טלפון הוא שדה חובה
             phone = row_data.get("טלפון ראשי")
             if not phone:
-                print(f"⏭️  שורה {row_num}: דילגתי - אין טלפון")
+                if not quiet:
+                    print(f"⏭️  שורה {row_num}: דילגתי - אין טלפון")
                 stats["skipped_no_phone"] += 1
                 continue
             
@@ -154,7 +159,8 @@ async def import_leads(excel_path, limit=None, dry_run=False):
                 select(Lead).where(Lead.phone == phone)
             )
             if existing.scalar_one_or_none():
-                print(f"⏭️  שורה {row_num}: דילגתי - טלפון {phone} כבר קיים")
+                if not quiet:
+                    print(f"⏭️  שורה {row_num}: דילגתי - טלפון {phone} כבר קיים")
                 stats["skipped_duplicate"] += 1
                 continue
             
@@ -220,11 +226,18 @@ async def import_leads(excel_path, limit=None, dry_run=False):
                     session.add(lead)
                     await session.flush()
                 
-                print(f"✅ שורה {row_num}: {full_name} ({phone}) - {status}")
+                if not quiet:
+                    print(f"✅ שורה {row_num}: {full_name} ({phone}) - {status}")
                 stats["success"] += 1
                 
+                # הצגת התקדמות במצב שקט
+                if quiet and stats["success"] % 50 == 0:
+                    total_processed = sum(stats.values())
+                    print(f"התקדמות: {total_processed}/{total_rows} | הצלחות: {stats['success']} | דילוגים: {stats['skipped_duplicate']}")
+                
             except Exception as e:
-                print(f"❌ שורה {row_num}: שגיאה - {e}")
+                if not quiet:
+                    print(f"❌ שורה {row_num}: שגיאה - {e}")
                 stats["errors"] += 1
                 continue
         
@@ -252,10 +265,11 @@ async def main():
     parser = argparse.ArgumentParser(description="ייבוא לידים מהמערכת הישנה")
     parser.add_argument("--limit", type=int, help="מספר לידים מקסימלי לייבוא")
     parser.add_argument("--dry-run", action="store_true", help="הרצה ללא שמירה ל-DB")
+    parser.add_argument("--quiet", action="store_true", help="מצב שקט - פחות פלט")
     args = parser.parse_args()
     
     excel_path = r"C:\Users\admin\Downloads\לידים_02_11_2026.xlsx"
-    await import_leads(excel_path, limit=args.limit, dry_run=args.dry_run)
+    await import_leads(excel_path, limit=args.limit, dry_run=args.dry_run, quiet=args.quiet)
 
 
 if __name__ == "__main__":
