@@ -46,18 +46,28 @@ def _get_client_ip(request: Request) -> str:
     return request.client.host if request.client else ""
 
 
+async def _extract_data(request: Request) -> dict:
+    """Extract data from request body (JSON or form-data) or query params for GET."""
+    if request.method == "GET":
+        return dict(request.query_params)
+    content_type = request.headers.get("content-type", "")
+    if "form" in content_type:
+        return dict(await request.form())
+    return await request.json()
+
+
 # ============================================================
 # Lead Ingestion Webhooks
 # ============================================================
 
-@router.post("/elementor")
+@router.api_route("/elementor", methods=["GET", "POST"])
 async def elementor_webhook(request: Request):
     """Handle Elementor form submissions from website."""
     timer = WebhookTimer()
     data = None
     try:
         with timer:
-            data = await request.json()
+            data = await _extract_data(request)
             data = _unwrap_array(data)
             logger.info(f"Elementor webhook received: phone={data.get('fields', {}).get('field_6f8642e', {}).get('value', 'N/A')}")
             result = await handle_elementor_webhook(data)
@@ -96,19 +106,14 @@ async def elementor_webhook(request: Request):
         return {"success": False, "error": str(e)}
 
 
-@router.post("/yemot")
+@router.api_route("/yemot", methods=["GET", "POST"])
 async def yemot_webhook(request: Request):
     """Handle Yemot IVR call events."""
     timer = WebhookTimer()
     data = None
     try:
         with timer:
-            # Yemot can send as form-data or JSON
-            content_type = request.headers.get("content-type", "")
-            if "form" in content_type:
-                data = dict(await request.form())
-            else:
-                data = await request.json()
+            data = await _extract_data(request)
             
             data = _unwrap_array(data)
             phone = data.get("Phone", data.get("phone", data.get("caller", "N/A")))
@@ -148,14 +153,14 @@ async def yemot_webhook(request: Request):
         return {"success": False, "error": str(e)}
 
 
-@router.post("/generic")
+@router.api_route("/generic", methods=["GET", "POST"])
 async def generic_webhook(request: Request):
     """Handle generic webhook / manual API."""
     timer = WebhookTimer()
     data = None
     try:
         with timer:
-            data = await request.json()
+            data = await _extract_data(request)
             result = await handle_generic_webhook(data)
         
         async for db in get_db():
@@ -190,7 +195,7 @@ async def generic_webhook(request: Request):
         return {"success": False, "error": str(e)}
 
 
-@router.post("/lead")
+@router.api_route("/lead", methods=["GET", "POST"])
 async def unified_lead_webhook(request: Request):
     """
     Unified lead ingestion endpoint.
@@ -203,13 +208,7 @@ async def unified_lead_webhook(request: Request):
     data = None
     try:
         with timer:
-            # Yemot can send as form-data
-            content_type = request.headers.get("content-type", "")
-            if "form" in content_type:
-                data = dict(await request.form())
-            else:
-                data = await request.json()
-            
+            data = await _extract_data(request)
             data = _unwrap_array(data)
             source = detect_source(data)
             logger.info(f"Unified lead webhook: detected source={source}")
@@ -252,7 +251,7 @@ async def unified_lead_webhook(request: Request):
 # Payment Webhooks
 # ============================================================
 
-@router.post("/nedarim")
+@router.api_route("/nedarim", methods=["GET", "POST"])
 async def nedarim_webhook(request: Request):
     """
     Handle Nedarim Plus payment webhooks.
@@ -316,7 +315,7 @@ async def nedarim_webhook(request: Request):
 # Lesson / Session Webhooks
 # ============================================================
 
-@router.post("/lesson-complete")
+@router.api_route("/lesson-complete", methods=["GET", "POST"])
 async def lesson_complete_webhook(request: Request):
     """
     Handle lesson completion events.
@@ -328,7 +327,7 @@ async def lesson_complete_webhook(request: Request):
     data = None
     try:
         with timer:
-            data = await request.json()
+            data = await _extract_data(request)
             data = _unwrap_array(data)
             logger.info(f"Lesson complete webhook: session={data.get('session_id')}, module={data.get('module_id')}")
             result = await handle_lesson_complete_webhook(data)
@@ -369,7 +368,7 @@ async def lesson_complete_webhook(request: Request):
 # Terms / Kinyan Approval Webhooks
 # ============================================================
 
-@router.post("/kinyan-approval")
+@router.api_route("/kinyan-approval", methods=["GET", "POST"])
 async def kinyan_approval_webhook(request: Request):
     """
     Handle kinyan/terms approval from external link.
@@ -381,7 +380,7 @@ async def kinyan_approval_webhook(request: Request):
     data = None
     try:
         with timer:
-            data = await request.json()
+            data = await _extract_data(request)
             data = _unwrap_array(data)
             logger.info(f"Kinyan approval webhook: lead={data.get('lead_id')}, phone={data.get('phone')}")
             result = await handle_kinyan_approval_webhook(data)
@@ -422,7 +421,7 @@ async def kinyan_approval_webhook(request: Request):
 # File Upload Webhooks
 # ============================================================
 
-@router.post("/file-upload")
+@router.api_route("/file-upload", methods=["GET", "POST"])
 async def file_upload_webhook(request: Request):
     """
     Handle automatic file registration.
@@ -434,7 +433,7 @@ async def file_upload_webhook(request: Request):
     data = None
     try:
         with timer:
-            data = await request.json()
+            data = await _extract_data(request)
             data = _unwrap_array(data)
             logger.info(f"File upload webhook: entity={data.get('entity_type')}/{data.get('entity_id')}, file={data.get('filename')}")
             result = await handle_file_upload_webhook(data)

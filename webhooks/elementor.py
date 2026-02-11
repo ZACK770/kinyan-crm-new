@@ -177,6 +177,17 @@ def parse_elementor_payload(data: dict) -> dict:
     if marketing_product:
         parsed["form_product"] = parsed.get("form_product") or marketing_product
 
+    # Build rich form_content for interaction history
+    content_parts = []
+    if parsed.get("form_product"):
+        content_parts.append(f"מסלול: {parsed['form_product']}")
+    if parsed.get("source_message"):
+        content_parts.append(f"הודעה: {parsed['source_message']}")
+    if parsed.get("form_content"):
+        content_parts.append(parsed["form_content"])
+    if content_parts:
+        parsed["form_content"] = " | ".join(content_parts)
+
     return parsed
 
 

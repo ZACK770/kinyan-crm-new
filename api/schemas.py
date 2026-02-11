@@ -35,6 +35,7 @@ class LeadBase(BaseModel):
     salesperson_id: Optional[int] = Field(default=None, description="מזהה איש מכירות")
     campaign_id: Optional[int] = Field(default=None, description="מזהה קמפיין")
     course_id: Optional[int] = Field(default=None, description="מזהה קורס מבוקש")
+    requested_course: Optional[str] = Field(default=None, description="קורס מבוקש (טקסט חופשי מהטופס)")
 
 
 class LeadCreate(LeadBase):
@@ -61,6 +62,7 @@ class LeadUpdate(BaseModel):
     salesperson_id: Optional[int] = None
     campaign_id: Optional[int] = None
     course_id: Optional[int] = None
+    requested_course: Optional[str] = None
 
 
 class LeadInteractionResponse(BaseModel):

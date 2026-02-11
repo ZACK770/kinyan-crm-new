@@ -106,6 +106,7 @@ async def get_lead(
         "salesperson_id": lead.salesperson_id,
         "campaign_id": lead.campaign_id,
         "course_id": lead.course_id,
+        "requested_course": lead.requested_course,
         "student_id": lead.student_id,
         "conversion_date": str(lead.conversion_date) if lead.conversion_date else None,
         "first_payment": lead.first_payment,
@@ -120,6 +121,8 @@ async def get_lead(
                 "interaction_type": i.interaction_type,
                 "description": i.description,
                 "call_status": i.call_status,
+                "form_product": i.form_product,
+                "form_content": i.form_content,
                 "user_name": i.user_name,
                 "created_at": str(i.created_at),
             }

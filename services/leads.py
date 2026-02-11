@@ -65,6 +65,7 @@ async def create_lead(db: AsyncSession, **kwargs) -> Lead:
         salesperson_id=kwargs.get("salesperson_id"),
         campaign_id=kwargs.get("campaign_id"),
         course_id=kwargs.get("course_id"),
+        requested_course=kwargs.get("form_product") or kwargs.get("requested_course"),
         created_at=kwargs.get("created_at", datetime.now(timezone.utc)),
     )
     db.add(lead)

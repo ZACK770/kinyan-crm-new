@@ -418,6 +418,7 @@ class Lead(Base):
     student_id: Mapped[Optional[int]] = mapped_column(ForeignKey("students.id", use_alter=True, name="fk_lead_student"))
     campaign_id: Mapped[Optional[int]] = mapped_column(ForeignKey("campaigns.id"))
     course_id: Mapped[Optional[int]] = mapped_column(ForeignKey("courses.id"))  # Interested course
+    requested_course: Mapped[Optional[str]] = mapped_column(String(300))  # Free text - what the lead asked for (from form)
     interested_track_id: Mapped[Optional[int]] = mapped_column(ForeignKey("course_tracks.id"))  # Interested track
     active_task_id: Mapped[Optional[int]] = mapped_column(ForeignKey("sales_tasks.id", use_alter=True))
     

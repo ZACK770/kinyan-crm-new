@@ -81,6 +81,7 @@ const INITIAL_FORM = {
   source_message: '',
   campaign_id: '',
   course_id: '',
+  requested_course: '',
   notes: '',
   salesperson_id: '',
   status: 'new',
@@ -201,11 +202,6 @@ export function LeadWorkspace({
     label: c.name,
   }))
   
-  const courseOptions: SelectOption[] = courses.map(c => ({
-    value: c.id,
-    label: c.name,
-  }))
-
   const isConverted = lead ? (lead.status === 'converted' || !!lead.student_id) : false
 
   // Find related names for display (edit mode only)
@@ -323,12 +319,8 @@ export function LeadWorkspace({
             <div className={`${s['field-grid']} ${s['field-grid--single']}`}>
               <EditableField
                 label="קורס מבוקש"
-                value={form.course_id || null}
-                displayValue={courses.find(c => c.id === Number(form.course_id))?.name}
-                type="entity-select"
-                options={courseOptions}
-                onSave={v => { updateForm('course_id', String(v ?? '')); return Promise.resolve() }}
-                entityCreatePath="/courses"
+                value={form.requested_course}
+                onSave={v => { updateForm('requested_course', String(v ?? '')); return Promise.resolve() }}
               />
             </div>
           </CollapsibleSection>
@@ -531,12 +523,8 @@ export function LeadWorkspace({
           <div className={`${s['field-grid']} ${s['field-grid--single']}`}>
             <EditableField
               label="קורס מבוקש"
-              value={lead!.course_id}
-              displayValue={courses.find(c => c.id === lead!.course_id)?.name}
-              type="entity-select"
-              options={courseOptions}
-              onSave={v => saveField('course_id', v)}
-              entityCreatePath="/courses"
+              value={lead!.requested_course}
+              onSave={v => saveField('requested_course', v)}
             />
           </div>
         </CollapsibleSection>
@@ -731,6 +719,16 @@ function InteractionsTab({
                   </span>
                 )}
               </div>
+              {interaction.form_product && (
+                <div style={{ marginTop: 4, fontSize: 13, color: 'var(--color-primary)' }}>
+                  מסלול: {interaction.form_product}
+                </div>
+              )}
+              {interaction.form_content && (
+                <div style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text)', whiteSpace: 'pre-wrap' }}>
+                  {interaction.form_content}
+                </div>
+              )}
               {interaction.description && (
                 <div style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text)' }}>
                   {interaction.description}

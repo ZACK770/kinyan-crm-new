@@ -28,6 +28,7 @@ export interface Lead {
   student_id?: number
   campaign_id?: number
   course_id?: number  // Interested course
+  requested_course?: string  // Free text - what the lead asked for
   interested_track_id?: number
   active_task_id?: number
   // Payment tracking (selected course for sale)
