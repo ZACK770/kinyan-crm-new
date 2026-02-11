@@ -26,9 +26,11 @@ export function DirectChargeDialog({
   const [cardNumber, setCardNumber] = useState('')
   const [expiry, setExpiry] = useState('')
   const [cvv, setCvv] = useState('')
-  const [amount, setAmount] = useState(defaultAmount?.toString() || '')
-  const [installments, setInstallments] = useState(defaultInstallments.toString())
   const [comments, setComments] = useState('')
+  
+  // Use props directly - no local state needed
+  const amount = defaultAmount || 0
+  const installments = defaultInstallments
   
   const [isProcessing, setIsProcessing] = useState(false)
   const [result, setResult] = useState<any>(null)
@@ -73,7 +75,7 @@ export function DirectChargeDialog({
       if (cvv.length < 3 || cvv.length > 4) {
         throw new Error('CVV לא תקין (3-4 ספרות)')
       }
-      if (!amount || parseFloat(amount) <= 0) {
+      if (!amount || amount <= 0) {
         throw new Error('סכום לא תקין')
       }
       
@@ -81,8 +83,8 @@ export function DirectChargeDialog({
         card_number: cleanCardNumber,
         expiry: cleanExpiry,
         cvv: cvv,
-        amount: parseFloat(amount),
-        installments: parseInt(installments),
+        amount: amount,
+        installments: installments,
         comments: comments || undefined
       })
       
@@ -187,35 +189,35 @@ export function DirectChargeDialog({
                 </div>
               </div>
 
-              {/* Amount & Installments */}
+              {/* Amount & Installments - READ ONLY */}
               <div className={s['form-row']}>
                 <div className={s['form-group']}>
                   <label className={s['form-label']}>סכום (₪) *</label>
                   <input
-                    type="number"
+                    type="text"
                     className={s.input}
-                    value={amount}
-                    onChange={e => setAmount(e.target.value)}
-                    placeholder="100"
-                    min="1"
-                    step="0.01"
-                    required
-                    disabled={isProcessing}
+                    value={`₪${amount}`}
+                    readOnly
+                    disabled
+                    style={{ background: '#f5f5f5', cursor: 'not-allowed' }}
                   />
+                  <small style={{ fontSize: '12px', color: '#666', display: 'block', marginTop: '4px' }}>
+                    מחיר נלקח אוטומטית מהקורס שנבחר
+                  </small>
                 </div>
                 <div className={s['form-group']}>
                   <label className={s['form-label']}>תשלומים *</label>
                   <input
-                    type="number"
+                    type="text"
                     className={s.input}
                     value={installments}
-                    onChange={e => setInstallments(e.target.value)}
-                    placeholder="1"
-                    min="1"
-                    max="36"
-                    required
-                    disabled={isProcessing}
+                    readOnly
+                    disabled
+                    style={{ background: '#f5f5f5', cursor: 'not-allowed' }}
                   />
+                  <small style={{ fontSize: '12px', color: '#666', display: 'block', marginTop: '4px' }}>
+                    מספר תשלומים נלקח אוטומטית מהקורס
+                  </small>
                 </div>
               </div>
 
