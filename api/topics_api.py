@@ -1,45 +1,31 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func, and_
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
 
 from db import get_db
-from db.models import User, Topic, Lesson, StudentLessonProgress
+from db.models import User, Topic, Lesson, StudentLessonProgress, Course, Student
 from api.dependencies import get_current_user
 from services import topics_service
 
 router = APIRouter()
 
 
-class TopicResponse(BaseModel):
-    id: int
+# ── Schemas ──────────────────────────────────────────
+
+class CreateTopicRequest(BaseModel):
     name: str
-    description: Optional[str]
-    order_index: int
-    lessons_count: int
-    first_lesson: Optional[dict]
-
-    class Config:
-        from_attributes = True
+    description: Optional[str] = None
+    lecturer_name: Optional[str] = None
 
 
-class LessonResponse(BaseModel):
-    id: int
-    lesson_number: int
+class CreateLessonRequest(BaseModel):
     title: str
-    description: Optional[str]
-    video_url: Optional[str]
-    cover_image_url: Optional[str]
-    lecturer_name: Optional[str]
-    scheduled_date: Optional[datetime]
-    status: str
-    assignment_title: Optional[str]
-    students_count: int
-    assignment_submitted_count: int
-
-    class Config:
-        from_attributes = True
+    description: Optional[str] = None
+    lecturer_name: Optional[str] = None
+    scheduled_date: Optional[datetime] = None
 
 
 class ReorderTopicsRequest(BaseModel):
@@ -111,6 +97,64 @@ async def get_course_topics(
     }
 
 
+@router.post("/courses/{course_id}/topics")
+async def create_topic(
+    course_id: int,
+    request: CreateTopicRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    _check_permission(user, 30)
+    
+    # Get max order_index
+    result = await db.execute(
+        select(func.coalesce(func.max(Topic.order_index), -1))
+        .where(Topic.course_id == course_id)
+    )
+    max_index = result.scalar()
+    
+    topic = Topic(
+        course_id=course_id,
+        name=request.name,
+        description=request.description,
+        lecturer_name=request.lecturer_name,
+        order_index=max_index + 1
+    )
+    db.add(topic)
+    await db.commit()
+    await db.refresh(topic)
+    
+    return {
+        "success": True,
+        "topic": {
+            "id": topic.id,
+            "name": topic.name,
+            "description": topic.description,
+            "order_index": topic.order_index,
+            "lessons_count": 0,
+            "first_lesson": None
+        }
+    }
+
+
+@router.delete("/topics/{topic_id}")
+async def delete_topic(
+    topic_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    _check_permission(user, 30)
+    
+    topic = await topics_service.get_topic_by_id(db, topic_id)
+    if not topic:
+        raise HTTPException(status_code=404, detail="Topic not found")
+    
+    await db.delete(topic)
+    await db.commit()
+    
+    return {"success": True, "message": "Topic deleted"}
+
+
 @router.post("/courses/{course_id}/topics/reorder")
 async def reorder_course_topics(
     course_id: int,
@@ -179,6 +223,73 @@ async def get_topic_lessons(
         },
         "lessons": result
     }
+
+
+@router.post("/topics/{topic_id}/lessons")
+async def create_lesson(
+    topic_id: int,
+    request: CreateLessonRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    _check_permission(user, 30)
+    
+    topic = await topics_service.get_topic_by_id(db, topic_id)
+    if not topic:
+        raise HTTPException(status_code=404, detail="Topic not found")
+    
+    # Get max lesson_number
+    result = await db.execute(
+        select(func.coalesce(func.max(Lesson.lesson_number), 0))
+        .where(Lesson.topic_id == topic_id)
+    )
+    max_num = result.scalar()
+    
+    lesson = Lesson(
+        topic_id=topic_id,
+        course_id=topic.course_id,
+        lesson_number=max_num + 1,
+        title=request.title,
+        description=request.description,
+        lecturer_name=request.lecturer_name or topic.lecturer_name,
+        scheduled_date=request.scheduled_date,
+        status="scheduled"
+    )
+    db.add(lesson)
+    
+    # Update topic lessons_count
+    topic.lessons_count = max_num + 1
+    
+    await db.commit()
+    await db.refresh(lesson)
+    
+    return {
+        "success": True,
+        "lesson": {
+            "id": lesson.id,
+            "lesson_number": lesson.lesson_number,
+            "title": lesson.title,
+            "status": lesson.status
+        }
+    }
+
+
+@router.delete("/lessons/{lesson_id}")
+async def delete_lesson(
+    lesson_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    _check_permission(user, 30)
+    
+    lesson = await topics_service.get_lesson_by_id(db, lesson_id)
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+    
+    await db.delete(lesson)
+    await db.commit()
+    
+    return {"success": True, "message": "Lesson deleted"}
 
 
 @router.get("/courses/{course_id}/entry-points")
@@ -375,3 +486,101 @@ async def update_lesson(
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to update lesson: {str(e)}")
+
+
+# ── Student Portal ──────────────────────────────────────────
+
+@router.get("/student-portal/{student_id}/{course_id}")
+async def get_student_portal(
+    student_id: int,
+    course_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    _check_permission(user, 10)
+    
+    # Get student
+    student_result = await db.execute(select(Student).where(Student.id == student_id))
+    student = student_result.scalar_one_or_none()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    # Get course
+    course_result = await db.execute(select(Course).where(Course.id == course_id))
+    course = course_result.scalar_one_or_none()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    # Get topics
+    topics = await topics_service.get_course_topics(db, course_id)
+    
+    # Get all lesson IDs for this course
+    all_lessons = []
+    topics_data = []
+    for topic in topics:
+        topic_lessons = await topics_service.get_topic_lessons(db, topic.id)
+        lessons_data = []
+        for lesson in topic_lessons:
+            # Get progress for this student
+            progress = await topics_service.get_student_progress_for_lesson(db, student_id, lesson.id)
+            lessons_data.append({
+                "id": lesson.id,
+                "lesson_number": lesson.lesson_number,
+                "title": lesson.title,
+                "description": lesson.description,
+                "video_url": lesson.video_url,
+                "cover_image_url": lesson.cover_image_url,
+                "lecturer_name": lesson.lecturer_name,
+                "scheduled_date": lesson.scheduled_date.isoformat() if lesson.scheduled_date else None,
+                "assignment_title": lesson.assignment_title,
+                "assignment_description": lesson.assignment_description,
+                "assignment_file_url": lesson.assignment_file_url,
+                "assignment_due_days": lesson.assignment_due_days or 7,
+                "progress": {
+                    "attended": progress.attended,
+                    "video_watched": progress.video_watched,
+                    "video_watch_percentage": progress.video_watch_percentage,
+                    "assignment_submitted": progress.assignment_submitted,
+                    "assignment_grade": progress.assignment_grade
+                } if progress else None
+            })
+            all_lessons.append(lesson)
+        
+        topics_data.append({
+            "id": topic.id,
+            "name": topic.name,
+            "order_index": topic.order_index,
+            "lessons_count": len(topic_lessons),
+            "lessons": lessons_data
+        })
+    
+    # Calculate overall progress
+    total_lessons = len(all_lessons)
+    completed_lessons = 0
+    if total_lessons > 0:
+        for lesson in all_lessons:
+            progress = await topics_service.get_student_progress_for_lesson(db, student_id, lesson.id)
+            if progress and (progress.attended or progress.video_watch_percentage >= 80):
+                completed_lessons += 1
+    
+    progress_pct = (completed_lessons / total_lessons * 100) if total_lessons > 0 else 0
+    
+    return {
+        "success": True,
+        "student": {
+            "id": student.id,
+            "full_name": student.full_name,
+            "is_graduate": student.is_graduate
+        },
+        "course": {
+            "id": course.id,
+            "name": course.name
+        },
+        "topics": topics_data,
+        "progress": {
+            "completed_lessons": completed_lessons,
+            "total_lessons": total_lessons,
+            "percentage": round(progress_pct, 1),
+            "is_graduate": student.is_graduate
+        }
+    }
