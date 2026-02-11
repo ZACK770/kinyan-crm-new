@@ -38,8 +38,12 @@ async def list_leads(
         {
             "id": l.id,
             "full_name": l.full_name,
+            "family_name": l.family_name,
             "phone": l.phone,
+            "email": l.email,
+            "city": l.city,
             "status": l.status,
+            "source_type": l.source_type,
             "salesperson_id": l.salesperson_id,
             "created_at": str(l.created_at),
         }

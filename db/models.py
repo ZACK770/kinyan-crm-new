@@ -7,7 +7,7 @@ from datetime import datetime, date
 from typing import Optional, List
 from sqlalchemy import (
     String, Text, Integer, Numeric, Boolean, Date, DateTime,
-    ForeignKey, Index, UniqueConstraint, ARRAY, func
+    ForeignKey, Index, UniqueConstraint, ARRAY, LargeBinary, func
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from db import Base
@@ -72,6 +72,10 @@ class Salesperson(Base):
     notes: Mapped[Optional[str]] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    # Notification settings
+    notification_webhook_url: Mapped[Optional[str]] = mapped_column(String(500))  # External webhook URL (WhatsApp API, etc.)
+    notify_on_new_lead: Mapped[bool] = mapped_column(Boolean, default=True)  # Send notification when new lead assigned
 
     # Relations
     leads: Mapped[List["Lead"]] = relationship(back_populates="salesperson")
@@ -1060,7 +1064,8 @@ class File(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     filename: Mapped[str] = mapped_column(String(500), nullable=False)  # original filename
-    storage_key: Mapped[str] = mapped_column(String(500), nullable=False, unique=True)  # R2 object key
+    storage_key: Mapped[Optional[str]] = mapped_column(String(500), unique=True)  # R2 object key (nullable for DB storage)
+    file_data: Mapped[Optional[bytes]] = mapped_column(LargeBinary)  # Binary data if stored in DB
     content_type: Mapped[Optional[str]] = mapped_column(String(100))
     size_bytes: Mapped[Optional[int]] = mapped_column(Integer)
     
@@ -1080,3 +1085,40 @@ class File(Base):
     )
 
     uploader: Mapped[Optional["User"]] = relationship()
+
+
+# ============================================================
+# WebhookLog (לוג וובהוקים) — audit trail for all incoming webhooks
+# ============================================================
+class WebhookLog(Base):
+    __tablename__ = "webhook_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    
+    # Webhook identification
+    webhook_type: Mapped[str] = mapped_column(String(50), nullable=False)  # elementor/yemot/generic/nedarim/lesson-complete/kinyan-approval/file-upload
+    source_ip: Mapped[Optional[str]] = mapped_column(String(100))
+    
+    # Payload
+    raw_payload: Mapped[Optional[str]] = mapped_column(Text)  # JSON string of raw incoming data
+    parsed_data: Mapped[Optional[str]] = mapped_column(Text)  # JSON string of parsed/normalized data
+    
+    # Processing result
+    success: Mapped[bool] = mapped_column(Boolean, default=False)
+    action: Mapped[Optional[str]] = mapped_column(String(100))  # created/updated/processed/failed
+    result_data: Mapped[Optional[str]] = mapped_column(Text)  # JSON string of result
+    error_message: Mapped[Optional[str]] = mapped_column(Text)
+    
+    # Linked entity (what was created/updated)
+    entity_type: Mapped[Optional[str]] = mapped_column(String(50))  # lead/payment/session/file
+    entity_id: Mapped[Optional[int]] = mapped_column(Integer)
+    
+    # Timing
+    processing_time_ms: Mapped[Optional[int]] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_webhook_logs_type", "webhook_type"),
+        Index("idx_webhook_logs_created", "created_at"),
+        Index("idx_webhook_logs_entity", "entity_type", "entity_id"),
+    )

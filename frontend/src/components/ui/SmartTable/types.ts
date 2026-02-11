@@ -80,6 +80,14 @@ export interface BulkAction<T> {
   }
 }
 
+// Search field configuration
+export interface SearchFieldConfig {
+  key: string
+  label: string
+  /** Weight for ranking (higher = more important). Default 1 */
+  weight?: number
+}
+
 // SmartTable props
 export interface SmartTableProps<T> {
   // Data
@@ -101,6 +109,15 @@ export interface SmartTableProps<T> {
   // Features
   bulkActions?: BulkAction<T>[]
   storageKey?: string // For persisting filters/columns to localStorage
+  
+  // Search
+  searchFields?: SearchFieldConfig[] // Fields to search in (defaults to all text/select)
+  searchPlaceholder?: string
+  onSearchSelect?: (row: T) => void // Called when a search result is clicked
+  
+  // Pagination
+  defaultPageSize?: number // Default items per page (default: 100)
+  pageSizeOptions?: number[] // Available page sizes (default: [50, 100, 200])
   
   // UI customization
   className?: string

@@ -318,7 +318,15 @@ async def process_incoming_lead(db: AsyncSession, **kwargs) -> dict:
     """
     Handle an incoming lead from any source.
     This is the core function that replaces the entire unified_make_module.js.
+    
+    Flow:
+    1. Validate phone
+    2. Search for existing lead by phone
+       - Found → add interaction
+       - Not found → create lead + assign salesperson + add interaction + notify
     """
+    from services.lead_notifications import notify_salesperson_new_lead
+    
     phone = kwargs.get("phone", "")
     if not is_valid_phone(phone):
         return {"success": False, "error": "Invalid phone number"}
@@ -336,16 +344,33 @@ async def process_incoming_lead(db: AsyncSession, **kwargs) -> dict:
             "lead_id": existing.id,
         }
     else:
-        # New lead → create + assign + interaction
+        # New lead → create + assign + interaction + notify
         lead = await create_lead(db, **kwargs)
         sp = await assign_salesperson(db, lead.id, phone)
         await add_interaction(db, lead.id, **kwargs)
         await db.commit()
+        
+        # Post-hook: notify assigned salesperson
+        notification_result = None
+        if sp:
+            try:
+                notification_result = await notify_salesperson_new_lead(
+                    db,
+                    lead_id=lead.id,
+                    salesperson_id=sp.id,
+                    source=kwargs.get("source_type", "webhook"),
+                )
+            except Exception as e:
+                # Notification failure should never break lead creation
+                import logging
+                logging.getLogger(__name__).error(f"Notification error for lead {lead.id}: {e}")
+        
         return {
             "success": True,
             "action": "created",
             "lead_id": lead.id,
             "salesperson": sp.name if sp else None,
+            "notification": notification_result,
         }
 
 

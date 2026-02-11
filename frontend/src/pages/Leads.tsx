@@ -838,6 +838,18 @@ export function LeadsPage() {
           onBulkUpdate={handleBulkUpdate}
           keyExtractor={(row) => row.id}
           storageKey="leads_table_v1"
+          searchPlaceholder="חיפוש ליד לפי שם, טלפון, אימייל..."
+          searchFields={[
+            { key: 'full_name', label: 'שם פרטי', weight: 3 },
+            { key: 'family_name', label: 'שם משפחה', weight: 3 },
+            { key: 'phone', label: 'טלפון', weight: 2 },
+            { key: 'email', label: 'אימייל', weight: 1 },
+            { key: 'city', label: 'עיר', weight: 1 },
+            { key: 'status', label: 'סטטוס', weight: 1 },
+          ]}
+          onSearchSelect={openLeadWorkspace}
+          defaultPageSize={100}
+          pageSizeOptions={[50, 100, 200]}
           bulkActions={[
             {
               id: 'assign_sp',

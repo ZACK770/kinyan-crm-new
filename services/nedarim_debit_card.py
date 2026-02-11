@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from db import settings
-from db.models import Lead, Payment
+from db.models import Lead, Payment, Salesperson, Course
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +53,8 @@ class NedarimDebitCardService:
         phone: Optional[str] = None,
         comments: Optional[str] = None,
         payment_type: str = "RAGIL",  # RAGIL (regular) or HK (standing order)
+        groupe: Optional[str] = None,
+        param1: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Charge a credit card directly via Nedarim Plus
@@ -117,6 +119,8 @@ class NedarimDebitCardService:
             'Currency': '1',  # 1 = ILS, 2 = USD
             'PaymentType': payment_type,  # RAGIL or HK
             'Avour': comments or 'תשלום CRM',
+            'Groupe': groupe or '',
+            'Param1': param1 or '',
             'AjaxId': str(int(time.time() * 1000))
         }
         
@@ -133,7 +137,7 @@ class NedarimDebitCardService:
             # For regular payment: must have installments
             payload['Tashloumim'] = str(installments)
         
-        logger.info(f"Charging card via Nedarim DebitCard API: {client_name}, Amount: {amount} ILS, PaymentType: {payment_type}, Tashloumim: {payload.get('Tashloumim', 'NOT SENT')}")
+        logger.info(f"Charging card via Nedarim DebitCard API: {client_name}, Amount: {amount} ILS, PaymentType: {payment_type}, Tashloumim: {payload.get('Tashloumim', 'NOT SENT')}, Groupe: {groupe or 'N/A'}, Param1: {param1 or 'N/A'}")
         
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -229,6 +233,24 @@ async def charge_lead_card(
     # Create service and charge card
     service = NedarimDebitCardService()
     
+    # Get course name for Groupe
+    groupe = None
+    if lead.selected_course_id:
+        course_stmt = select(Course).where(Course.id == lead.selected_course_id)
+        course_result = await db.execute(course_stmt)
+        course = course_result.scalar_one_or_none()
+        if course:
+            groupe = course.name
+    
+    # Get salesperson name for Param1
+    salesperson_name = None
+    if lead.salesperson_id:
+        sp_stmt = select(Salesperson).where(Salesperson.id == lead.salesperson_id)
+        sp_result = await db.execute(sp_stmt)
+        sp = sp_result.scalar_one_or_none()
+        if sp:
+            salesperson_name = sp.name
+    
     # Prepare detailed comments with lead info
     if not comments:
         comments_parts = [f"ליד #{lead_id}"]
@@ -249,7 +271,9 @@ async def charge_lead_card(
             email=lead.email,
             phone=lead.phone,
             payment_type=payment_type,
-            comments=comments
+            comments=comments,
+            groupe=groupe,
+            param1=salesperson_name,
         )
         
         # Create payment record

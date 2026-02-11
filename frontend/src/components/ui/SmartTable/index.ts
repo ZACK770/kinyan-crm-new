@@ -4,6 +4,8 @@ export { FilterPanel } from './FilterPanel'
 export { ColumnManager } from './ColumnManager'
 export { BulkActions } from './BulkActions'
 export { InlineEditCell } from './InlineEditCell'
+export { SmartSearch } from './SmartSearch'
+export { TablePagination } from './TablePagination'
 
 // Types
 export type {
@@ -16,6 +18,7 @@ export type {
   FilterOperator,
   SelectOption,
   TableState,
+  SearchFieldConfig,
 } from './types'
 
 // Utilities

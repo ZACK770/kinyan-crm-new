@@ -21,6 +21,13 @@ secret_key = os.getenv("R2_SECRET_ACCESS_KEY")
 bucket_name = os.getenv("R2_BUCKET_NAME", "crm-files")
 verify_ssl = os.getenv("R2_VERIFY_SSL", "true").lower() != "false"
 
+# Jurisdiction-specific endpoint
+jurisdiction = os.getenv("R2_JURISDICTION", "").lower()
+if jurisdiction:
+    endpoint_url = f'https://{account_id}.{jurisdiction}.r2.cloudflarestorage.com'
+else:
+    endpoint_url = f'https://{account_id}.r2.cloudflarestorage.com'
+
 print("="*60)
 print("🔍 R2 Credentials Verification")
 print("="*60)
@@ -28,6 +35,8 @@ print(f"Account ID: {account_id}")
 print(f"Access Key length: {len(access_key) if access_key else 0} chars")
 print(f"Secret Key length: {len(secret_key) if secret_key else 0} chars")
 print(f"Bucket: {bucket_name}")
+print(f"Jurisdiction: {jurisdiction if jurisdiction else 'default'}")
+print(f"Endpoint: {endpoint_url}")
 print(f"SSL Verify: {verify_ssl}")
 print("="*60)
 
@@ -50,7 +59,7 @@ print("\n🔌 Testing Connection...")
 try:
     client = boto3.client(
         's3',
-        endpoint_url=f'https://{account_id}.r2.cloudflarestorage.com',
+        endpoint_url=endpoint_url,
         aws_access_key_id=access_key,
         aws_secret_access_key=secret_key,
         config=Config(

@@ -3,7 +3,7 @@ Files API endpoints.
 Handles file uploads, downloads, and management using Cloudflare R2.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File as FastAPIFile
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from pydantic import BaseModel
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -65,7 +65,7 @@ async def upload_file(
     folder = f"{entity_type}/{entity_id}" if entity_type and entity_id else "general"
     
     try:
-        # Upload to R2
+        # Upload to storage backend (DB or R2)
         result = await storage_service.upload_file(
             file_data=file.file,
             filename=file.filename or "unnamed",
@@ -80,11 +80,12 @@ async def upload_file(
     # Create database record
     db_file = File(
         filename=file.filename or "unnamed",
-        storage_key=result['key'],
+        storage_key=result.get('key'),  # None for DB storage
+        file_data=result.get('data'),  # Binary data for DB storage
         content_type=result.get('content_type'),
         size_bytes=result.get('size'),
-        entity_type=entity_type,
-        entity_id=entity_id,
+        entity_type=entity_type if entity_type else None,
+        entity_id=entity_id if entity_id and entity_id > 0 else None,  # 0 is not valid, treat as None
         uploaded_by=user.id if user else None,
         description=description,
         is_public=is_public,
@@ -172,8 +173,9 @@ async def download_file(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Get a presigned URL to download the file.
-    Redirects to the presigned URL for direct download.
+    Download a file from storage backend.
+    For R2: Redirects to presigned URL
+    For DB: Returns file directly
     """
     result = await db.execute(select(File).where(File.id == file_id))
     file = result.scalar_one_or_none()
@@ -181,12 +183,27 @@ async def download_file(
     if not file:
         raise HTTPException(404, "File not found")
     
-    try:
-        # Generate presigned URL (valid for 1 hour)
-        url = await storage_service.get_presigned_url(file.storage_key, expires_in=3600)
-        return RedirectResponse(url=url, status_code=302)
-    except Exception as e:
-        raise HTTPException(500, f"Could not generate download URL: {str(e)}")
+    # Check if file is stored in DB
+    if file.file_data:
+        # Return file directly from DB
+        return Response(
+            content=file.file_data,
+            media_type=file.content_type or "application/octet-stream",
+            headers={
+                "Content-Disposition": f'attachment; filename="{file.filename}"'
+            }
+        )
+    
+    # File is in R2 - generate presigned URL
+    if file.storage_key:
+        try:
+            url = await storage_service.get_presigned_url(file.storage_key, expires_in=3600)
+            if url:
+                return RedirectResponse(url=url, status_code=302)
+        except Exception as e:
+            raise HTTPException(500, f"Could not generate download URL: {str(e)}")
+    
+    raise HTTPException(404, "File data not found")
 
 
 @router.patch("/{file_id}")
@@ -226,13 +243,14 @@ async def delete_file(
     if not file:
         raise HTTPException(404, "File not found")
     
-    # Delete from R2
-    try:
-        await storage_service.delete_file(file.storage_key)
-    except Exception:
-        pass  # Continue even if R2 delete fails - file might already be gone
+    # Delete from R2 if stored there
+    if file.storage_key:
+        try:
+            await storage_service.delete_file(file.storage_key)
+        except Exception:
+            pass  # Continue even if R2 delete fails - file might already be gone
     
-    # Delete from database
+    # Delete from database (includes file_data if stored in DB)
     await db.execute(delete(File).where(File.id == file_id))
     await db.commit()
     

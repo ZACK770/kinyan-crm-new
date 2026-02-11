@@ -18,6 +18,8 @@ import { FilterPanel } from './FilterPanel'
 import { ColumnManager } from './ColumnManager'
 import { BulkActions } from './BulkActions'
 import { InlineEditCell } from './InlineEditCell'
+import { SmartSearch } from './SmartSearch'
+import { TablePagination } from './TablePagination'
 import { 
   generateId, 
   applyFilters, 
@@ -42,9 +44,19 @@ export function SmartTable<T>({
   onBulkUpdate,
   bulkActions = [],
   storageKey,
+  searchFields,
+  searchPlaceholder,
+  onSearchSelect,
+  defaultPageSize,
+  pageSizeOptions,
   className,
   toolbarExtra,
 }: SmartTableProps<T>) {
+  // Search & Pagination props with defaults
+  const searchSelect = onSearchSelect ?? onRowClick
+  const defaultPgSize = defaultPageSize ?? 100
+  const pgSizeOpts = pageSizeOptions ?? [50, 100, 200]
+
   // State
   const [filters, setFilters] = useState<Filter[]>([])
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([])
@@ -55,6 +67,8 @@ export function SmartTable<T>({
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [selectedRows, setSelectedRows] = useState<Set<string | number>>(new Set())
   const [isAllSelected, setIsAllSelected] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(defaultPgSize)
 
   // Initialize state from storage or defaults
   useEffect(() => {
@@ -149,6 +163,26 @@ export function SmartTable<T>({
     })
   }, [filteredData, sortBy, sortDir, columns])
 
+  // Paginate data
+  const totalItems = sortedData.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  const safePage = Math.min(currentPage, totalPages)
+
+  const paginatedData = useMemo(() => {
+    const start = (safePage - 1) * pageSize
+    return sortedData.slice(start, start + pageSize)
+  }, [sortedData, safePage, pageSize])
+
+  // Reset to page 1 when filters/sorting/data change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filters, sortBy, sortDir, data.length])
+
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size)
+    setCurrentPage(1)
+  }
+
   // Handle filter save
   const handleSaveFilter = useCallback((name: string, currentFilters: Filter[]) => {
     const newFilter: SavedFilter = {
@@ -215,7 +249,7 @@ export function SmartTable<T>({
       setSelectedRows(new Set())
       setIsAllSelected(false)
     } else {
-      setSelectedRows(new Set(sortedData.map(keyExtractor)))
+      setSelectedRows(new Set(paginatedData.map(keyExtractor)))
       setIsAllSelected(true)
     }
   }
@@ -264,6 +298,13 @@ export function SmartTable<T>({
       {/* Toolbar */}
       <div className={s.toolbar}>
         <div className={s.toolbarLeft}>
+          <SmartSearch
+            data={data}
+            columns={columns}
+            searchFields={searchFields}
+            onSelect={(row) => searchSelect?.(row)}
+            placeholder={searchPlaceholder ?? 'חיפוש...'}
+          />
           <FilterPanel
             columns={columns}
             filters={filters}
@@ -343,7 +384,7 @@ export function SmartTable<T>({
             </tr>
           </thead>
           <tbody>
-            {sortedData.map(row => {
+            {paginatedData.map(row => {
               const rowKey = keyExtractor(row)
               const isSelected = selectedRows.has(rowKey)
 
@@ -384,6 +425,18 @@ export function SmartTable<T>({
           </tbody>
         </table>
       </div>
+
+      {/* Pagination */}
+      {totalItems > 0 && (
+        <TablePagination
+          totalItems={totalItems}
+          currentPage={safePage}
+          pageSize={pageSize}
+          pageSizeOptions={pgSizeOpts}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={handlePageSizeChange}
+        />
+      )}
 
       {/* Filtered results notice */}
       {filters.length > 0 && sortedData.length === 0 && (
