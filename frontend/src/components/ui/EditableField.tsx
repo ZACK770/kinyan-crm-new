@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react'
-import { Loader2, Pencil, Plus, Check } from 'lucide-react'
+import { Loader2, Plus, Check } from 'lucide-react'
 import s from '@/styles/shared.module.css'
 
 /* ══════════════════════════════════════════════════════════════
@@ -256,9 +256,6 @@ export function EditableField({
       </span>
       <span className={s['editable-field__value']}>
         {display}
-        {!disabled && (
-          <Pencil size={12} className={s['editable-field__icon']} />
-        )}
       </span>
     </div>
   )
