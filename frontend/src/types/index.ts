@@ -40,6 +40,7 @@ export interface Lead {
   nedarim_payment_link?: string
   created_at: string
   updated_at?: string
+  last_edited_at?: string
   created_by?: string
   interactions?: LeadInteraction[]
   payments?: Payment[]

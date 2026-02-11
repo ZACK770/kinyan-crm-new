@@ -76,8 +76,9 @@ async def create_lead(db: AsyncSession, **kwargs) -> Lead:
 # ============================================================
 # Update
 # ============================================================
-async def update_lead(db: AsyncSession, lead_id: int, **kwargs) -> Lead | None:
-    """Update lead fields."""
+async def update_lead(db: AsyncSession, lead_id: int, manual_edit: bool = False, **kwargs) -> Lead | None:
+    """Update lead fields. If manual_edit=True, also sets last_edited_at."""
+    from datetime import datetime, timezone
     stmt = select(Lead).where(Lead.id == lead_id)
     result = await db.execute(stmt)
     lead = result.scalar_one_or_none()
@@ -87,6 +88,9 @@ async def update_lead(db: AsyncSession, lead_id: int, **kwargs) -> Lead | None:
     for key, value in kwargs.items():
         if value is not None and hasattr(lead, key):
             setattr(lead, key, value)
+
+    if manual_edit:
+        lead.last_edited_at = datetime.now(timezone.utc)
 
     await db.flush()
     return lead

@@ -47,6 +47,9 @@ async def list_leads(
             "source_type": l.source_type,
             "salesperson_id": l.salesperson_id,
             "created_at": str(l.created_at),
+            "updated_at": str(l.updated_at) if l.updated_at else None,
+            "last_edited_at": str(l.last_edited_at) if l.last_edited_at else None,
+            "conversion_date": str(l.conversion_date) if l.conversion_date else None,
         }
         for l in items
     ]
@@ -110,6 +113,7 @@ async def get_lead(
         "requested_course": lead.requested_course,
         "student_id": lead.student_id,
         "conversion_date": str(lead.conversion_date) if lead.conversion_date else None,
+        "last_edited_at": str(lead.last_edited_at) if lead.last_edited_at else None,
         "first_payment": lead.first_payment,
         "first_lesson": lead.first_lesson,
         "approved_terms": lead.approved_terms,
@@ -163,7 +167,7 @@ async def update_lead(
     user = Depends(require_entity_access("leads", "edit")),
     db: AsyncSession = Depends(get_db)
 ):
-    lead = await lead_svc.update_lead(db, lead_id, **data.model_dump(exclude_unset=True))
+    lead = await lead_svc.update_lead(db, lead_id, manual_edit=True, **data.model_dump(exclude_unset=True))
     if not lead:
         raise HTTPException(404, "Lead not found")
     await db.commit()

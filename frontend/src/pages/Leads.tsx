@@ -754,6 +754,33 @@ export function LeadsPage() {
       editable: false,
       renderView: r => formatDate(r.created_at)
     },
+    { 
+      key: 'updated_at', 
+      header: 'תאריך עדכון', 
+      type: 'datetime',
+      className: s.muted,
+      editable: false,
+      hiddenByDefault: true,
+      renderView: r => r.updated_at ? formatDate(r.updated_at) : '—'
+    },
+    { 
+      key: 'last_edited_at', 
+      header: 'עריכה אחרונה', 
+      type: 'datetime',
+      className: s.muted,
+      editable: false,
+      sortable: true,
+      renderView: r => r.last_edited_at ? formatDate(r.last_edited_at) : '—'
+    },
+    { 
+      key: 'conversion_date', 
+      header: 'תאריך המרה', 
+      type: 'datetime',
+      className: s.muted,
+      editable: false,
+      hiddenByDefault: true,
+      renderView: r => r.conversion_date ? formatDate(r.conversion_date) : '—'
+    },
     {
       key: '_actions',
       header: '',

@@ -21,7 +21,7 @@
             border-radius: 16px;
             padding: 32px;
             width: 100%;
-            max-width: 480px;
+            max-width: 520px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.4);
             border: 1px solid #334155;
         }
@@ -49,7 +49,7 @@
             text-align: left;
             width: 100%;
         }
-        .endpoint-badge span { color: #22c55e; }
+        .endpoint-badge .method { color: #22c55e; font-weight: bold; }
         label {
             display: block;
             font-size: 14px;
@@ -62,7 +62,7 @@
             color: #64748b;
             font-weight: normal;
         }
-        input, select {
+        input, select, textarea {
             width: 100%;
             padding: 10px 14px;
             border-radius: 8px;
@@ -74,29 +74,30 @@
             margin-bottom: 16px;
             transition: border-color 0.2s;
         }
-        input:focus, select:focus {
+        textarea { resize: vertical; min-height: 60px; }
+        input:focus, select:focus, textarea:focus {
             outline: none;
             border-color: #38bdf8;
             box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
         }
-        input::placeholder { color: #64748b; }
+        input::placeholder, textarea::placeholder { color: #64748b; }
         .row {
             display: flex;
             gap: 12px;
         }
         .row > div { flex: 1; }
-        .target-group {
+        .btn-group {
             margin-bottom: 20px;
         }
-        .target-group label {
+        .btn-group label {
             margin-bottom: 8px;
         }
-        .target-options {
+        .btn-group-options {
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
         }
-        .target-options button {
+        .btn-group-options button {
             padding: 6px 14px;
             border-radius: 20px;
             border: 1px solid #475569;
@@ -107,15 +108,33 @@
             cursor: pointer;
             transition: all 0.2s;
         }
-        .target-options button:hover {
+        .btn-group-options button:hover {
             border-color: #38bdf8;
             color: #38bdf8;
         }
-        .target-options button.active {
+        .btn-group-options button.active {
             background: #38bdf8;
             color: #0f172a;
             border-color: #38bdf8;
             font-weight: 600;
+        }
+        .btn-group-options button.active-ivr {
+            background: #a78bfa;
+            color: #0f172a;
+            border-color: #a78bfa;
+            font-weight: 600;
+        }
+        .section-divider {
+            border: none;
+            border-top: 1px solid #334155;
+            margin: 20px 0;
+        }
+        .section-title {
+            font-size: 13px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
         }
         .btn-send {
             width: 100%;
@@ -136,6 +155,9 @@
         .btn-send:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+        }
+        .btn-send.ivr-mode {
+            background: linear-gradient(135deg, #a78bfa, #818cf8);
         }
         .result {
             margin-top: 16px;
@@ -163,6 +185,30 @@
             color: #fca5a5;
             display: block;
         }
+        .payload-preview {
+            margin-top: 12px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            font-family: monospace;
+            font-size: 11px;
+            direction: ltr;
+            text-align: left;
+            white-space: pre-wrap;
+            color: #94a3b8;
+            max-height: 150px;
+            overflow-y: auto;
+            display: none;
+        }
+        .payload-toggle {
+            font-size: 12px;
+            color: #64748b;
+            cursor: pointer;
+            margin-top: 8px;
+            text-decoration: underline;
+        }
+        .payload-toggle:hover { color: #94a3b8; }
         .spinner {
             display: inline-block;
             width: 16px;
@@ -175,84 +221,198 @@
             margin-left: 8px;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
+        #elementorFields, #ivrFields { transition: all 0.3s; }
     </style>
 </head>
 <body>
     <div class="card">
         <h1>🔗 בדיקת וובהוק</h1>
-        <p class="subtitle">שליחת וובהוק Elementor לבדיקה למערכת Kinyan CRM</p>
+        <p class="subtitle">שליחת וובהוק לבדיקה למערכת Kinyan CRM</p>
 
-        <div class="target-group">
+        <!-- Webhook Type -->
+        <div class="btn-group">
+            <label>סוג וובהוק</label>
+            <div class="btn-group-options">
+                <button type="button" class="active" onclick="setWebhookType(this, 'elementor')">Elementor (טופס אתר)</button>
+                <button type="button" onclick="setWebhookType(this, 'ivr')">IVR (ימות המשיח)</button>
+            </div>
+        </div>
+
+        <!-- Target -->
+        <div class="btn-group">
             <label>יעד</label>
-            <div class="target-options">
+            <div class="btn-group-options">
                 <button type="button" class="active" onclick="setTarget(this, 'local')">מקומי (8000)</button>
                 <button type="button" onclick="setTarget(this, 'render')">Render (Production)</button>
             </div>
         </div>
 
         <div class="endpoint-badge">
-            <span>POST</span> <span id="endpointUrl">http://localhost:8000/webhooks/elementor</span>
+            <span class="method">POST</span> <span id="endpointUrl">http://localhost:8000/webhooks/lead</span>
         </div>
 
         <form id="webhookForm" onsubmit="sendWebhook(event)">
-            <label>שם מלא *</label>
-            <input type="text" id="fullName" placeholder="הדסה קליין" required>
 
-            <div class="row">
-                <div>
-                    <label>טלפון *</label>
-                    <input type="tel" id="phone" placeholder="0527180979" required dir="ltr">
+            <!-- ===== Elementor Fields ===== -->
+            <div id="elementorFields">
+                <div class="section-title">פרטי טופס Elementor</div>
+
+                <label>שם מלא *</label>
+                <input type="text" id="fullName" placeholder="הדסה קליין">
+
+                <div class="row">
+                    <div>
+                        <label>טלפון *</label>
+                        <input type="tel" id="phone" placeholder="0527180979" dir="ltr">
+                    </div>
+                    <div>
+                        <label>אימייל <span class="optional">(לא חובה)</span></label>
+                        <input type="email" id="email" placeholder="user@email.com" dir="ltr">
+                    </div>
                 </div>
-                <div>
-                    <label>אימייל <span class="optional">(לא חובה)</span></label>
-                    <input type="email" id="email" placeholder="user@email.com" dir="ltr">
+
+                <label>מסלול</label>
+                <select id="course">
+                    <option value="כח הטענה">כח הטענה</option>
+                    <option value="שבת">שבת</option>
+                    <option value="איסור והיתר">איסור והיתר</option>
+                    <option value="טהרה">טהרה</option>
+                    <option value="חושן משפט">חושן משפט</option>
+                </select>
+
+                <label>תוכן הודעה <span class="optional">(לא חובה)</span></label>
+                <textarea id="message" placeholder="הודעה חופשית..."></textarea>
+            </div>
+
+            <!-- ===== IVR Fields ===== -->
+            <div id="ivrFields" style="display:none">
+                <div class="section-title">פרטי שיחת IVR (ימות המשיח)</div>
+
+                <label>טלפון מתקשר *</label>
+                <input type="tel" id="ivrPhone" placeholder="0527180504" dir="ltr">
+
+                <label>שלוחה / מוצר</label>
+                <select id="ivrFolder">
+                    <option value="1/2/1">1/2/1 - שבת (שלוחה 1)</option>
+                    <option value="1/2/2">1/2/2 - איסור והיתר (שלוחה 2)</option>
+                    <option value="1/2/3">1/2/3 - טהרה (שלוחה 3)</option>
+                    <option value="1/2/4">1/2/4 - ממונות (שלוחה 4)</option>
+                    <option value="1/2/5">1/2/5 - נזיקין (שלוחה 5)</option>
+                    <option value="1/2/6">1/2/6 - סמיכה (שלוחה 6)</option>
+                    <option value="99999/2">99999/2 - כללי</option>
+                </select>
+
+                <label>סטטוס תור</label>
+                <select id="ivrQueueStatus">
+                    <option value="JOINEMPTY">JOINEMPTY - אין נציג פנוי</option>
+                    <option value="CONTINUE">CONTINUE - נענה</option>
+                    <option value="NO_ANSWER">NO_ANSWER - לא ענה</option>
+                    <option value="BUSY">BUSY - תפוס</option>
+                    <option value="CANCEL">CANCEL - בוטלה</option>
+                </select>
+
+                <div class="row">
+                    <div>
+                        <label>CustomerDID</label>
+                        <input type="tel" id="ivrCustomerDID" value="0795792345" dir="ltr">
+                    </div>
+                    <div>
+                        <label>RealDID</label>
+                        <input type="tel" id="ivrRealDID" value="0795954570" dir="ltr">
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div>
+                        <label>זמן המתנה (שניות)</label>
+                        <input type="number" id="ivrWaitSeconds" value="7">
+                    </div>
+                    <div>
+                        <label>זמן שיחה (שניות)</label>
+                        <input type="number" id="ivrTotalSeconds" value="7">
+                    </div>
                 </div>
             </div>
 
-            <label>מסלול</label>
-            <select id="course">
-                <option value="כח הטענה">כח הטענה</option>
-                <option value="שבת">שבת</option>
-                <option value="איסור והיתר">איסור והיתר</option>
-                <option value="טהרה">טהרה</option>
-                <option value="חושן משפט">חושן משפט</option>
-            </select>
-
             <button type="submit" class="btn-send" id="btnSend">🚀 שלח וובהוק</button>
         </form>
+
+        <div class="payload-toggle" onclick="togglePayloadPreview()">📋 הצג payload שיישלח</div>
+        <div class="payload-preview" id="payloadPreview"></div>
 
         <div class="result" id="result"></div>
     </div>
 
     <script>
         let currentTarget = 'local';
-        const TARGETS = {
-            local: 'http://localhost:8000/webhooks/elementor',
-            render: 'https://kinyan-crm-new-1.onrender.com/webhooks/elementor'
+        let currentType = 'elementor';
+
+        const BASE_URLS = {
+            local: 'http://localhost:8000',
+            render: 'https://kinyan-crm-new-1.onrender.com'
         };
+
+        function getEndpointUrl() {
+            return BASE_URLS[currentTarget] + '/webhooks/lead';
+        }
+
+        function updateEndpointDisplay() {
+            document.getElementById('endpointUrl').textContent = getEndpointUrl();
+            const btn = document.getElementById('btnSend');
+            if (currentType === 'ivr') {
+                btn.className = 'btn-send ivr-mode';
+                btn.innerHTML = '📞 שלח שיחת IVR';
+            } else {
+                btn.className = 'btn-send';
+                btn.innerHTML = '🚀 שלח וובהוק';
+            }
+        }
 
         function setTarget(btn, target) {
             currentTarget = target;
-            document.querySelectorAll('.target-options button').forEach(b => b.classList.remove('active'));
+            btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            document.getElementById('endpointUrl').textContent = TARGETS[target];
+            updateEndpointDisplay();
+        }
+
+        function setWebhookType(btn, type) {
+            currentType = type;
+            btn.parentElement.querySelectorAll('button').forEach(b => {
+                b.classList.remove('active');
+                b.classList.remove('active-ivr');
+            });
+            btn.classList.add(type === 'ivr' ? 'active-ivr' : 'active');
+
+            document.getElementById('elementorFields').style.display = type === 'elementor' ? '' : 'none';
+            document.getElementById('ivrFields').style.display = type === 'ivr' ? '' : 'none';
+            updateEndpointDisplay();
+            updatePayloadPreview();
         }
 
         function getNow() {
             const d = new Date();
             const months = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
             const date = `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+            const dd = String(d.getDate()).padStart(2, '0');
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const yyyy = d.getFullYear();
+            const dateShort = `${dd}/${mm}/${yyyy}`;
+            const hh = String(d.getHours()).padStart(2, '0');
+            const mi = String(d.getMinutes()).padStart(2, '0');
+            const ss = String(d.getSeconds()).padStart(2, '0');
+            const timeShort = `${hh}:${mi}:${ss}`;
             const h = d.getHours() % 12 || 12;
             const m = String(d.getMinutes()).padStart(2, '0');
             const ampm = d.getHours() >= 12 ? 'pm' : 'am';
-            return { date, time: `${h}:${m} ${ampm}` };
+            return { date, dateShort, timeShort, time: `${h}:${m} ${ampm}` };
         }
 
-        function buildPayload() {
+        function buildElementorPayload() {
             const name = document.getElementById('fullName').value.trim();
             const phone = document.getElementById('phone').value.trim();
             const email = document.getElementById('email').value.trim();
             const course = document.getElementById('course').value;
+            const message = document.getElementById('message').value.trim();
             const now = getNow();
 
             return {
@@ -285,8 +445,8 @@
                 "fields[field_b1e584d][id]": "field_b1e584d",
                 "fields[field_b1e584d][type]": "textarea",
                 "fields[field_b1e584d][title]": "תוכן ההודעה",
-                "fields[field_b1e584d][value]": "",
-                "fields[field_b1e584d][raw_value]": "",
+                "fields[field_b1e584d][value]": message,
+                "fields[field_b1e584d][raw_value]": message,
                 "fields[field_b1e584d][required]": "0",
                 "fields[field_32565c1][id]": "field_32565c1",
                 "fields[field_32565c1][type]": "acceptance",
@@ -327,6 +487,67 @@
             };
         }
 
+        function buildIvrPayload() {
+            const phone = document.getElementById('ivrPhone').value.trim();
+            const folder = document.getElementById('ivrFolder').value;
+            const queueStatus = document.getElementById('ivrQueueStatus').value;
+            const customerDID = document.getElementById('ivrCustomerDID').value.trim();
+            const realDID = document.getElementById('ivrRealDID').value.trim();
+            const waitSeconds = document.getElementById('ivrWaitSeconds').value;
+            const totalSeconds = document.getElementById('ivrTotalSeconds').value;
+            const now = getNow();
+
+            function secsToTime(s) {
+                const sec = parseInt(s) || 0;
+                const m = Math.floor(sec / 60);
+                const r = sec % 60;
+                return `0:${m}:${r}`;
+            }
+
+            return {
+                "CustomerDID": customerDID,
+                "RealDID": realDID,
+                "Folder": folder,
+                "Phone": phone,
+                "Date": now.dateShort,
+                "Time": now.timeShort,
+                "HebrewDate": "",
+                "Module": "queue",
+                "QueueStatus": queueStatus,
+                "QueueTotalSeconds": totalSeconds,
+                "QueueTotalTime": secsToTime(totalSeconds),
+                "QueueWaitingSeconds": waitSeconds,
+                "QueueWaitingTime": secsToTime(waitSeconds),
+                "YemotCallID": crypto.randomUUID(),
+                "YDTimestamp": String(Date.now())
+            };
+        }
+
+        function buildPayload() {
+            return currentType === 'ivr' ? buildIvrPayload() : buildElementorPayload();
+        }
+
+        function togglePayloadPreview() {
+            const el = document.getElementById('payloadPreview');
+            if (el.style.display === 'block') {
+                el.style.display = 'none';
+            } else {
+                updatePayloadPreview();
+                el.style.display = 'block';
+            }
+        }
+
+        function updatePayloadPreview() {
+            const el = document.getElementById('payloadPreview');
+            if (el.style.display === 'block') {
+                el.textContent = JSON.stringify(buildPayload(), null, 2);
+            }
+        }
+
+        // Update preview on input change
+        document.addEventListener('input', updatePayloadPreview);
+        document.addEventListener('change', updatePayloadPreview);
+
         async function sendWebhook(e) {
             e.preventDefault();
             const btn = document.getElementById('btnSend');
@@ -339,7 +560,7 @@
 
             try {
                 const payload = buildPayload();
-                const url = TARGETS[currentTarget];
+                const url = getEndpointUrl();
 
                 const res = await fetch(url, {
                     method: 'POST',
@@ -361,7 +582,7 @@
                 resultDiv.textContent = '❌ Network Error\n' + err.message;
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = '🚀 שלח וובהוק';
+                updateEndpointDisplay();
             }
         }
     </script>
