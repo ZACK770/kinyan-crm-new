@@ -154,9 +154,14 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
     setError(null)
     try {
       const result = await api.post<any>(`/leads/${lead.id}/create-payment-link`, {})
+      console.log('Payment link response:', result)
       const paymentLink = result.payment_link || result.nedarim_payment_link
+      console.log('Extracted payment link:', paymentLink)
       if (paymentLink) {
         setCreatedPaymentLink(paymentLink)
+        console.log('Set createdPaymentLink to:', paymentLink)
+      } else {
+        console.warn('No payment link found in response:', result)
       }
       toast.success('לינק תשלום נוצר בהצלחה')
       onUpdate()

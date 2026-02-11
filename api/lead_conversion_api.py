@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 
-from db import get_session
+from db import get_db
 from services.auth import get_current_user, require_permission
 from services.lead_conversion import (
     update_payment_status,
@@ -67,7 +67,7 @@ class HandoffRequest(BaseModel):
 async def update_lead_payment(
     lead_id: int,
     data: PaymentUpdateRequest,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("leads", "edit"))
 ):
     """
@@ -93,7 +93,7 @@ async def update_lead_payment(
 async def update_lead_kinyan(
     lead_id: int,
     data: KinyanUpdateRequest,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("leads", "edit"))
 ):
     """
@@ -118,7 +118,7 @@ async def update_lead_kinyan(
 async def update_lead_shipping(
     lead_id: int,
     data: ShippingUpdateRequest,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("leads", "edit"))
 ):
     """
@@ -145,7 +145,7 @@ async def update_lead_shipping(
 async def update_lead_student_chat(
     lead_id: int,
     data: StudentChatUpdateRequest,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("leads", "edit"))
 ):
     """
@@ -169,7 +169,7 @@ async def update_lead_student_chat(
 async def handoff_lead_to_manager(
     lead_id: int,
     data: HandoffRequest,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("leads", "edit"))
 ):
     """
@@ -192,7 +192,7 @@ async def handoff_lead_to_manager(
 @router.get("/{lead_id}/conversion/status")
 async def get_lead_conversion_status(
     lead_id: int,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("leads", "view"))
 ):
     """
@@ -250,7 +250,7 @@ async def get_lead_conversion_status(
 @router.get("/conversion/metrics")
 async def get_sales_conversion_metrics(
     salesperson_id: Optional[int] = None,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -278,7 +278,7 @@ async def get_sales_conversion_metrics(
 @router.post("/tasks/{task_id}/complete")
 async def complete_class_manager_task(
     task_id: int,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -301,7 +301,7 @@ async def complete_class_manager_task(
 @router.get("/class-manager/tasks")
 async def get_class_manager_tasks(
     status: Optional[str] = None,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
