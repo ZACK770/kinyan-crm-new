@@ -33,6 +33,11 @@ def detect_source(data: dict) -> str:
     if "fields" in data and ("form" in data or "meta" in data):
         return "elementor"
     
+    # Elementor flat format: keys like "fields[name][value]", "form[id]", "meta[date][value]"
+    elementor_flat_keys = [k for k in data.keys() if k.startswith(("fields[", "form[", "meta["))]
+    if elementor_flat_keys:
+        return "elementor"
+    
     # Yemot IVR: has Phone/Folder/QueueStatus/CustomerDID
     yemot_keys = {"Phone", "Folder", "QueueStatus", "CustomerDID", "AnswerNumber", "ApiPhone", "ApiExtension"}
     if any(k in data for k in yemot_keys):
