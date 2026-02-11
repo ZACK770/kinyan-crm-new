@@ -90,7 +90,7 @@ export function DirectChargeDialog({
         expiry: cleanExpiry,
         cvv: cvv,
         amount: amount,
-        installments: paymentType === 'HK' ? 0 : installments, // HK: no Tashloumim (0 = don't send)
+        installments: paymentType === 'HK' ? 0 : 1, // HK: no Tashloumim; RAGIL: always 1 (direct cards don't support installments)
         payment_type: paymentType,
         comments: comments || undefined
       })
@@ -209,7 +209,7 @@ export function DirectChargeDialog({
                       onChange={() => setPaymentType('RAGIL')}
                       disabled={isProcessing}
                     />
-                    <span>חיוב רגיל (חד-פעמי)</span>
+                    <span>חיוב רגיל (חד-פעמי מלא)</span>
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
                     <input
@@ -223,6 +223,16 @@ export function DirectChargeDialog({
                     <span>הוראת קבע (חודשי)</span>
                   </label>
                 </div>
+                {paymentType === 'RAGIL' && (
+                  <div style={{ marginTop: '12px', padding: '12px', background: '#fff3e0', borderRadius: '6px', border: '1px solid #ff9800' }}>
+                    <div style={{ fontWeight: 500, color: '#e65100' }}>
+                      ⚠️ חיוב חד-פעמי של הסכום המלא: ₪{totalAmount}
+                    </div>
+                    <small style={{ fontSize: '12px', color: '#555', display: 'block', marginTop: '6px' }}>
+                      💡 הכרטיס יחויב פעם אחת בלבד. לתשלומים חודשיים בחר "הוראת קבע".
+                    </small>
+                  </div>
+                )}
                 {paymentType === 'HK' && (
                   <div style={{ marginTop: '12px', padding: '12px', background: '#e8f5e9', borderRadius: '6px', border: '1px solid #4caf50' }}>
                     <div style={{ fontWeight: 500, color: '#2e7d32' }}>
@@ -260,11 +270,13 @@ export function DirectChargeDialog({
                   </small>
                 </div>
                 <div className={s['form-group']}>
-                  <label className={s['form-label']}>תשלומים *</label>
+                  <label className={s['form-label']}>
+                    {paymentType === 'HK' ? 'חיובים חודשיים' : 'תשלומים'} *
+                  </label>
                   <input
                     type="text"
                     className={s.input}
-                    value={installments}
+                    value={paymentType === 'HK' ? installments : 1}
                     readOnly
                     disabled
                     style={{ background: '#f5f5f5', cursor: 'not-allowed' }}
@@ -272,7 +284,7 @@ export function DirectChargeDialog({
                   <small style={{ fontSize: '12px', color: '#666', display: 'block', marginTop: '4px' }}>
                     {paymentType === 'HK'
                       ? `${installments} חיובים חודשיים של ₪${monthlyAmount}`
-                      : 'מספר תשלומים נלקח אוטומטית מהקורס'
+                      : 'חיוב חד-פעמי מלא'
                     }
                   </small>
                 </div>
