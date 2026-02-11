@@ -6,7 +6,7 @@ from datetime import datetime
 
 from db import get_db
 from db.models import User, Topic, Lesson, StudentLessonProgress
-from api.auth_api import get_current_user
+from api.dependencies import get_current_user
 from services import topics_service
 
 router = APIRouter()
