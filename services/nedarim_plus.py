@@ -56,12 +56,13 @@ class NedarimClient:
     
     async def post(self, endpoint: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """POST request with automatic mosad_id injection."""
+        # Add mosad_id to data (needed for both real and mock modes)
+        data["mosad_id"] = self.mosad_id
+        
         # Mock mode for development (if API_KEY is 'ou946')
         if self.api_key == "ou946":
             logger.warning("Using MOCK mode for Nedarim Plus API (dev environment)")
             return self._mock_response(endpoint, data)
-        
-        data["mosad_id"] = self.mosad_id
         
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(

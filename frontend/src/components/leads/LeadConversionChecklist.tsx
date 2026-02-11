@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { CheckCircle2, Circle, Loader2, AlertCircle } from 'lucide-react';
 import PaymentDialog from './PaymentDialog';
 import KinyanDialog from './KinyanDialog';
-// import ShippingDialog from './ShippingDialog';
-// import StudentChatDialog from './StudentChatDialog';
-// import HandoffDialog from './HandoffDialog';
+import ShippingDialog from './ShippingDialog';
+import StudentChatDialog from './StudentChatDialog';
+import HandoffDialog from './HandoffDialog';
 
 interface Lead {
   id: number;

@@ -24,6 +24,8 @@ import { EditableField, type SelectOption } from '@/components/ui/EditableField'
 import { useModal } from '@/components/ui/Modal'
 import type { Lead, LeadInteraction, Salesperson, Course, Campaign } from '@/types'
 import { LeadPaymentTab } from './LeadPaymentTab'
+// @ts-ignore - used in conversion tab
+import LeadConversionChecklist from './LeadConversionChecklist'
 import s from '@/styles/shared.module.css'
 
 /* ══════════════════════════════════════════════════════════════
@@ -96,7 +98,7 @@ interface LeadWorkspaceProps {
   onConvert?: () => void
 }
 
-type TabId = 'interactions' | 'tasks' | 'payments' | 'inquiries' | 'emails'
+type TabId = 'interactions' | 'tasks' | 'payments' | 'conversion' | 'inquiries' | 'emails'
 
 export function LeadWorkspace({
   lead,
@@ -585,6 +587,13 @@ export function LeadWorkspace({
             label="תשלומים"
           />
           <TabButton 
+            id="conversion" 
+            active={activeTab === 'conversion'}
+            onClick={() => setActiveTab('conversion')}
+            icon={<CheckCircle2 size={14} />}
+            label="המרה לתלמיד"
+          />
+          <TabButton 
             id="inquiries" 
             active={activeTab === 'inquiries'}
             onClick={() => setActiveTab('inquiries')}
@@ -613,6 +622,9 @@ export function LeadWorkspace({
           )}
           {activeTab === 'payments' && (
             <PaymentsTab lead={lead!} courses={courses} onUpdate={onUpdate} />
+          )}
+          {activeTab === 'conversion' && (
+            <LeadConversionChecklist lead={lead!} onUpdate={onUpdate} />
           )}
           {activeTab === 'inquiries' && (
             <InquiriesTab leadId={lead!.id} />
