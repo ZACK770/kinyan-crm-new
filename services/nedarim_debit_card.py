@@ -177,6 +177,7 @@ async def charge_lead_card(
     cvv: str,
     amount: Optional[float] = None,
     installments: Optional[int] = None,
+    payment_type: str = "RAGIL",
     comments: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
@@ -190,6 +191,7 @@ async def charge_lead_card(
         cvv: Card CVV
         amount: Amount to charge (if None, uses lead's selected_price)
         installments: Number of installments (if None, uses lead's selected_payments_count)
+        payment_type: RAGIL (regular) or HK (standing order)
         comments: Transaction comments
     
     Returns:
@@ -234,6 +236,7 @@ async def charge_lead_card(
             installments=installments,
             email=lead.email,
             phone=lead.phone,
+            payment_type=payment_type,
             comments=comments
         )
         

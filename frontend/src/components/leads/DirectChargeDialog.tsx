@@ -27,6 +27,7 @@ export function DirectChargeDialog({
   const [expiry, setExpiry] = useState('')
   const [cvv, setCvv] = useState('')
   const [comments, setComments] = useState('')
+  const [paymentType, setPaymentType] = useState<'RAGIL' | 'HK'>('RAGIL')
   
   // Use props directly - no local state needed
   const amount = defaultAmount || 0
@@ -85,6 +86,7 @@ export function DirectChargeDialog({
         cvv: cvv,
         amount: amount,
         installments: installments,
+        payment_type: paymentType,
         comments: comments || undefined
       })
       
@@ -187,6 +189,40 @@ export function DirectChargeDialog({
                     style={{ direction: 'ltr', textAlign: 'left' }}
                   />
                 </div>
+              </div>
+
+              {/* Payment Type Selection */}
+              <div className={s['form-group']}>
+                <label className={s['form-label']}>סוג תשלום *</label>
+                <div style={{ display: 'flex', gap: '15px', marginTop: '8px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="paymentType"
+                      value="RAGIL"
+                      checked={paymentType === 'RAGIL'}
+                      onChange={() => setPaymentType('RAGIL')}
+                      disabled={isProcessing}
+                    />
+                    <span>חיוב רגיל (חד-פעמי)</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="paymentType"
+                      value="HK"
+                      checked={paymentType === 'HK'}
+                      onChange={() => setPaymentType('HK')}
+                      disabled={isProcessing}
+                    />
+                    <span>הוראת קבע (חודשי)</span>
+                  </label>
+                </div>
+                {paymentType === 'HK' && (
+                  <small style={{ fontSize: '12px', color: '#ff9800', display: 'block', marginTop: '6px' }}>
+                    ⚠️ הוראת קבע - הכרטיס יחויב באופן אוטומטי כל חודש
+                  </small>
+                )}
               </div>
 
               {/* Amount & Installments - READ ONLY */}

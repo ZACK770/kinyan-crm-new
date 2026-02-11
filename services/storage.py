@@ -38,8 +38,10 @@ class StorageService:
                 endpoint_url=f'https://{self.account_id}.r2.cloudflarestorage.com',
                 aws_access_key_id=self.access_key,
                 aws_secret_access_key=self.secret_key,
-                config=Config(signature_version='s3v4'),
-                region_name='auto'
+                config=Config(
+                    signature_version='s3v4',
+                    s3={'addressing_style': 'path'}
+                )
             )
         return self._client
     

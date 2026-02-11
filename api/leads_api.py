@@ -516,6 +516,7 @@ class DirectChargeRequest(BaseModel):
     cvv: str = Field(..., description="CVV (3-4 ספרות)")
     amount: float | None = Field(None, description="סכום (אם None - לוקח מהליד)")
     installments: int | None = Field(None, description="מספר תשלומים (אם None - לוקח מהליד)")
+    payment_type: str = Field("RAGIL", description="סוג תשלום: RAGIL (רגיל) או HK (הוראת קבע)")
     comments: str | None = Field(None, description="הערות")
 
 
@@ -542,6 +543,7 @@ async def charge_lead_card_direct(
             cvv=data.cvv,
             amount=data.amount,
             installments=data.installments,
+            payment_type=data.payment_type,
             comments=data.comments,
         )
         await db.commit()
