@@ -13,6 +13,10 @@ import {
   Send,
   CheckCircle2,
   XCircle,
+  Upload,
+  FileText,
+  X,
+  Paperclip,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, formatDateTime } from '@/lib/status'
@@ -759,6 +763,26 @@ interface SentEmail {
   send_method: string
   created_at: string
   sent_at: string | null
+  attachments?: Array<{
+    id: number
+    filename: string
+    size_bytes: number
+    content_type: string
+  }>
+}
+
+interface EmailTemplate {
+  id: number
+  name: string
+  subject: string
+  body_html: string
+  category: string | null
+  track_type: string | null
+  attachments: Array<{
+    id: number
+    filename: string
+    size_bytes: number
+  }>
 }
 
 function EmailsTab({ lead, onUpdate }: { lead: Lead; onUpdate: () => void }) {
@@ -769,6 +793,10 @@ function EmailsTab({ lead, onUpdate }: { lead: Lead; onUpdate: () => void }) {
   const [body, setBody] = useState('')
   const [sending, setSending] = useState(false)
   const [sendResult, setSendResult] = useState<{ ok: boolean; msg: string } | null>(null)
+  const [templates, setTemplates] = useState<EmailTemplate[]>([])
+  const [selectedTemplate, setSelectedTemplate] = useState<number | null>(null)
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{ id: number; filename: string; size_bytes: number }>>([])
+  const [uploading, setUploading] = useState(false)
 
   const fetchEmails = useCallback(async () => {
     try {
@@ -781,7 +809,61 @@ function EmailsTab({ lead, onUpdate }: { lead: Lead; onUpdate: () => void }) {
     }
   }, [lead.id])
 
-  useEffect(() => { fetchEmails() }, [fetchEmails])
+  const fetchTemplates = useCallback(async () => {
+    try {
+      const data = await api.get<EmailTemplate[]>('/templates/?is_active=true')
+      setTemplates(data)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  useEffect(() => { 
+    fetchEmails()
+    fetchTemplates()
+  }, [fetchEmails, fetchTemplates])
+
+  const handleTemplateSelect = (templateId: number) => {
+    const template = templates.find(t => t.id === templateId)
+    if (template) {
+      setSubject(template.subject)
+      setBody(template.body_html)
+      setSelectedTemplate(templateId)
+      setUploadedFiles(template.attachments.map(a => ({ id: a.id, filename: a.filename, size_bytes: a.size_bytes })))
+    }
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    setUploading(true)
+    try {
+      for (const file of Array.from(files)) {
+        const formData = new FormData()
+        formData.append('file', file)
+        const result = await api.upload<{ id: number; filename: string; size_bytes: number }>(
+          '/files/upload?entity_type=temp&entity_id=0',
+          formData
+        )
+        setUploadedFiles(prev => [...prev, result])
+      }
+    } catch (err: any) {
+      alert(err?.message || 'העלאת קובץ נכשלה')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleRemoveFile = (fileId: number) => {
+    setUploadedFiles(prev => prev.filter(f => f.id !== fileId))
+  }
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
 
   const handleSend = async () => {
     if (!subject.trim() || !body.trim()) return
@@ -792,10 +874,14 @@ function EmailsTab({ lead, onUpdate }: { lead: Lead; onUpdate: () => void }) {
         lead_id: lead.id,
         subject: subject.trim(),
         body: body.trim(),
+        template_id: selectedTemplate,
+        file_ids: uploadedFiles.map(f => f.id),
       })
-      setSendResult({ ok: true, msg: `המייל נשלח בהצלחה ל-${lead.email}` })
+      setSendResult({ ok: true, msg: `המייל נשלח בהצלחה ל-${lead.email}${uploadedFiles.length > 0 ? ` עם ${uploadedFiles.length} קבצים` : ''}` })
       setSubject('')
       setBody('')
+      setSelectedTemplate(null)
+      setUploadedFiles([])
       setShowCompose(false)
       fetchEmails()
       onUpdate()
@@ -841,6 +927,26 @@ function EmailsTab({ lead, onUpdate }: { lead: Lead; onUpdate: () => void }) {
       {/* Compose form */}
       {showCompose && (
         <div style={{ padding: 16, borderBottom: '2px solid var(--color-primary)', background: 'var(--color-bg-secondary, #f8fafc)' }}>
+          {templates.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-text-secondary)' }}>בחר תבנית</label>
+              <select
+                value={selectedTemplate || ''}
+                onChange={e => handleTemplateSelect(Number(e.target.value))}
+                style={{
+                  width: '100%', padding: '8px 12px', borderRadius: 6,
+                  border: '1px solid var(--color-border)', fontSize: 14,
+                }}
+              >
+                <option value="">כתוב מייל חופשי</option>
+                {templates.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} {t.category && `(${t.category})`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div style={{ marginBottom: 10 }}>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-text-secondary)' }}>נושא</label>
             <input
@@ -868,6 +974,55 @@ function EmailsTab({ lead, onUpdate }: { lead: Lead; onUpdate: () => void }) {
                 resize: 'vertical', direction: 'rtl', fontFamily: 'inherit',
               }}
             />
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--color-text-secondary)' }}>קבצים מצורפים</label>
+            <label className={`${s.btn} ${s['btn-secondary']} ${s['btn-sm']}`} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <Upload size={14} />
+              {uploading ? 'מעלה...' : 'העלה קובץ'}
+              <input
+                type="file"
+                multiple
+                onChange={handleFileUpload}
+                disabled={uploading}
+                style={{ display: 'none' }}
+              />
+            </label>
+            {uploadedFiles.length > 0 && (
+              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {uploadedFiles.map(file => (
+                  <div
+                    key={file.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '4px 8px',
+                      background: 'white',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 4,
+                      fontSize: 12,
+                    }}
+                  >
+                    <FileText size={12} />
+                    <span style={{ flex: 1 }}>{file.filename}</span>
+                    <span style={{ color: 'var(--color-text-muted)' }}>{formatFileSize(file.size_bytes)}</span>
+                    <button
+                      onClick={() => handleRemoveFile(file.id)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: 2,
+                        color: 'var(--color-danger)',
+                      }}
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <button className={`${s.btn} ${s['btn-ghost']} ${s['btn-sm']}`} onClick={() => setShowCompose(false)}>ביטול</button>
@@ -916,6 +1071,27 @@ function EmailsTab({ lead, onUpdate }: { lead: Lead; onUpdate: () => void }) {
                   {email.body.replace(/<[^>]*>/g, '').substring(0, 200)}
                   {email.body.length > 200 && '...'}
                 </div>
+                {email.attachments && email.attachments.length > 0 && (
+                  <div style={{ marginTop: 8, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    {email.attachments.map(att => (
+                      <div
+                        key={att.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '2px 6px',
+                          background: 'var(--color-bg-secondary)',
+                          borderRadius: 4,
+                          fontSize: 11,
+                        }}
+                      >
+                        <Paperclip size={10} />
+                        <span>{att.filename}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ))}

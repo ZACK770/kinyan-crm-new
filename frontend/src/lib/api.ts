@@ -101,6 +101,40 @@ class ApiClient {
   delete<T>(path: string) {
     return this.request<T>(path, { method: 'DELETE' })
   }
+
+  async upload<T>(path: string, formData: FormData): Promise<T> {
+    const cleanPath = path.startsWith('/') ? path : `/${path}`
+    const url = cleanPath.startsWith(BASE) ? cleanPath : `${BASE}${cleanPath}`
+
+    const headers: Record<string, string> = {}
+    if (this.authToken) {
+      headers['Authorization'] = `Bearer ${this.authToken}`
+    }
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+
+    if (!res.ok) {
+      let message = `שגיאה ${res.status}`
+      try {
+        const body = await res.json()
+        if (Array.isArray(body.detail)) {
+          message = body.detail.map((e: any) => e.msg || e.message).join(', ')
+        } else if (typeof body.detail === 'string') {
+          message = body.detail
+        } else if (body.message) {
+          message = body.message
+        }
+      } catch { /* ignore */ }
+      const err: ApiError = { status: res.status, message }
+      throw err
+    }
+
+    return res.json()
+  }
 }
 
 export const api = new ApiClient()

@@ -21,6 +21,7 @@ import { SalesAssignmentRulesPage } from '@/pages/SalesAssignmentRules'
 import { PlaceholderPage } from '@/pages/Placeholder'
 import { TracksPage } from '@/pages/TracksPage'
 import { EntryPointsPage } from '@/pages/EntryPointsPage'
+import EmailTemplates from '@/pages/EmailTemplates'
 
 export function App() {
   return (
@@ -53,6 +54,7 @@ export function App() {
                 <Route path="/tasks" element={<ViewerRoute><TasksPage /></ViewerRoute>} />
                 <Route path="/inquiries" element={<ViewerRoute><InquiriesPage /></ViewerRoute>} />
                 <Route path="/messages" element={<ViewerRoute><MessagesPage /></ViewerRoute>} />
+                <Route path="/email-templates" element={<ViewerRoute><EmailTemplates /></ViewerRoute>} />
                 <Route path="/lecturers" element={<ViewerRoute><LecturersPage /></ViewerRoute>} />
                 <Route path="/expenses" element={<ViewerRoute><ExpensesPage /></ViewerRoute>} />
                 <Route path="/admin/users" element={<AdminRoute><UsersManagePage /></AdminRoute>} />
