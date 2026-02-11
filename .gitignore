@@ -13,5 +13,11 @@ venv/
 .vscode/
 *.log
 
+# Backups
+backups/
+
+# Environment (secrets!)
+.env
+
 # Frontend
 frontend/node_modules/
