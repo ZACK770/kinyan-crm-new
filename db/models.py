@@ -26,9 +26,9 @@ class User(Base):
     google_id: Mapped[Optional[str]] = mapped_column(String(200), unique=True)
     avatar_url: Mapped[Optional[str]] = mapped_column(String(500))
 
-    # Permission level: 0=pending, 10=viewer, 20=editor, 30=manager, 40=admin
+    # Permission level: 0=pending, 10=viewer, 20=editor, 30=manager, 35=class_manager, 40=admin
     permission_level: Mapped[int] = mapped_column(Integer, default=0)
-    role_name: Mapped[str] = mapped_column(String(50), default="pending")  # pending/viewer/editor/manager/admin
+    role_name: Mapped[str] = mapped_column(String(50), default="pending")  # pending/viewer/editor/manager/class_manager/admin
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -420,6 +420,51 @@ class Lead(Base):
     # Payment tracking (before conversion)
     first_payment_id: Mapped[Optional[int]] = mapped_column(ForeignKey("payments.id", use_alter=True))
     nedarim_payment_link: Mapped[Optional[str]] = mapped_column(String(500))  # Active payment link from Nedarim
+    
+    # ============================================================
+    # Conversion Checklist - Lead to Student Journey
+    # ============================================================
+    
+    # 1. Payment completion (סליקה)
+    payment_completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    payment_completed_amount: Mapped[Optional[Numeric]] = mapped_column(Numeric(10, 2))
+    payment_completed_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    payment_completed_method: Mapped[Optional[str]] = mapped_column(String(50))  # אשראי/העברה/מזומן
+    payment_reference: Mapped[Optional[str]] = mapped_column(String(200))  # אסמכתא
+    payment_verified: Mapped[bool] = mapped_column(Boolean, default=False)  # אושר ע"י נדרים פלוס
+    
+    # 2. Kinyan/Terms approval (קניון/תקנון)
+    kinyan_signed: Mapped[bool] = mapped_column(Boolean, default=False)
+    kinyan_signed_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    kinyan_method: Mapped[Optional[str]] = mapped_column(String(50))  # PDF במייל / אישור טלפוני / IVR / חתימה דיגיטלית
+    kinyan_file_url: Mapped[Optional[str]] = mapped_column(String(500))  # קישור לקובץ PDF אם קיים
+    kinyan_notes: Mapped[Optional[str]] = mapped_column(Text)  # הערות על אישור התקנון
+    
+    # 3. Shipping details (פרטי משלוח)
+    shipping_details_complete: Mapped[bool] = mapped_column(Boolean, default=False)
+    shipping_full_address: Mapped[Optional[str]] = mapped_column(Text)
+    shipping_city: Mapped[Optional[str]] = mapped_column(String(200))
+    shipping_postal_code: Mapped[Optional[str]] = mapped_column(String(20))
+    shipping_phone: Mapped[Optional[str]] = mapped_column(String(50))
+    shipping_notes: Mapped[Optional[str]] = mapped_column(Text)
+    
+    # 4. Student chat integration (צ'אט תלמידים)
+    student_chat_added: Mapped[bool] = mapped_column(Boolean, default=False)
+    student_chat_link: Mapped[Optional[str]] = mapped_column(String(500))
+    student_chat_platform: Mapped[Optional[str]] = mapped_column(String(50))  # WhatsApp/Telegram/Discord
+    student_chat_added_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    
+    # 5. Handoff to class manager (העברה למנהל כיתות)
+    handoff_to_manager: Mapped[bool] = mapped_column(Boolean, default=False)
+    handoff_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    handoff_manager_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))  # מנהל הכיתות
+    handoff_completed: Mapped[bool] = mapped_column(Boolean, default=False)  # מנהל אישר השלמה
+    handoff_completed_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    
+    # Overall conversion status (סטטוס המרה כללי)
+    conversion_checklist_complete: Mapped[bool] = mapped_column(Boolean, default=False)
+    conversion_completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    conversion_completed_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
 
     # Meta
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -444,6 +489,8 @@ class Lead(Base):
     selected_course: Mapped[Optional["Course"]] = relationship(foreign_keys=[selected_course_id])
     first_payment_rel: Mapped[Optional["Payment"]] = relationship(foreign_keys=[first_payment_id])
     payments: Mapped[List["Payment"]] = relationship(back_populates="lead", foreign_keys="Payment.lead_id")
+    handoff_manager: Mapped[Optional["User"]] = relationship(foreign_keys=[handoff_manager_id])  # Class manager
+    conversion_completed_by: Mapped[Optional["User"]] = relationship(foreign_keys=[conversion_completed_by_id])  # Who completed conversion
 
 
 # ============================================================
@@ -711,7 +758,7 @@ class SalesTask(Base):
     __tablename__ = "sales_tasks"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    salesperson_id: Mapped[int] = mapped_column(ForeignKey("salespeople.id"), nullable=False)
+    salesperson_id: Mapped[Optional[int]] = mapped_column(ForeignKey("salespeople.id"))  # NULL if assigned to user
     lead_id: Mapped[Optional[int]] = mapped_column(ForeignKey("leads.id"))
     student_id: Mapped[Optional[int]] = mapped_column(ForeignKey("students.id"))
 
@@ -720,6 +767,12 @@ class SalesTask(Base):
     due_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(50), default="חדש")  # חדש / בטיפול / הושלם
     priority: Mapped[int] = mapped_column(Integer, default=0)  # 0-3
+    
+    # Extended fields for class manager tasks
+    task_type: Mapped[str] = mapped_column(String(50), default="sales")  # sales / class_management / shipping / general
+    assigned_to_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))  # For class manager or other users
+    auto_created: Mapped[bool] = mapped_column(Boolean, default=False)  # Auto-created by system
+    parent_lead_conversion: Mapped[bool] = mapped_column(Boolean, default=False)  # Part of lead conversion process
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
@@ -728,9 +781,12 @@ class SalesTask(Base):
         Index("idx_tasks_salesperson", "salesperson_id"),
         Index("idx_tasks_status", "status"),
         Index("idx_tasks_lead", "lead_id"),
+        Index("idx_tasks_assigned_user", "assigned_to_user_id"),
+        Index("idx_tasks_type", "task_type"),
     )
 
-    salesperson: Mapped["Salesperson"] = relationship(back_populates="tasks")
+    salesperson: Mapped[Optional["Salesperson"]] = relationship(back_populates="tasks")
+    assigned_to_user: Mapped[Optional["User"]] = relationship(foreign_keys=[assigned_to_user_id])
     reports: Mapped[List["TaskReport"]] = relationship(back_populates="task", cascade="all, delete-orphan")
 
 

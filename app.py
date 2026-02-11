@@ -20,7 +20,7 @@ from db import init_db
 from api import leads_api, students_api, courses_api, dashboard_api, webhooks_api
 from api import inquiries_api, exams_api, payments_api, expenses_api, attendance_api, collections_api
 from api import auth_api, users_api, audit_logs_api, campaigns_api, files_api, sales_assignment_api
-from api import course_tracks_api, lecturers_api, messages_api, templates_api
+from api import course_tracks_api, lecturers_api, messages_api, templates_api, lead_conversion_api
 
 # Frontend build directory
 FRONTEND_DIR = Path(__file__).parent / "frontend" / "dist"
@@ -50,6 +50,7 @@ app.add_middleware(
 
 # --- API Routes ---
 app.include_router(leads_api.router, prefix="/api/leads", tags=["leads"])
+app.include_router(lead_conversion_api.router)  # Lead conversion endpoints (uses /api/leads prefix)
 app.include_router(students_api.router, prefix="/api/students", tags=["students"])
 app.include_router(courses_api.router, prefix="/api/courses", tags=["courses"])
 app.include_router(course_tracks_api.router)

@@ -47,6 +47,7 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
   
   // Payment link state
   const [isCreatingLink, setIsCreatingLink] = useState(false)
+  const [createdPaymentLink, setCreatedPaymentLink] = useState<string | null>(null)
   
   // Payment status
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null)
@@ -152,7 +153,11 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
     setIsCreatingLink(true)
     setError(null)
     try {
-      await api.post(`/leads/${lead.id}/create-payment-link`, {})
+      const result = await api.post<any>(`/leads/${lead.id}/create-payment-link`, {})
+      const paymentLink = result.payment_link || result.nedarim_payment_link
+      if (paymentLink) {
+        setCreatedPaymentLink(paymentLink)
+      }
       toast.success('לינק תשלום נוצר בהצלחה')
       onUpdate()
     } catch (err: any) {
@@ -165,8 +170,9 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
   }
 
   const copyLink = () => {
-    if (lead.nedarim_payment_link) {
-      navigator.clipboard.writeText(lead.nedarim_payment_link)
+    const link = createdPaymentLink || lead.nedarim_payment_link
+    if (link) {
+      navigator.clipboard.writeText(link)
       toast.info('הלינק הועתק ללוח')
     }
   }
@@ -286,10 +292,10 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
           <CreditCard size={16} />
           סליקה
         </h3>
-        {lead.nedarim_payment_link ? (
+        {(createdPaymentLink || lead.nedarim_payment_link) ? (
           <>
             <div className={ps.linkDisplay}>
-              <input className={s.input} value={lead.nedarim_payment_link} readOnly />
+              <input className={s.input} value={createdPaymentLink || lead.nedarim_payment_link} readOnly />
               <button className={`${s.btn} ${s['btn-secondary']}`} onClick={copyLink}>
                 <Copy size={14} /> העתק
               </button>

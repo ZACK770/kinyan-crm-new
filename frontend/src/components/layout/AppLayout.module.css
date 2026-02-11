@@ -10,16 +10,15 @@
 /* Main content area */
 .main {
   flex: 1;
-  margin-right: var(--sidebar-width);
   margin-top: var(--header-height);
-  padding: 20px 16px;
-  transition: margin-right var(--transition-slow);
+  padding: 20px calc(16px + var(--sidebar-width)) 20px 16px;
+  transition: padding var(--transition-slow);
   min-height: calc(100vh - var(--header-height));
   direction: rtl;
 }
 
 .main.sidebar-collapsed {
-  margin-right: var(--sidebar-collapsed);
+  padding-right: calc(16px + var(--sidebar-collapsed));
 }
 
 /* Page header (title + actions row) */
