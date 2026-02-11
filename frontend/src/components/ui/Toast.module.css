@@ -1,0 +1,128 @@
+/* ============================================================
+   Toast — notification system
+   Top-left, stacking, auto-dismiss, zero browser alerts
+   ============================================================ */
+
+.container {
+  position: fixed;
+  top: 72px;
+  left: 20px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+  max-width: 360px;
+  width: 100%;
+}
+
+/* Single toast */
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-right: 3px solid transparent;
+  position: relative;
+  overflow: hidden;
+  animation: toastIn 250ms ease-out;
+  cursor: pointer;
+}
+
+.toast.exiting {
+  animation: toastOut 200ms ease-in forwards;
+}
+
+/* Type-specific border */
+.toast.success { border-right-color: var(--color-success); }
+.toast.error   { border-right-color: var(--color-error); }
+.toast.warning { border-right-color: var(--color-warning); }
+.toast.info    { border-right-color: var(--color-accent); }
+
+/* Icon */
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.toast.success .icon { color: var(--color-success); }
+.toast.error .icon   { color: var(--color-error); }
+.toast.warning .icon { color: var(--color-warning); }
+.toast.info .icon    { color: var(--color-accent); }
+
+/* Text content */
+.content {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1.4;
+}
+
+.message {
+  font-size: 12.5px;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+/* Progress bar */
+.progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--color-border-light);
+}
+
+.progress-bar {
+  height: 100%;
+  background: var(--color-text-muted);
+  transition: width linear;
+}
+
+/* Animations */
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes toastOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .container {
+    left: 12px;
+    right: 12px;
+    max-width: none;
+  }
+}

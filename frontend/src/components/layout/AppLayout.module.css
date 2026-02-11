@@ -1,0 +1,52 @@
+/* ============================================================
+   AppLayout — Header + Sidebar + Content area
+   ============================================================ */
+
+.layout {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+}
+
+/* Main content area */
+.main {
+  flex: 1;
+  margin-top: var(--header-height);
+  margin-right: var(--sidebar-width);
+  padding: 20px 16px 20px 24px;
+  transition: margin var(--transition-slow);
+  min-height: calc(100vh - var(--header-height));
+  direction: rtl;
+  min-width: 0;
+  width: calc(100% - var(--sidebar-width));
+}
+
+.main.sidebar-collapsed {
+  margin-right: var(--sidebar-collapsed);
+  width: calc(100% - var(--sidebar-collapsed));
+}
+
+/* Page header (title + actions row) */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.page-title {
+  font-size: 1.57rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .main {
+    margin-right: 0;
+    padding: 16px;
+  }
+  .main.sidebar-collapsed {
+    margin-right: 0;
+  }
+}

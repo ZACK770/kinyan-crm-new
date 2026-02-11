@@ -1,0 +1,150 @@
+/* ============================================================
+   Kinyan CRM — Global Styles
+   Design: Minimalist hi-tech, RTL-first, typography-driven
+   ============================================================ */
+
+/* --- Reset & Base --- */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  /* Palette */
+  --color-primary: #1e293b;
+  --color-primary-hover: #334155;
+  --color-accent: #3b82f6;
+  --color-accent-hover: #2563eb;
+  --color-accent-light: #eff6ff;
+
+  --color-bg: #FAFBFC;
+  --color-surface: #FFFFFF;
+  --color-border: #e2e8f0;
+  --color-border-light: #f1f5f9;
+
+  --color-text: #0f172a;
+  --color-text-secondary: #64748b;
+  --color-text-muted: #94a3b8;
+
+  --color-success: #22c55e;
+  --color-success-bg: #f0fdf4;
+  --color-error: #ef4444;
+  --color-error-bg: #fef2f2;
+  --color-warning: #f59e0b;
+  --color-warning-bg: #fefce8;
+  --color-info: #3b82f6;
+  --color-info-bg: #eff6ff;
+
+  /* Sidebar */
+  --sidebar-width: 240px;
+  --sidebar-collapsed: 56px;
+  --header-height: 56px;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 2px 8px rgba(0,0,0,0.06);
+  --shadow-lg: 0 4px 16px rgba(0,0,0,0.08);
+  --shadow-xl: 0 25px 50px rgba(0,0,0,0.15);
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-base: 200ms ease;
+  --transition-slow: 250ms ease-out;
+
+  /* Font */
+  --font-sans: 'Heebo', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+html {
+  direction: rtl;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-text);
+  background: var(--color-bg);
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* --- Typography --- */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text);
+}
+
+h1 { font-size: 1.57rem; font-weight: 700; }
+h2 { font-size: 1.28rem; }
+h3 { font-size: 1.14rem; }
+h4 { font-size: 1rem; }
+
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--color-accent-hover);
+}
+
+/* --- Scrollbar — minimal --- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* --- Focus visible --- */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* --- Selection --- */
+::selection {
+  background: var(--color-accent-light);
+  color: var(--color-text);
+}
+
+/* --- Utility classes --- */
+.mono {
+  font-family: var(--font-mono);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
