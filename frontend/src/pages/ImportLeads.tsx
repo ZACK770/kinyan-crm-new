@@ -41,6 +41,9 @@ const FIELD_OPTIONS = [
   { value: 'city', label: 'עיר' },
   { value: 'address', label: 'כתובת' },
   { value: 'notes', label: 'הערות' },
+  { value: 'created_at', label: 'תאריך יצירה' },
+  { value: 'arrival_date', label: 'תאריך הגעה' },
+  { value: 'last_contact_date', label: 'תאריך שיחה אחרונה' },
 ]
 
 const SUPPORTED_COLUMNS = [
