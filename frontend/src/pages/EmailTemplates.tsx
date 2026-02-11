@@ -95,10 +95,7 @@ export default function EmailTemplates() {
       if (editingId) {
         await api.patch(`/templates/${editingId}`, formData)
       } else {
-        const newTemplate = await api.post<EmailTemplate>('/templates/', formData)
-        setEditingId(newTemplate.id)
-        alert('התבנית נשמרה! כעת ניתן להעלות קבצים מצורפים')
-        return
+        await api.post<EmailTemplate>('/templates/', formData)
       }
       await fetchTemplates()
       setShowForm(false)
@@ -121,11 +118,6 @@ export default function EmailTemplates() {
     const files = e.target.files
     if (!files || files.length === 0) return
 
-    if (!editingId) {
-      alert('יש לשמור את התבנית לפני העלאת קבצים')
-      return
-    }
-
     setUploading(true)
     try {
       for (const file of Array.from(files)) {
@@ -133,7 +125,7 @@ export default function EmailTemplates() {
         formData.append('file', file)
 
         const result = await api.upload<FileAttachment>(
-          `/templates/${editingId}/attachments`,
+          `/files/upload?entity_type=${editingId ? 'templates' : 'temp'}&entity_id=${editingId || 0}`,
           formData
         )
 
@@ -292,28 +284,15 @@ export default function EmailTemplates() {
 
             <div>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>קבצים מצורפים</label>
-              {!editingId && (
-                <div style={{
-                  padding: '12px',
-                  background: '#fef3c7',
-                  border: '1px solid #fbbf24',
-                  borderRadius: 6,
-                  fontSize: 13,
-                  marginBottom: 8,
-                  color: '#92400e'
-                }}>
-                  💡 שמור את התבנית תחילה כדי להעלות קבצים מצורפים
-                </div>
-              )}
               <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                <label className={`${s.btn} ${s['btn-secondary']}`} style={{ cursor: editingId ? 'pointer' : 'not-allowed', opacity: editingId ? 1 : 0.5 }}>
+                <label className={`${s.btn} ${s['btn-secondary']}`} style={{ cursor: 'pointer' }}>
                   <Upload size={16} />
                   {uploading ? 'מעלה...' : 'העלה קובץ'}
                   <input
                     type="file"
                     multiple
                     onChange={handleFileUpload}
-                    disabled={uploading || !editingId}
+                    disabled={uploading}
                     style={{ display: 'none' }}
                   />
                 </label>
@@ -367,7 +346,7 @@ export default function EmailTemplates() {
                 <X size={16} /> ביטול
               </button>
               <button className={`${s.btn} ${s['btn-primary']}`} onClick={handleSave}>
-                <Save size={16} /> {editingId ? 'שמור וסגור' : 'שמור'}
+                <Save size={16} /> שמור
               </button>
             </div>
           </div>
