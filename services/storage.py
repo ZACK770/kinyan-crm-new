@@ -9,6 +9,10 @@ from typing import Optional, BinaryIO
 import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
+import urllib3
+
+# Disable SSL warnings for NetFree compatibility
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class StorageService:
@@ -20,6 +24,9 @@ class StorageService:
         self.secret_key = os.getenv("R2_SECRET_ACCESS_KEY")
         self.bucket_name = os.getenv("R2_BUCKET_NAME", "crm-files")
         self.public_url = os.getenv("R2_PUBLIC_URL", "")  # e.g., https://files.yourdomain.com
+        
+        # SSL verification - disable only for NetFree (local dev)
+        self.verify_ssl = os.getenv("R2_VERIFY_SSL", "true").lower() != "false"
         
         self._client = None
     
@@ -41,7 +48,8 @@ class StorageService:
                 config=Config(
                     signature_version='s3v4',
                     s3={'addressing_style': 'path'}
-                )
+                ),
+                verify=self.verify_ssl  # SSL verification (disabled for NetFree in local dev)
             )
         return self._client
     

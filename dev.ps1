@@ -44,5 +44,5 @@ Write-Host "Starting server on http://localhost:8000 ..." -ForegroundColor Cyan
 Write-Host "Press Ctrl+C to stop" -ForegroundColor Gray
 Write-Host ""
 
-# Start uvicorn
-uvicorn app:app --reload --host 0.0.0.0 --port 8000
+# Start uvicorn from venv
+& ".venv311\Scripts\python.exe" -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
