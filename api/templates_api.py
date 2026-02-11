@@ -266,10 +266,11 @@ async def delete_template(
     attachments = attachments_result.scalars().all()
     
     for attachment in attachments:
-        try:
-            await storage_service.delete_file(attachment.storage_key)
-        except Exception:
-            pass
+        if attachment.storage_key:
+            try:
+                await storage_service.delete_file(attachment.storage_key)
+            except Exception:
+                pass
     
     await db.execute(delete(File).where(
         File.entity_type == "templates",
@@ -299,7 +300,7 @@ async def add_template_attachment(
     if not template:
         raise HTTPException(404, "תבנית לא נמצאה")
     
-    # Upload to R2
+    # Upload to storage backend (DB or R2)
     try:
         upload_result = await storage_service.upload_file(
             file_data=file.file,
@@ -313,12 +314,13 @@ async def add_template_attachment(
     # Create file record
     db_file = File(
         filename=file.filename or "unnamed",
-        storage_key=upload_result['key'],
+        storage_key=upload_result.get('key'),  # None for DB storage
+        file_data=upload_result.get('data'),  # Binary data for DB storage
         content_type=upload_result.get('content_type'),
         size_bytes=upload_result.get('size'),
         entity_type="templates",
         entity_id=template_id,
-        uploaded_by=user.id,
+        uploaded_by=user.id if user and user.id else None,
         is_public=False,
     )
     db.add(db_file)
@@ -352,11 +354,12 @@ async def remove_template_attachment(
     if not file:
         raise HTTPException(404, "קובץ לא נמצא")
     
-    # Delete from R2
-    try:
-        await storage_service.delete_file(file.storage_key)
-    except Exception:
-        pass
+    # Delete from storage (R2 only, DB data deleted with record)
+    if file.storage_key:
+        try:
+            await storage_service.delete_file(file.storage_key)
+        except Exception:
+            pass
     
     # Delete from DB
     await db.execute(delete(File).where(File.id == file_id))
