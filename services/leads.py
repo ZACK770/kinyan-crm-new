@@ -43,6 +43,8 @@ async def search_by_phone(db: AsyncSession, phone: str) -> Lead | None:
 # ============================================================
 async def create_lead(db: AsyncSession, **kwargs) -> Lead:
     """Create a new lead."""
+    from datetime import datetime, timezone
+    
     # Support both 'name' (from webhooks) and 'full_name' (from frontend)
     full_name = kwargs.get("full_name") or kwargs.get("name", "")
     lead = Lead(
@@ -63,6 +65,7 @@ async def create_lead(db: AsyncSession, **kwargs) -> Lead:
         salesperson_id=kwargs.get("salesperson_id"),
         campaign_id=kwargs.get("campaign_id"),
         course_id=kwargs.get("course_id"),
+        created_at=kwargs.get("created_at", datetime.now(timezone.utc)),
     )
     db.add(lead)
     await db.flush()

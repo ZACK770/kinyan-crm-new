@@ -65,7 +65,8 @@ def parse_date(d):
 @router.post("/import-leads")
 async def import_leads_from_excel(
     file: UploadFile = File(...),
-    duplicate_mode: str = Query(default="skip", description="skip / merge / overwrite"),
+    duplicate_mode: str = Query(default="skip", description="skip / merge / overwrite / update_field"),
+    update_field_name: Optional[str] = Query(default=None, description="שם השדה לעדכון במצב update_field"),
 ):
     """
     ייבוא לידים מקובץ אקסל.
@@ -74,6 +75,7 @@ async def import_leads_from_excel(
     - skip: דילוג על לידים עם טלפון קיים
     - merge: מיזוג - עדכון שדות ריקים בלבד (לא דורס נתונים קיימים)
     - overwrite: דריסה מלאה של הליד הקיים
+    - update_field: עדכון שדה ספציפי בלבד (צריך לציין update_field_name)
     """
     import openpyxl
     from db import SessionLocal
@@ -87,8 +89,12 @@ async def import_leads_from_excel(
     headers = [cell.value for cell in ws[1]]
     total_rows = ws.max_row - 1
 
-    stats = {"created": 0, "merged": 0, "overwritten": 0, "skipped_dup": 0, "skipped_no_phone": 0, "errors": 0}
+    stats = {"created": 0, "merged": 0, "overwritten": 0, "updated": 0, "skipped_dup": 0, "skipped_no_phone": 0, "skipped_not_found": 0, "errors": 0}
     error_details = []
+    
+    # במצב update_field - חייב לציין את שם השדה
+    if duplicate_mode == "update_field" and not update_field_name:
+        return {"message": "שגיאה: במצב update_field חובה לציין את update_field_name", "stats": stats}
 
     async with SessionLocal() as session:
         # טעינת מיפויים
@@ -139,6 +145,7 @@ async def import_leads_from_excel(
                     lead_response=lead_response,
                     salesperson_id=sp_id,
                     course_id=c_id,
+                    created_at=arrival,  # תאריך יצירה מהמערכת הישנה
                     created_by="import_script",
                 )
             except Exception as e:
@@ -172,10 +179,26 @@ async def import_leads_from_excel(
                         if key != "phone":
                             setattr(existing, key, val)
                     stats["overwritten"] += 1
+                elif duplicate_mode == "update_field":
+                    # עדכון שדה ספציפי בלבד
+                    if update_field_name in new_data:
+                        val = new_data[update_field_name]
+                        if val is not None:
+                            setattr(existing, update_field_name, val)
+                            stats["updated"] += 1
+                        else:
+                            stats["skipped_dup"] += 1
+                    else:
+                        stats["errors"] += 1
+                        error_details.append({"row": row_idx - 1, "error": f"שדה {update_field_name} לא נמצא בנתונים"})
             else:
-                # ליד חדש
-                session.add(Lead(**new_data))
-                stats["created"] += 1
+                # במצב update_field - אם הליד לא קיים, דלג
+                if duplicate_mode == "update_field":
+                    stats["skipped_not_found"] += 1
+                else:
+                    # ליד חדש
+                    session.add(Lead(**new_data))
+                    stats["created"] += 1
 
         await session.commit()
 

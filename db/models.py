@@ -471,7 +471,7 @@ class Lead(Base):
     conversion_completed_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
 
     # Meta
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     created_by: Mapped[Optional[str]] = mapped_column(String(200))
 

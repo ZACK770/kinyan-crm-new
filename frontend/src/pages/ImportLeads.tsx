@@ -8,8 +8,10 @@ interface ImportStats {
   created: number
   merged: number
   overwritten: number
+  updated: number
   skipped_dup: number
   skipped_no_phone: number
+  skipped_not_found: number
   errors: number
 }
 
@@ -20,12 +22,25 @@ interface ImportResult {
   errors: Array<{ row: number; error: string }>
 }
 
-type DuplicateMode = 'skip' | 'merge' | 'overwrite'
+type DuplicateMode = 'skip' | 'merge' | 'overwrite' | 'update_field'
 
 const DUPLICATE_OPTIONS: { value: DuplicateMode; label: string; desc: string }[] = [
   { value: 'skip', label: 'דילוג', desc: 'דילוג על לידים עם טלפון שכבר קיים במערכת' },
   { value: 'merge', label: 'מיזוג', desc: 'עדכון שדות ריקים בלבד - לא דורס נתונים קיימים' },
   { value: 'overwrite', label: 'דריסה', desc: 'דריסה מלאה של כל השדות בליד הקיים' },
+  { value: 'update_field', label: 'עדכון שדה ספציפי', desc: 'עדכון שדה אחד בלבד בלידים קיימים (לפי טלפון)' },
+]
+
+const FIELD_OPTIONS = [
+  { value: 'status', label: 'סטטוס' },
+  { value: 'lead_response', label: 'סטטוס מענה' },
+  { value: 'salesperson_id', label: 'איש מכירות' },
+  { value: 'course_id', label: 'קורס' },
+  { value: 'full_name', label: 'שם מלא' },
+  { value: 'email', label: 'אימייל' },
+  { value: 'city', label: 'עיר' },
+  { value: 'address', label: 'כתובת' },
+  { value: 'notes', label: 'הערות' },
 ]
 
 const SUPPORTED_COLUMNS = [
@@ -54,6 +69,7 @@ function formatFileSize(bytes: number): string {
 export function ImportLeadsPage() {
   const [file, setFile] = useState<File | null>(null)
   const [duplicateMode, setDuplicateMode] = useState<DuplicateMode>('skip')
+  const [updateFieldName, setUpdateFieldName] = useState<string>('status')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<ImportResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -101,10 +117,12 @@ export function ImportLeadsPage() {
       const formData = new FormData()
       formData.append('file', file)
 
-      const res = await api.upload<ImportResult>(
-        `/admin/import-leads?duplicate_mode=${duplicateMode}`,
-        formData
-      )
+      let url = `/admin/import-leads?duplicate_mode=${duplicateMode}`
+      if (duplicateMode === 'update_field') {
+        url += `&update_field_name=${updateFieldName}`
+      }
+
+      const res = await api.upload<ImportResult>(url, formData)
       setResult(res)
     } catch (err: unknown) {
       const message = (err as any)?.message || 'שגיאה בייבוא הלידים'
@@ -201,6 +219,27 @@ export function ImportLeadsPage() {
               </label>
             ))}
           </div>
+          
+          {/* Field selection for update_field mode */}
+          {duplicateMode === 'update_field' && (
+            <div style={{ marginTop: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.9rem' }}>
+                בחר שדה לעדכון:
+              </label>
+              <select
+                value={updateFieldName}
+                onChange={(e) => setUpdateFieldName(e.target.value)}
+                className={s.input}
+                style={{ width: '100%', maxWidth: '300px' }}
+              >
+                {FIELD_OPTIONS.map((field) => (
+                  <option key={field.value} value={field.value}>
+                    {field.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       )}
 
@@ -260,6 +299,14 @@ export function ImportLeadsPage() {
                 <span className={styles.statLabel}>נדרסו</span>
               </div>
             )}
+            {result.stats.updated > 0 && (
+              <div className={styles.statItem}>
+                <span className={`${styles.statNumber} ${styles.statNumberBlue}`}>
+                  {result.stats.updated}
+                </span>
+                <span className={styles.statLabel}>עודכנו</span>
+              </div>
+            )}
             <div className={styles.statItem}>
               <span className={`${styles.statNumber} ${styles.statNumberGray}`}>
                 {result.stats.skipped_dup}
@@ -272,6 +319,14 @@ export function ImportLeadsPage() {
               </span>
               <span className={styles.statLabel}>דולגו (אין טלפון)</span>
             </div>
+            {result.stats.skipped_not_found > 0 && (
+              <div className={styles.statItem}>
+                <span className={`${styles.statNumber} ${styles.statNumberGray}`}>
+                  {result.stats.skipped_not_found}
+                </span>
+                <span className={styles.statLabel}>דולגו (לא נמצא)</span>
+              </div>
+            )}
             {result.stats.errors > 0 && (
               <div className={styles.statItem}>
                 <span className={`${styles.statNumber} ${styles.statNumberRed}`}>
