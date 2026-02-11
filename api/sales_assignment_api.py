@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db import get_db
 from db.models import SalesAssignmentRules, Salesperson, Lead
 from services import audit_logs
-from .dependencies import require_entity_access
+from .dependencies import require_entity_access, require_permission
 
 router = APIRouter(tags=["sales-assignment"])
 
