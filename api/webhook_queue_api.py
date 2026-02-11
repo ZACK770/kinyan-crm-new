@@ -22,7 +22,7 @@ from services.webhook_queue import (
     increment_retry_count,
     cleanup_expired_queue_items,
 )
-from services.auth import get_current_user
+from api.dependencies import get_current_user
 from webhooks.elementor import handle_elementor_webhook
 from webhooks.yemot import handle_yemot_webhook
 from webhooks.generic import handle_generic_webhook

@@ -4,17 +4,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Optional, List
 
-from db import get_session
+from db import get_db
 from db.models import Lead, Student, Course, Payment, Expense, Attendance, User
 from services.export_service import export_service
-from services.auth import get_current_user
+from api.dependencies import get_current_user
 
 router = APIRouter()
 
 
 @router.get("/export/leads/csv")
 async def export_leads_csv(
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Export leads to CSV with Hebrew support."""
@@ -49,7 +49,7 @@ async def export_leads_csv(
 
 @router.get("/export/leads/pdf")
 async def export_leads_pdf(
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Export leads to PDF with Hebrew support."""
@@ -88,7 +88,7 @@ async def export_leads_pdf(
 
 @router.get("/export/students/csv")
 async def export_students_csv(
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Export students to CSV with Hebrew support."""
@@ -122,7 +122,7 @@ async def export_students_csv(
 
 @router.get("/export/students/pdf")
 async def export_students_pdf(
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Export students to PDF with Hebrew support."""
@@ -160,7 +160,7 @@ async def export_students_pdf(
 
 @router.get("/export/courses/csv")
 async def export_courses_csv(
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Export courses to CSV with Hebrew support."""
@@ -192,7 +192,7 @@ async def export_courses_csv(
 
 @router.get("/export/courses/pdf")
 async def export_courses_pdf(
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Export courses to PDF with Hebrew support."""
@@ -228,7 +228,7 @@ async def export_courses_pdf(
 
 @router.get("/export/payments/csv")
 async def export_payments_csv(
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Export payments to CSV with Hebrew support."""
@@ -260,7 +260,7 @@ async def export_payments_csv(
 
 @router.get("/export/payments/pdf")
 async def export_payments_pdf(
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Export payments to PDF with Hebrew support."""

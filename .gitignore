@@ -4,6 +4,7 @@ __pycache__/
 build/
 
 .venv/
+.venv311/
 venv/
 *.db
 *.sqlite3
