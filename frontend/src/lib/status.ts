@@ -6,16 +6,26 @@ type BadgeColor = 'blue' | 'green' | 'yellow' | 'red' | 'gray' | 'orange'
 
 interface StatusDef { label: string; color: BadgeColor }
 
-// Lead statuses per ENTITIES_SPEC.md
+// Lead statuses — DB stores Hebrew values
 const leadStatus: Record<string, StatusDef> = {
+  // Primary keys (Hebrew — as stored in DB)
+  'ליד חדש':                { label: 'ליד חדש', color: 'blue' },
+  'ליד בתהליך':             { label: 'ליד בתהליך', color: 'blue' },
+  'חיוג ראשון':             { label: 'חיוג ראשון', color: 'yellow' },
+  'במעקב':                  { label: 'במעקב', color: 'yellow' },
+  'מתעניין':                { label: 'מתעניין', color: 'orange' },
+  'נסלק':                   { label: 'נסלק', color: 'green' },
+  'ליד סגור - לקוח':       { label: 'ליד סגור - לקוח', color: 'green' },
+  'ליד סגור - לא רלוונטי': { label: 'ליד סגור - לא רלוונטי', color: 'gray' },
+  'לא רלוונטי':             { label: 'לא רלוונטי', color: 'gray' },
+  'converted':              { label: 'הומר לתלמיד', color: 'green' },
+  // Legacy English keys (for backward compatibility)
   new:           { label: 'ליד חדש', color: 'blue' },
   first_call:    { label: 'חיוג ראשון', color: 'yellow' },
   follow_up:     { label: 'במעקב', color: 'yellow' },
   interested:    { label: 'מתעניין', color: 'orange' },
   payment_done:  { label: 'נסלק', color: 'green' },
-  converted:     { label: 'ליד סגור-לקוח', color: 'green' },
-  not_relevant:  { label: 'ליד סגור-לא רלוונטי', color: 'gray' },
-  // Legacy mappings
+  not_relevant:  { label: 'לא רלוונטי', color: 'gray' },
   contacted:     { label: 'נוצר קשר', color: 'yellow' },
   irrelevant:    { label: 'לא רלוונטי', color: 'gray' },
 }
@@ -50,9 +60,11 @@ const studentStatus: Record<string, StatusDef> = {
 
 const paymentStatus: Record<string, StatusDef> = {
   paid:     { label: 'שולם', color: 'green' },
+  'שולם':  { label: 'שולם', color: 'green' },
   partial:  { label: 'חלקי', color: 'yellow' },
   unpaid:   { label: 'טרם שולם', color: 'red' },
   pending:  { label: 'ממתין', color: 'yellow' },
+  'ממתין': { label: 'ממתין', color: 'yellow' },
   failed:   { label: 'נכשל', color: 'red' },
   refunded: { label: 'הוחזר', color: 'gray' },
 }
@@ -114,6 +126,7 @@ const sourceTypes: Record<string, string> = {
   elementor: 'אלמנטור',
   manual:    'ידני',
   import:    'ייבוא',
+  'ייבוא ממערכת ישנה': 'ייבוא ממערכת ישנה',
   referral:  'הפניה',
   other:     'אחר',
 }

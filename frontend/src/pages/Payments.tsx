@@ -138,6 +138,7 @@ export function PaymentsPage() {
       type: 'select',
       options: [
         { value: 'credit_card', label: 'כרטיס אשראי' },
+        { value: 'כרטיס אשראי', label: 'כרטיס אשראי' },
         { value: 'bank_transfer', label: 'העברה בנקאית' },
         { value: 'cash', label: 'מזומן' },
         { value: 'check', label: 'צ\'ק' },
@@ -151,7 +152,9 @@ export function PaymentsPage() {
       type: 'select',
       options: [
         { value: 'paid', label: 'שולם' },
+        { value: 'שולם', label: 'שולם' },
         { value: 'pending', label: 'ממתין' },
+        { value: 'ממתין', label: 'ממתין' },
         { value: 'failed', label: 'נכשל' },
         { value: 'refunded', label: 'הוחזר' },
       ],

@@ -51,7 +51,7 @@ function LeadForm({
     course_id: initial?.course_id ?? '',
     notes: initial?.notes ?? '',
     salesperson_id: initial?.salesperson_id ?? '',
-    status: initial?.status ?? 'new',
+    status: initial?.status ?? 'ליד חדש',
   })
 
   // Get selected course for price display
@@ -118,6 +118,7 @@ function LeadForm({
             <option value="elementor">אלמנטור</option>
             <option value="manual">ידני</option>
             <option value="referral">הפניה</option>
+            <option value="ייבוא ממערכת ישנה">ייבוא ממערכת ישנה</option>
             <option value="other">אחר</option>
           </select>
         </div>
@@ -198,11 +199,14 @@ function LeadForm({
         <div className={s['form-group']}>
           <label className={s['form-label']}>סטטוס</label>
           <select className={s.select} value={form.status} onChange={set('status')}>
-            <option value="new">חדש</option>
-            <option value="contacted">נוצר קשר</option>
-            <option value="interested">מעוניין</option>
-            <option value="converted">הומר</option>
-            <option value="irrelevant">לא רלוונטי</option>
+            <option value="ליד חדש">ליד חדש</option>
+            <option value="ליד בתהליך">ליד בתהליך</option>
+            <option value="חיוג ראשון">חיוג ראשון</option>
+            <option value="במעקב">במעקב</option>
+            <option value="מתעניין">מתעניין</option>
+            <option value="נסלק">נסלק</option>
+            <option value="ליד סגור - לקוח">ליד סגור - לקוח</option>
+            <option value="ליד סגור - לא רלוונטי">ליד סגור - לא רלוונטי</option>
           </select>
         </div>
       </div>
@@ -720,12 +724,15 @@ export function LeadsPage() {
       type: 'select',
       options: [
         { value: 'ליד חדש', label: 'ליד חדש' },
+        { value: 'ליד בתהליך', label: 'ליד בתהליך' },
         { value: 'חיוג ראשון', label: 'חיוג ראשון' },
         { value: 'במעקב', label: 'במעקב' },
         { value: 'מתעניין', label: 'מתעניין' },
         { value: 'נסלק', label: 'נסלק' },
-        { value: 'ליד סגור - לקוח', label: 'ליד סגור-לקוח' },
-        { value: 'ליד סגור - לא רלוונטי', label: 'ליד סגור-לא רלוונטי' },
+        { value: 'ליד סגור - לקוח', label: 'ליד סגור - לקוח' },
+        { value: 'ליד סגור - לא רלוונטי', label: 'ליד סגור - לא רלוונטי' },
+        { value: 'לא רלוונטי', label: 'לא רלוונטי' },
+        { value: 'converted', label: 'הומר לתלמיד' },
       ],
     },
     { 
@@ -743,6 +750,7 @@ export function LeadsPage() {
         { value: 'elementor', label: 'אלמנטור' },
         { value: 'manual', label: 'ידני' },
         { value: 'referral', label: 'הפניה' },
+        { value: 'ייבוא ממערכת ישנה', label: 'ייבוא ממערכת ישנה' },
         { value: 'other', label: 'אחר' },
       ],
     },

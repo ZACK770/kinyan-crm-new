@@ -39,11 +39,14 @@ export function InlineEditCell({
     }
   }, [value, isEditing])
 
-  // Focus on edit start
+  // Focus on edit start — for selects, also open the dropdown automatically
   useEffect(() => {
     if (isEditing && inputRef.current) {
       inputRef.current.focus()
-      if (inputRef.current instanceof HTMLInputElement) {
+      if (inputRef.current instanceof HTMLSelectElement) {
+        // Auto-open dropdown on first click
+        try { inputRef.current.showPicker() } catch { /* not supported in all browsers */ }
+      } else if (inputRef.current instanceof HTMLInputElement) {
         inputRef.current.select()
       }
     }

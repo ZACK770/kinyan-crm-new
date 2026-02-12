@@ -56,11 +56,13 @@ export function EditableField({
   const containerRef = useRef<HTMLDivElement>(null)
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Focus input when entering edit mode
+  // Focus input when entering edit mode — for selects, auto-open dropdown
   useEffect(() => {
     if (isEditing && inputRef.current) {
       inputRef.current.focus()
-      if (inputRef.current instanceof HTMLInputElement || inputRef.current instanceof HTMLTextAreaElement) {
+      if (inputRef.current instanceof HTMLSelectElement) {
+        try { inputRef.current.showPicker() } catch { /* not supported in all browsers */ }
+      } else if (inputRef.current instanceof HTMLInputElement || inputRef.current instanceof HTMLTextAreaElement) {
         inputRef.current.select()
       }
     }
