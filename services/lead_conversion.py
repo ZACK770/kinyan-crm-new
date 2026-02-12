@@ -358,7 +358,7 @@ async def check_and_complete_conversion(
             lead.conversion_checklist_complete = True
             lead.conversion_completed_at = datetime.now()
             lead.conversion_completed_by_id = user_id
-            lead.status = "ליד סגור - הומר לתלמיד"
+            lead.status = "נסלק"
             
             # יצירת תלמיד מהליד
             await convert_lead_to_student(session, lead)

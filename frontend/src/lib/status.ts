@@ -15,8 +15,8 @@ const leadStatus: Record<string, StatusDef> = {
   'נסלק':                   { label: 'נסלק', color: 'green' },
   'תלמיד פעיל':             { label: 'תלמיד פעיל', color: 'teal' },
   'ליד סגור - לקוח':       { label: 'נסלק', color: 'green' },
-  'ליד סגור - לא רלוונטי': { label: 'ליד סגור - לא רלוונטי', color: 'red' },
-  'לא רלוונטי':             { label: 'לא רלוונטי', color: 'gray' },
+  'ליד סגור - לא רלוונטי': { label: 'לא רלוונטי', color: 'red' },
+  'לא רלוונטי':             { label: 'לא רלוונטי', color: 'red' },
   'converted':              { label: 'הומר לתלמיד', color: 'green' },
   // Legacy English keys (for backward compatibility)
   'במעקב':       { label: 'במעקב', color: 'orange' },

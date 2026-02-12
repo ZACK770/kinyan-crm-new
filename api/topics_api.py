@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
@@ -10,6 +11,8 @@ from db.models import User, Topic, Lesson, StudentLessonProgress, Course, Studen
 from api.dependencies import get_current_user
 from services import topics_service
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 
@@ -18,7 +21,6 @@ router = APIRouter()
 class CreateTopicRequest(BaseModel):
     name: str
     description: Optional[str] = None
-    lecturer_name: Optional[str] = None
 
 
 class CreateLessonRequest(BaseModel):
@@ -106,35 +108,40 @@ async def create_topic(
 ):
     _check_permission(user, 30)
     
-    # Get max order_index
-    result = await db.execute(
-        select(func.coalesce(func.max(Topic.order_index), -1))
-        .where(Topic.course_id == course_id)
-    )
-    max_index = result.scalar()
-    
-    topic = Topic(
-        course_id=course_id,
-        name=request.name,
-        description=request.description,
-        lecturer_name=request.lecturer_name,
-        order_index=max_index + 1
-    )
-    db.add(topic)
-    await db.commit()
-    await db.refresh(topic)
-    
-    return {
-        "success": True,
-        "topic": {
-            "id": topic.id,
-            "name": topic.name,
-            "description": topic.description,
-            "order_index": topic.order_index,
-            "lessons_count": 0,
-            "first_lesson": None
+    try:
+        # Get max order_index
+        result = await db.execute(
+            select(func.coalesce(func.max(Topic.order_index), -1))
+            .where(Topic.course_id == course_id)
+        )
+        max_index = result.scalar()
+        
+        topic = Topic(
+            course_id=course_id,
+            name=request.name,
+            description=request.description,
+            order_index=max_index + 1,
+            lessons_count=0
+        )
+        db.add(topic)
+        await db.commit()
+        await db.refresh(topic)
+        
+        return {
+            "success": True,
+            "topic": {
+                "id": topic.id,
+                "name": topic.name,
+                "description": topic.description,
+                "order_index": topic.order_index,
+                "lessons_count": 0,
+                "first_lesson": None
+            }
         }
-    }
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to create topic for course {course_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create topic: {str(e)}")
 
 
 @router.delete("/topics/{topic_id}")
@@ -251,7 +258,7 @@ async def create_lesson(
         lesson_number=max_num + 1,
         title=request.title,
         description=request.description,
-        lecturer_name=request.lecturer_name or topic.lecturer_name,
+        lecturer_name=request.lecturer_name,
         scheduled_date=request.scheduled_date,
         status="scheduled"
     )

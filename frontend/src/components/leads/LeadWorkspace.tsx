@@ -54,7 +54,6 @@ const STATUS_OPTIONS: SelectOption[] = [
   { value: 'חיוג ראשון', label: 'חיוג ראשון' },
   { value: 'נסלק', label: 'נסלק' },
   { value: 'תלמיד פעיל', label: 'תלמיד פעיל' },
-  { value: 'ליד סגור - לא רלוונטי', label: 'ליד סגור - לא רלוונטי' },
   { value: 'לא רלוונטי', label: 'לא רלוונטי' },
 ]
 

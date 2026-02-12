@@ -9,6 +9,17 @@ from sqlalchemy.orm import selectinload
 from db.models import Lead, LeadInteraction, Salesperson
 from utils.phone import normalize_phone, is_valid_phone
 
+# Allowed lead statuses — only these can be set via API/import
+ALLOWED_LEAD_STATUSES = {
+    "ליד חדש",
+    "ליד בתהליך",
+    "חיוג ראשון",
+    "נסלק",
+    "תלמיד פעיל",
+    "לא רלוונטי",
+    "converted",  # set by convert_lead_to_student
+}
+
 
 # ============================================================
 # Search
@@ -47,10 +58,16 @@ async def create_lead(db: AsyncSession, **kwargs) -> Lead:
     
     # Support both 'name' (from webhooks) and 'full_name' (from frontend)
     full_name = kwargs.get("full_name") or kwargs.get("name", "")
+    # Validate status if provided
+    status = kwargs.get("status")
+    if status and status not in ALLOWED_LEAD_STATUSES:
+        raise ValueError(f"סטטוס לא חוקי: {status}")
+
     lead = Lead(
         full_name=full_name,
         family_name=kwargs.get("family_name"),
         phone=normalize_phone(kwargs.get("phone", "")),
+        status=status or "ליד חדש",
         phone2=kwargs.get("phone2"),
         email=kwargs.get("email"),
         address=kwargs.get("address"),
@@ -84,6 +101,11 @@ async def update_lead(db: AsyncSession, lead_id: int, manual_edit: bool = False,
     lead = result.scalar_one_or_none()
     if not lead:
         return None
+
+    # Validate status if being changed
+    if "status" in kwargs and kwargs["status"] is not None:
+        if kwargs["status"] not in ALLOWED_LEAD_STATUSES:
+            raise ValueError(f"סטטוס לא חוקי: {kwargs['status']}")
 
     for key, value in kwargs.items():
         if value is not None and hasattr(lead, key):

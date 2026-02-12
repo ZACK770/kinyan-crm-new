@@ -204,7 +204,6 @@ function LeadForm({
             <option value="חיוג ראשון">חיוג ראשון</option>
             <option value="נסלק">נסלק</option>
             <option value="תלמיד פעיל">תלמיד פעיל</option>
-            <option value="ליד סגור - לא רלוונטי">ליד סגור - לא רלוונטי</option>
             <option value="לא רלוונטי">לא רלוונטי</option>
           </select>
         </div>
@@ -727,7 +726,6 @@ export function LeadsPage() {
         { value: 'חיוג ראשון', label: 'חיוג ראשון' },
         { value: 'נסלק', label: 'נסלק' },
         { value: 'תלמיד פעיל', label: 'תלמיד פעיל' },
-        { value: 'ליד סגור - לא רלוונטי', label: 'ליד סגור - לא רלוונטי' },
         { value: 'לא רלוונטי', label: 'לא רלוונטי' },
       ],
     },
@@ -892,7 +890,7 @@ export function LeadsPage() {
           pageSizeOptions={[50, 100, 200]}
           rowClassName={(row) => {
             if (row.status === 'נסלק' || row.status === 'ליד סגור - לקוח' || row.status === 'converted' || row.status === 'תלמיד פעיל') return 'row-closed-won'
-            if (row.status === 'ליד סגור - לא רלוונטי' || row.status === 'לא רלוונטי') return 'row-closed-lost'
+            if (row.status === 'לא רלוונטי' || row.status === 'ליד סגור - לא רלוונטי') return 'row-closed-lost'
             return ''
           }}
           bulkActions={[

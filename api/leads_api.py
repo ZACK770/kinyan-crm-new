@@ -143,7 +143,10 @@ async def create_lead(
     user = Depends(require_entity_access("leads", "create")),
     db: AsyncSession = Depends(get_db)
 ):
-    result = await lead_svc.process_incoming_lead(db, **data.model_dump())
+    try:
+        result = await lead_svc.process_incoming_lead(db, **data.model_dump())
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     
     # Log lead creation
     if result and "lead_id" in result:
@@ -167,7 +170,10 @@ async def update_lead(
     user = Depends(require_entity_access("leads", "edit")),
     db: AsyncSession = Depends(get_db)
 ):
-    lead = await lead_svc.update_lead(db, lead_id, manual_edit=True, **data.model_dump(exclude_unset=True))
+    try:
+        lead = await lead_svc.update_lead(db, lead_id, manual_edit=True, **data.model_dump(exclude_unset=True))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     if not lead:
         raise HTTPException(404, "Lead not found")
     await db.commit()

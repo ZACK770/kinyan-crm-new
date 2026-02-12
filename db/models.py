@@ -1187,7 +1187,7 @@ class Topic(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
     order_index: Mapped[int] = mapped_column(Integer, nullable=False)
-    lessons_count: Mapped[int] = mapped_column(Integer, default=0)
+    lessons_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
