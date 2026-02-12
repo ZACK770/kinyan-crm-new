@@ -3,7 +3,7 @@ import { FileText, Search } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, formatDate, formatCurrency } from '@/lib/status'
 import { useToast } from '@/components/ui/Toast'
-import { DataTable, type Column } from '@/components/ui/DataTable'
+import { SmartTable, type SmartColumn } from '@/components/ui/SmartTable'
 import type { Commitment } from '@/types'
 import s from '@/styles/shared.module.css'
 
@@ -37,14 +37,22 @@ export function CommitmentsPage() {
     }
   }
 
-  const columns: Column<Commitment>[] = [
-    { key: 'id', header: '#' },
-    { key: 'total_amount', header: 'סה"כ', render: r => formatCurrency(r.total_amount) },
-    { key: 'paid_amount', header: 'שולם', render: r => formatCurrency(r.paid_amount) },
-    { key: 'remaining', header: 'יתרה', render: r => formatCurrency(r.remaining) },
-    { key: 'installments', header: 'תשלומים', render: r => r.installments ?? '—' },
-    { key: 'status', header: 'סטטוס', render: r => <Badge entity="commitment" value={r.status} /> },
-    { key: 'created_at', header: 'התחלה', render: r => formatDate(r.created_at), className: s.muted },
+  const columns: SmartColumn<Commitment>[] = [
+    { key: 'id', header: '#', type: 'number', width: 60, editable: false },
+    { key: 'total_amount', header: 'סה"כ', type: 'currency', editable: false, renderView: r => formatCurrency(r.total_amount) },
+    { key: 'paid_amount', header: 'שולם', type: 'currency', editable: false, renderView: r => formatCurrency(r.paid_amount) },
+    { key: 'remaining', header: 'יתרה', type: 'currency', editable: false, renderView: r => formatCurrency(r.remaining) },
+    { key: 'installments', header: 'תשלומים', type: 'number', editable: false, renderView: r => String(r.installments ?? '—') },
+    {
+      key: 'status', header: 'סטטוס', type: 'select', editable: false,
+      options: [
+        { value: 'active', label: 'פעיל' },
+        { value: 'completed', label: 'הושלם' },
+        { value: 'cancelled', label: 'בוטל' },
+      ],
+      renderView: r => <Badge entity="commitment" value={r.status} />,
+    },
+    { key: 'created_at', header: 'התחלה', type: 'date', editable: false, renderView: r => formatDate(r.created_at), className: s.muted },
   ]
 
   return (
@@ -77,13 +85,14 @@ export function CommitmentsPage() {
             <span className={s['empty-text']}>הזן מזהה תלמיד כדי לצפות בהתחייבויות</span>
           </div>
         ) : (
-          <DataTable
+          <SmartTable
             columns={columns}
             data={commitments}
             loading={loading}
             emptyText="אין התחייבויות"
             emptyIcon={<FileText size={40} strokeWidth={1.5} />}
             keyExtractor={r => r.id}
+            storageKey="commitments_table"
           />
         )}
       </div>

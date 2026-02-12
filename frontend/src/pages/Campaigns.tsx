@@ -1,10 +1,10 @@
 import { useEffect, useState, useCallback, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Megaphone, Plus, Pencil, ArrowRight } from 'lucide-react'
+import { Megaphone, Plus, ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatDate } from '@/lib/status'
 import { useToast } from '@/components/ui/Toast'
-import { DataTable, type Column } from '@/components/ui/DataTable'
+import { SmartTable, type SmartColumn } from '@/components/ui/SmartTable'
 import type { Campaign, Course } from '@/types'
 import s from '@/styles/shared.module.css'
 
@@ -162,29 +162,36 @@ export function CampaignsPage() {
     setViewMode('list')
   }
 
-  const columns: Column<Campaign>[] = [
-    { key: 'name', header: 'שם הקמפיין' },
-    { key: 'platforms', header: 'פלטפורמות', render: r => r.platforms ?? '—' },
+  const handleInlineUpdate = async (row: Campaign, field: string, value: unknown) => {
+    try {
+      await api.patch(`campaigns/${row.id}`, { [field]: value })
+      setCampaigns(prev => prev.map(c => c.id === row.id ? { ...c, [field]: value } : c))
+    } catch (err: unknown) {
+      toast.error((err as { message?: string }).message ?? 'שגיאה בעדכון')
+      throw err
+    }
+  }
+
+  const columns: SmartColumn<Campaign>[] = [
+    { key: 'id', header: '#', type: 'number', width: 60, editable: false },
+    { key: 'name', header: 'שם הקמפיין', type: 'text' },
+    { key: 'platforms', header: 'פלטפורמות', type: 'text', renderView: r => r.platforms ?? '—' },
     {
       key: 'is_active',
       header: 'סטטוס',
-      render: r => (
+      type: 'select',
+      options: [
+        { value: true as unknown as string, label: 'פעיל' },
+        { value: false as unknown as string, label: 'לא פעיל' },
+      ],
+      renderView: r => (
         <span className={`${s.badge} ${r.is_active ? s['badge-green'] : s['badge-gray']}`}>
           {r.is_active ? 'פעיל' : 'לא פעיל'}
         </span>
       ),
     },
-    { key: 'start_date', header: 'התחלה', render: r => formatDate(r.start_date), className: s.muted },
-    { key: 'end_date', header: 'סיום', render: r => formatDate(r.end_date), className: s.muted },
-    {
-      key: '_actions',
-      header: '',
-      render: r => (
-        <button className={`${s.btn} ${s['btn-ghost']} ${s['btn-xs']}`} onClick={e => { e.stopPropagation(); openEdit(r) }} title="עריכה">
-          <Pencil size={14} strokeWidth={1.5} />
-        </button>
-      ),
-    },
+    { key: 'start_date', header: 'התחלה', type: 'date', renderView: r => formatDate(r.start_date), className: s.muted },
+    { key: 'end_date', header: 'סיום', type: 'date', renderView: r => formatDate(r.end_date), className: s.muted },
   ]
 
   // Show workspace for create or edit
@@ -236,13 +243,21 @@ export function CampaignsPage() {
         </button>
       </div>
       <div className={s.card}>
-        <DataTable
+        <SmartTable
           columns={columns}
           data={campaigns}
           loading={loading}
           emptyText="אין קמפיינים"
           emptyIcon={<Megaphone size={40} strokeWidth={1.5} />}
           keyExtractor={r => r.id}
+          storageKey="campaigns_table"
+          onUpdate={handleInlineUpdate}
+          onRowClick={openEdit}
+          searchFields={[
+            { key: 'name', label: 'שם', weight: 3 },
+            { key: 'platforms', label: 'פלטפורמות', weight: 2 },
+          ]}
+          searchPlaceholder="חיפוש קמפיינים..."
         />
       </div>
     </div>

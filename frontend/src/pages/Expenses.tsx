@@ -3,7 +3,7 @@ import { Plus, TrendingDown, ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatDate, formatCurrency } from '@/lib/status'
 import { useToast } from '@/components/ui/Toast'
-import { DataTable, type Column } from '@/components/ui/DataTable'
+import { SmartTable, type SmartColumn } from '@/components/ui/SmartTable'
 import type { Expense } from '@/types'
 import s from '@/styles/shared.module.css'
 
@@ -120,12 +120,26 @@ export function ExpensesPage() {
     setViewMode('create')
   }
 
-  const columns: Column<Expense>[] = [
-    { key: 'description', header: 'תיאור' },
-    { key: 'category', header: 'קטגוריה', render: r => r.category ?? '—' },
-    { key: 'amount', header: 'סכום', render: r => formatCurrency(r.amount) },
-    { key: 'vendor', header: 'ספק', render: r => r.vendor ?? '—' },
-    { key: 'expense_date', header: 'תאריך', render: r => formatDate(r.expense_date ?? r.created_at), className: s.muted },
+  const columns: SmartColumn<Expense>[] = [
+    { key: 'id', header: '#', type: 'number', width: 60, editable: false },
+    { key: 'description', header: 'תיאור', type: 'text' },
+    { 
+      key: 'category', header: 'קטגוריה', type: 'select',
+      options: [
+        { value: 'marketing', label: 'שיווק' },
+        { value: 'salary', label: 'שכר' },
+        { value: 'rent', label: 'שכירות' },
+        { value: 'software', label: 'תוכנה' },
+        { value: 'supplies', label: 'ציוד' },
+        { value: 'travel', label: 'נסיעות' },
+        { value: 'other', label: 'אחר' },
+      ],
+      renderView: r => r.category ?? '—'
+    },
+    { key: 'amount', header: 'סכום', type: 'currency', renderView: r => formatCurrency(r.amount) },
+    { key: 'vendor', header: 'ספק', type: 'text', renderView: r => r.vendor ?? '—' },
+    { key: 'notes', header: 'הערות', type: 'text', hiddenByDefault: true, renderView: r => r.notes ?? '—' },
+    { key: 'expense_date', header: 'תאריך', type: 'date', renderView: r => formatDate(r.expense_date ?? r.created_at), className: s.muted },
   ]
 
   // Show workspace for create
@@ -174,13 +188,20 @@ export function ExpensesPage() {
       </div>
 
       <div className={s.card}>
-        <DataTable
+        <SmartTable
           columns={columns}
           data={expenses}
           loading={loading}
           emptyText="אין הוצאות"
           emptyIcon={<TrendingDown size={40} strokeWidth={1.5} />}
           keyExtractor={r => r.id}
+          storageKey="expenses_table"
+          searchFields={[
+            { key: 'description', label: 'תיאור', weight: 3 },
+            { key: 'vendor', label: 'ספק', weight: 2 },
+            { key: 'category', label: 'קטגוריה', weight: 1 },
+          ]}
+          searchPlaceholder="חיפוש הוצאות..."
         />
       </div>
     </div>

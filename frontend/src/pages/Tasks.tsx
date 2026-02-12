@@ -3,7 +3,7 @@ import { Plus, CheckSquare, ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, getPriority, formatDate } from '@/lib/status'
 import { useToast } from '@/components/ui/Toast'
-import { DataTable, type Column } from '@/components/ui/DataTable'
+import { SmartTable, type SmartColumn } from '@/components/ui/SmartTable'
 import type { SalesTask, Salesperson } from '@/types'
 import s from '@/styles/shared.module.css'
 
@@ -107,7 +107,6 @@ export function TasksPage() {
   const [tasks, setTasks] = useState<SalesTask[]>([])
   const [salespersons, setSalespersons] = useState<Salesperson[]>([])
   const [loading, setLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState('')
 
   // Workspace view state
   type ViewMode = 'list' | 'create'
@@ -121,13 +120,13 @@ export function TasksPage() {
       // Tasks may be returned through dashboard salespeople endpoint or a dedicated one
       // For now we attempt to get from a general tasks endpoint
       const data = await api.get<SalesTask[]>('leads/tasks').catch(() => [] as SalesTask[])
-      setTasks(statusFilter ? data.filter(t => t.status === statusFilter) : data)
+      setTasks(data)
     } catch {
       setTasks([])
     } finally {
       setLoading(false)
     }
-  }, [statusFilter])
+  }, [])
 
   useEffect(() => { fetchTasks() }, [fetchTasks])
   useEffect(() => {
@@ -140,17 +139,46 @@ export function TasksPage() {
     setViewMode('create')
   }
 
-  const columns: Column<SalesTask>[] = [
-    { key: 'title', header: 'כותרת' },
-    { key: 'status', header: 'סטטוס', render: r => <Badge entity="task" value={r.status} /> },
-    { key: 'priority', header: 'עדיפות', render: r => <PriorityBadge value={r.priority} /> },
+  const handleInlineUpdate = async (row: SalesTask, field: string, value: unknown) => {
+    try {
+      await api.patch(`leads/tasks/${row.id}`, { [field]: value })
+      setTasks(prev => prev.map(t => t.id === row.id ? { ...t, [field]: value } : t))
+    } catch (err: unknown) {
+      toast.error((err as { message?: string }).message ?? 'שגיאה בעדכון')
+      throw err
+    }
+  }
+
+  const columns: SmartColumn<SalesTask>[] = [
+    { key: 'id', header: '#', type: 'number', width: 60, editable: false },
+    { key: 'title', header: 'כותרת', type: 'text' },
     {
-      key: 'salesperson_id',
-      header: 'איש מכירות',
-      render: r => salespersons.find(sp => sp.id === r.salesperson_id)?.name ?? '—',
+      key: 'status', header: 'סטטוס', type: 'select',
+      options: [
+        { value: 'new', label: 'חדש' },
+        { value: 'in_progress', label: 'בביצוע' },
+        { value: 'completed', label: 'הושלם' },
+        { value: 'cancelled', label: 'בוטל' },
+      ],
+      renderView: r => <Badge entity="task" value={r.status} />,
     },
-    { key: 'due_date', header: 'יעד', render: r => formatDate(r.due_date), className: s.muted },
-    { key: 'created_at', header: 'נוצר', render: r => formatDate(r.created_at), className: s.muted },
+    {
+      key: 'priority', header: 'עדיפות', type: 'select',
+      options: [
+        { value: 1, label: 'נמוך' },
+        { value: 2, label: 'רגיל' },
+        { value: 3, label: 'גבוה' },
+        { value: 4, label: 'דחוף' },
+      ],
+      renderView: r => <PriorityBadge value={r.priority} />,
+    },
+    {
+      key: 'salesperson_id', header: 'איש מכירות', type: 'select',
+      options: salespersons.map(sp => ({ value: sp.id, label: sp.name })),
+      renderView: r => salespersons.find(sp => sp.id === r.salesperson_id)?.name ?? '—',
+    },
+    { key: 'due_date', header: 'יעד', type: 'date', renderView: r => formatDate(r.due_date), className: s.muted },
+    { key: 'created_at', header: 'נוצר', type: 'date', editable: false, renderView: r => formatDate(r.created_at), className: s.muted },
   ]
 
   // Show workspace for create
@@ -195,22 +223,19 @@ export function TasksPage() {
       </div>
 
       <div className={s.card}>
-        <div className={s.toolbar}>
-          <select className={`${s.select} ${s['select-sm']}`} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-            <option value="">כל הסטטוסים</option>
-            <option value="new">חדש</option>
-            <option value="in_progress">בביצוע</option>
-            <option value="completed">הושלם</option>
-            <option value="cancelled">בוטל</option>
-          </select>
-        </div>
-        <DataTable
+        <SmartTable
           columns={columns}
           data={tasks}
           loading={loading}
           emptyText="אין משימות"
           emptyIcon={<CheckSquare size={40} strokeWidth={1.5} />}
           keyExtractor={r => r.id}
+          storageKey="tasks_table"
+          onUpdate={handleInlineUpdate}
+          searchFields={[
+            { key: 'title', label: 'כותרת', weight: 3 },
+          ]}
+          searchPlaceholder="חיפוש משימות..."
         />
       </div>
     </div>

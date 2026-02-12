@@ -1,7 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
-import { UserCheck, Plus, Edit2, Trash2 } from 'lucide-react'
-import { useModal } from '@/components/ui/Modal'
+import { useState, useEffect, useCallback, type FormEvent } from 'react'
+import { UserCheck, Plus, ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
+import { formatDate } from '@/lib/status'
+import { useToast } from '@/components/ui/Toast'
+import { SmartTable, type SmartColumn } from '@/components/ui/SmartTable'
 import s from '@/styles/shared.module.css'
 
 /* ══════════════════════════════════════════════════════════════
@@ -18,11 +20,8 @@ interface Lecturer {
   created_at?: string
 }
 
-function LecturerForm({
-  initial,
-  onSubmit,
-  onCancel,
-}: {
+/* ── Lecturer Form ── */
+function LecturerForm({ initial, onSubmit, onCancel }: {
   initial?: Partial<Lecturer>
   onSubmit: (data: Record<string, unknown>) => void
   onCancel?: () => void
@@ -34,231 +33,159 @@ function LecturerForm({
     email: initial?.email ?? '',
     notes: initial?.notes ?? '',
   })
-
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(prev => ({ ...prev, [key]: e.target.value }))
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handle = (e: FormEvent) => {
     e.preventDefault()
     onSubmit(form)
   }
 
   return (
-    <form onSubmit={handleSubmit} className={s.form}>
+    <form onSubmit={handle} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div className={s['form-group']}>
         <label className={s['form-label']}>שם מרצה *</label>
-        <input
-          type="text"
-          className={s.input}
-          value={form.name}
-          onChange={set('name')}
-          required
-          placeholder="שם מלא"
-        />
+        <input className={s.input} value={form.name} onChange={set('name')} required placeholder="שם מלא" />
       </div>
-
       <div className={s['form-group']}>
         <label className={s['form-label']}>התמחות</label>
-        <input
-          type="text"
-          className={s.input}
-          value={form.specialty}
-          onChange={set('specialty')}
-          placeholder="תחום התמחות"
-        />
+        <input className={s.input} value={form.specialty} onChange={set('specialty')} placeholder="תחום התמחות" />
       </div>
-
       <div className={s['form-row']}>
         <div className={s['form-group']}>
           <label className={s['form-label']}>טלפון</label>
-          <input
-            type="tel"
-            className={s.input}
-            value={form.phone}
-            onChange={set('phone')}
-            placeholder="050-1234567"
-          />
+          <input className={s.input} type="tel" value={form.phone} onChange={set('phone')} placeholder="050-1234567" />
         </div>
         <div className={s['form-group']}>
           <label className={s['form-label']}>אימייל</label>
-          <input
-            type="email"
-            className={s.input}
-            value={form.email}
-            onChange={set('email')}
-            placeholder="email@example.com"
-          />
+          <input className={s.input} type="email" value={form.email} onChange={set('email')} placeholder="email@example.com" />
         </div>
       </div>
-
       <div className={s['form-group']}>
         <label className={s['form-label']}>הערות</label>
-        <textarea
-          className={s.textarea}
-          value={form.notes}
-          onChange={set('notes')}
-          rows={3}
-          placeholder="הערות נוספות"
-        />
+        <textarea className={s.textarea} value={form.notes} onChange={set('notes')} rows={3} />
       </div>
-
-      <div className={s['form-actions']}>
-        {onCancel && (
-          <button type="button" className={s['btn-secondary']} onClick={onCancel}>
-            ביטול
-          </button>
-        )}
-        <button type="submit" className={s['btn-primary']}>
-          {initial ? 'עדכן' : 'צור מרצה'}
+      <div style={{ display: 'flex', gap: 8, paddingTop: 8 }}>
+        <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>
+          {initial?.id ? 'עדכן' : 'צור מרצה'}
         </button>
+        {onCancel && (
+          <button type="button" className={`${s.btn} ${s['btn-secondary']}`} onClick={onCancel}>ביטול</button>
+        )}
       </div>
     </form>
   )
 }
 
 export function LecturersPage() {
+  const toast = useToast()
   const [lecturers, setLecturers] = useState<Lecturer[]>([])
   const [loading, setLoading] = useState(true)
-  const { openModal, closeModal } = useModal()
+
+  type ViewMode = 'list' | 'create' | 'edit'
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
+  const [selectedLecturer, setSelectedLecturer] = useState<Lecturer | null>(null)
+
+  const backToList = () => { setSelectedLecturer(null); setViewMode('list') }
 
   const fetchLecturers = useCallback(async () => {
+    setLoading(true)
     try {
-      setLoading(true)
       const data = await api.get<Lecturer[]>('/lecturers')
       setLecturers(data)
-    } catch (err) {
-      console.error('Failed to fetch lecturers:', err)
+    } catch (err: unknown) {
+      toast.error((err as { message?: string }).message ?? 'שגיאה בטעינת מרצים')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [toast])
 
-  useEffect(() => {
-    fetchLecturers()
-  }, [fetchLecturers])
+  useEffect(() => { fetchLecturers() }, [fetchLecturers])
 
-  const handleCreate = () => {
-    openModal({
-      title: 'מרצה חדש',
-      content: (
-        <LecturerForm
-          onSubmit={async (data) => {
-            try {
-              await api.post('/lecturers', data)
-              closeModal()
-              fetchLecturers()
-            } catch (err) {
-              console.error(err)
-              alert('שגיאה ביצירת מרצה')
-            }
-          }}
-          onCancel={closeModal}
-        />
-      ),
-    })
-  }
-
-  const handleEdit = (lecturer: Lecturer) => {
-    openModal({
-      title: 'עריכת מרצה',
-      content: (
-        <LecturerForm
-          initial={lecturer}
-          onSubmit={async (data) => {
-            try {
-              await api.patch(`/lecturers/${lecturer.id}`, data)
-              closeModal()
-              fetchLecturers()
-            } catch (err) {
-              console.error(err)
-              alert('שגיאה בעדכון מרצה')
-            }
-          }}
-          onCancel={closeModal}
-        />
-      ),
-    })
-  }
-
-  const handleDelete = async (lecturer: Lecturer) => {
-    if (!confirm(`האם למחוק את המרצה "${lecturer.name}"?`)) return
+  const handleInlineUpdate = async (row: Lecturer, field: string, value: unknown) => {
     try {
-      await api.delete(`/lecturers/${lecturer.id}`)
-      fetchLecturers()
-    } catch (err: any) {
-      console.error(err)
-      alert(err.response?.data?.detail || 'שגיאה במחיקת מרצה')
+      await api.patch(`/lecturers/${row.id}`, { [field]: value })
+      setLecturers(prev => prev.map(l => l.id === row.id ? { ...l, [field]: value } : l))
+    } catch (err: unknown) {
+      toast.error((err as { message?: string }).message ?? 'שגיאה בעדכון')
+      throw err
     }
+  }
+
+  const columns: SmartColumn<Lecturer>[] = [
+    { key: 'id', header: '#', type: 'number', width: 60, editable: false },
+    { key: 'name', header: 'שם', type: 'text' },
+    { key: 'specialty', header: 'התמחות', type: 'text', renderView: r => r.specialty ?? '—' },
+    { key: 'phone', header: 'טלפון', type: 'text', renderView: r => r.phone ?? '—' },
+    { key: 'email', header: 'אימייל', type: 'text', renderView: r => r.email ?? '—' },
+    { key: 'notes', header: 'הערות', type: 'text', hiddenByDefault: true, renderView: r => r.notes ?? '—' },
+    { key: 'created_at', header: 'נוצר', type: 'date', editable: false, renderView: r => formatDate(r.created_at), className: s.muted },
+  ]
+
+  if (viewMode === 'create' || (viewMode === 'edit' && selectedLecturer)) {
+    return (
+      <div>
+        <div className={s['page-header']}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button className={`${s.btn} ${s['btn-ghost']}`} onClick={backToList} style={{ padding: '6px 10px' }}>
+              <ArrowRight size={18} /> חזרה לרשימה
+            </button>
+            <h1 className={s['page-title']} style={{ fontSize: '1.2rem' }}>
+              {selectedLecturer ? `עריכת מרצה — ${selectedLecturer.name}` : 'מרצה חדש'}
+            </h1>
+          </div>
+        </div>
+        <div className={s.card} style={{ padding: 24, maxWidth: 600 }}>
+          <LecturerForm
+            initial={selectedLecturer ?? undefined}
+            onSubmit={async data => {
+              try {
+                if (selectedLecturer) {
+                  await api.patch(`/lecturers/${selectedLecturer.id}`, data)
+                  toast.success('מרצה עודכן')
+                } else {
+                  await api.post('/lecturers', data)
+                  toast.success('מרצה נוצר בהצלחה')
+                }
+                fetchLecturers()
+                backToList()
+              } catch (err: unknown) { toast.error((err as { message?: string }).message ?? 'שגיאה') }
+            }}
+            onCancel={backToList}
+          />
+        </div>
+      </div>
+    )
   }
 
   return (
     <div>
       <div className={s['page-header']}>
         <h1 className={s['page-title']}>מרצים</h1>
-        <button className={s['btn-primary']} onClick={handleCreate}>
-          <Plus size={18} strokeWidth={2} />
-          מרצה חדש
+        <button className={`${s.btn} ${s['btn-primary']}`} onClick={() => setViewMode('create')}>
+          <Plus size={16} strokeWidth={1.5} /> מרצה חדש
         </button>
       </div>
 
       <div className={s.card}>
-        {loading ? (
-          <div className={s.empty} style={{ padding: 60 }}>
-            <span className={s['empty-text']}>טוען...</span>
-          </div>
-        ) : lecturers.length === 0 ? (
-          <div className={s.empty} style={{ padding: 60 }}>
-            <span className={s['empty-icon']}>
-              <UserCheck size={48} strokeWidth={1.5} />
-            </span>
-            <span className={s['empty-text']} style={{ fontSize: 15, fontWeight: 500 }}>
-              אין מרצים
-            </span>
-            <span className={s['empty-text']}>התחל בהוספת מרצה ראשון</span>
-          </div>
-        ) : (
-          <div className={s['table-container']}>
-            <table className={s.table}>
-              <thead>
-                <tr>
-                  <th>שם</th>
-                  <th>התמחות</th>
-                  <th>טלפון</th>
-                  <th>אימייל</th>
-                  <th style={{ width: 100 }}>פעולות</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lecturers.map((lecturer) => (
-                  <tr key={lecturer.id}>
-                    <td>{lecturer.name}</td>
-                    <td>{lecturer.specialty || '—'}</td>
-                    <td>{lecturer.phone || '—'}</td>
-                    <td>{lecturer.email || '—'}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-                        <button
-                          className={s['icon-btn']}
-                          onClick={() => handleEdit(lecturer)}
-                          title="עריכה"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                        <button
-                          className={s['icon-btn-danger']}
-                          onClick={() => handleDelete(lecturer)}
-                          title="מחיקה"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <SmartTable
+          columns={columns}
+          data={lecturers}
+          loading={loading}
+          emptyText="אין מרצים"
+          emptyIcon={<UserCheck size={40} strokeWidth={1.5} />}
+          keyExtractor={r => r.id}
+          storageKey="lecturers_table"
+          onUpdate={handleInlineUpdate}
+          onRowClick={r => { setSelectedLecturer(r); setViewMode('edit') }}
+          searchFields={[
+            { key: 'name', label: 'שם', weight: 3 },
+            { key: 'specialty', label: 'התמחות', weight: 2 },
+            { key: 'phone', label: 'טלפון', weight: 1 },
+            { key: 'email', label: 'אימייל', weight: 1 },
+          ]}
+          searchPlaceholder="חיפוש מרצים..."
+        />
       </div>
     </div>
   )

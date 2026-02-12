@@ -4,7 +4,7 @@ import { api } from '@/lib/api'
 import { getStatus, formatDate, formatCurrency } from '@/lib/status'
 import { useModal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
-import { DataTable, type Column } from '@/components/ui/DataTable'
+import { SmartTable, type SmartColumn } from '@/components/ui/SmartTable'
 import type { Collection } from '@/types'
 import s from '@/styles/shared.module.css'
 
@@ -58,17 +58,25 @@ export function CollectionsPage() {
     } catch (err: unknown) { toast.error((err as { message?: string }).message ?? 'שגיאה') }
   }
 
-  const columns: Column<Collection>[] = [
-    { key: 'id', header: '#' },
-    { key: 'student_name', header: 'תלמיד', render: r => (r as any).student_name ?? `תלמיד #${r.student_id}` },
-    { key: 'amount', header: 'סכום', render: r => formatCurrency(r.amount) },
-    { key: 'due_date', header: 'תאריך יעד', render: r => formatDate(r.due_date), className: s.muted },
-    { key: 'status', header: 'סטטוס', render: r => <Badge entity="collection" value={r.status} /> },
-    { key: 'payment_method', header: 'אמצעי', render: r => (r as any).payment_method ?? '—' },
+  const columns: SmartColumn<Collection>[] = [
+    { key: 'id', header: '#', type: 'number', width: 60, editable: false },
+    { key: 'student_name', header: 'תלמיד', type: 'text', editable: false, renderView: r => (r as any).student_name ?? `תלמיד #${r.student_id}` },
+    { key: 'amount', header: 'סכום', type: 'currency', editable: false, renderView: r => formatCurrency(r.amount) },
+    { key: 'due_date', header: 'תאריך יעד', type: 'date', editable: false, renderView: r => formatDate(r.due_date), className: s.muted },
     {
-      key: '_actions',
-      header: 'פעולות',
-      render: r => (
+      key: 'status', header: 'סטטוס', type: 'select', editable: false,
+      options: [
+        { value: 'pending', label: 'ממתין' },
+        { value: 'collected', label: 'נגבה' },
+        { value: 'failed', label: 'נכשל' },
+        { value: 'overdue', label: 'באיחור' },
+      ],
+      renderView: r => <Badge entity="collection" value={r.status} />,
+    },
+    { key: 'payment_method', header: 'אמצעי', type: 'text', editable: false, renderView: r => (r as any).payment_method ?? '—' },
+    {
+      key: '_actions', header: 'פעולות', type: 'text', editable: false, sortable: false, filterable: false,
+      renderView: r => (
         <div style={{ display: 'flex', gap: 4 }}>
           <button className={`${s.btn} ${s['btn-ghost']} ${s['btn-xs']}`} onClick={() => markCollected(r)} title="נגבה">
             <CheckCircle size={14} strokeWidth={1.5} />
@@ -99,13 +107,18 @@ export function CollectionsPage() {
           </div>
         </div>
 
-        <DataTable
+        <SmartTable
           columns={columns}
           data={items}
           loading={loading}
           emptyText={tab === 'pending' ? 'אין גביות ממתינות' : 'אין גביות באיחור'}
           emptyIcon={<Receipt size={40} strokeWidth={1.5} />}
           keyExtractor={r => r.id}
+          storageKey="collections_table"
+          searchFields={[
+            { key: 'student_name', label: 'תלמיד', weight: 3 },
+          ]}
+          searchPlaceholder="חיפוש גביות..."
         />
       </div>
     </div>
