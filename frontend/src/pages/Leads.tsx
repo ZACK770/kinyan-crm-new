@@ -493,8 +493,17 @@ export function LeadsPage() {
   const fetchLeads = useCallback(async () => {
     setLoading(true)
     try {
-      // Fetch leads (API max limit is 200)
-      const data = await api.get<Lead[]>('leads?limit=200')
+      // Fetch all leads in batches
+      const all: Lead[] = []
+      let offset = 0
+      const batchSize = 1000
+      while (true) {
+        const batch = await api.get<Lead[]>(`leads?limit=${batchSize}&offset=${offset}`)
+        all.push(...batch)
+        if (batch.length < batchSize) break
+        offset += batchSize
+      }
+      const data = all
       setLeads(data)
     } catch (err: unknown) {
       toast.error((err as { message?: string }).message ?? 'שגיאה בטעינת לידים')
