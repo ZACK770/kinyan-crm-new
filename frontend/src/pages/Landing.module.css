@@ -1,0 +1,698 @@
+/* ============================================================
+   Nexus CRM — Landing Page Styles
+   ============================================================ */
+
+/* --- Reset & Base --- */
+.landing {
+  direction: rtl;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #1e293b;
+  overflow-x: hidden;
+}
+
+/* --- Navbar --- */
+.navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+
+.navbarScrolled {
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.5px;
+}
+
+.logoAccent {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.logoDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  margin-right: 2px;
+}
+
+.navButton {
+  padding: 0.6rem 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  backdrop-filter: blur(4px);
+}
+
+.navButton:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* --- Hero --- */
+.hero {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: #0f172a;
+  padding: 6rem 2rem 4rem;
+  overflow: hidden;
+}
+
+.heroGlow {
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(102, 126, 234, 0.15) 0%, transparent 70%);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.heroContent {
+  position: relative;
+  z-index: 1;
+  max-width: 700px;
+}
+
+.heroTag {
+  display: inline-block;
+  padding: 0.4rem 1rem;
+  border-radius: 20px;
+  background: rgba(102, 126, 234, 0.15);
+  border: 1px solid rgba(102, 126, 234, 0.3);
+  color: #93a3f8;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-bottom: 1.5rem;
+}
+
+.heroTitle {
+  font-size: 3.2rem;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.2;
+  margin: 0 0 1.2rem;
+}
+
+.heroTitleGradient {
+  background: linear-gradient(135deg, #667eea, #a78bfa, #06b6d4);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.heroSubtitle {
+  font-size: 1.2rem;
+  color: #94a3b8;
+  line-height: 1.7;
+  margin: 0 0 2.5rem;
+  max-width: 550px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.heroCta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.9rem 2.2rem;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+}
+
+.heroCta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 30px rgba(102, 126, 234, 0.5);
+}
+
+/* --- Features --- */
+.features {
+  padding: 5rem 2rem;
+  background: #f8fafc;
+}
+
+.sectionHeader {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.sectionTag {
+  display: inline-block;
+  padding: 0.35rem 0.9rem;
+  border-radius: 20px;
+  background: rgba(102, 126, 234, 0.1);
+  color: #667eea;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.8rem;
+}
+
+.sectionTitle {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 0.8rem;
+}
+
+.sectionSubtitle {
+  font-size: 1.05rem;
+  color: #64748b;
+  max-width: 500px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+.featuresGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.featureCard {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.featureCard:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06);
+}
+
+.featureIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  margin-bottom: 1.2rem;
+}
+
+.featureIconBlue {
+  background: rgba(102, 126, 234, 0.1);
+  color: #667eea;
+}
+
+.featureIconPurple {
+  background: rgba(118, 75, 162, 0.1);
+  color: #764ba2;
+}
+
+.featureIconCyan {
+  background: rgba(6, 182, 212, 0.1);
+  color: #06b6d4;
+}
+
+.featureIconAmber {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+}
+
+.featureTitle {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0 0 0.5rem;
+}
+
+.featureDesc {
+  font-size: 0.9rem;
+  color: #64748b;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* --- How It Works --- */
+.howItWorks {
+  padding: 5rem 2rem;
+  background: #fff;
+}
+
+.stepsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.step {
+  text-align: center;
+  padding: 1.5rem;
+}
+
+.stepNumber {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: 1.2rem;
+}
+
+.stepTitle {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0 0 0.5rem;
+}
+
+.stepDesc {
+  font-size: 0.9rem;
+  color: #64748b;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* --- Stats / Social Proof --- */
+.stats {
+  padding: 4rem 2rem;
+  background: #0f172a;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+  max-width: 800px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.statNumber {
+  font-size: 2.5rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #667eea, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0;
+}
+
+.statLabel {
+  font-size: 0.95rem;
+  color: #94a3b8;
+  margin: 0.3rem 0 0;
+}
+
+/* --- CTA --- */
+.cta {
+  padding: 5rem 2rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  text-align: center;
+}
+
+.ctaTitle {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 0.8rem;
+}
+
+.ctaSubtitle {
+  font-size: 1.1rem;
+  color: rgba(255, 255, 255, 0.8);
+  margin: 0 0 2rem;
+}
+
+.ctaButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.9rem 2.5rem;
+  border: none;
+  border-radius: 10px;
+  background: #fff;
+  color: #667eea;
+  font-size: 1.05rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+}
+
+.ctaButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(0, 0, 0, 0.2);
+}
+
+/* --- Footer --- */
+.footer {
+  padding: 2.5rem 2rem;
+  background: #0f172a;
+  text-align: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.footerContent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.footerLogo {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.footerText {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin: 0;
+}
+
+/* ============================================================
+   Login Modal
+   ============================================================ */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+  animation: fadeIn 0.2s ease-out;
+  padding: 1rem;
+}
+
+.modalCard {
+  position: relative;
+  background: #fff;
+  border-radius: 16px;
+  padding: 2.5rem 2rem;
+  max-width: 420px;
+  width: 100%;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+  animation: scaleIn 0.25s ease-out;
+}
+
+.modalClose {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modalClose:hover {
+  color: #334155;
+  background: #f1f5f9;
+}
+
+.modalHeader {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.modalLogo {
+  font-size: 1.4rem;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+}
+
+.modalTitle {
+  font-size: 1rem;
+  color: #64748b;
+  font-weight: 400;
+  margin: 0;
+}
+
+.modalForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.modalField label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 0.3rem;
+}
+
+.modalField input {
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  direction: ltr;
+  text-align: left;
+}
+
+.modalField input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
+}
+
+.modalField input:disabled {
+  background: #f9fafb;
+  color: #6b7280;
+}
+
+.modalSubmit {
+  width: 100%;
+  padding: 0.8rem;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.15s;
+  margin-top: 0.5rem;
+}
+
+.modalSubmit:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.modalSubmit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.modalDivider {
+  text-align: center;
+  margin: 1.2rem 0;
+  position: relative;
+}
+
+.modalDivider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #e5e7eb;
+}
+
+.modalDivider span {
+  background: #fff;
+  padding: 0 0.8rem;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  position: relative;
+}
+
+.googleButton {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.googleButton:hover:not(:disabled) {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.googleButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.googleIcon {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.modalLinks {
+  text-align: center;
+  margin-top: 1.2rem;
+  font-size: 0.85rem;
+}
+
+.modalLinks a {
+  color: #667eea;
+  text-decoration: none;
+}
+
+.modalLinks a:hover {
+  text-decoration: underline;
+}
+
+.modalLinks span {
+  color: #94a3b8;
+}
+
+.modalError {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  color: #dc2626;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+/* --- Animations --- */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fadeInUp {
+  animation: fadeInUp 0.6s ease-out both;
+}
+
+/* --- Responsive --- */
+@media (max-width: 900px) {
+  .featuresGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .navbar {
+    padding: 0.8rem 1rem;
+  }
+
+  .heroTitle {
+    font-size: 2.2rem;
+  }
+
+  .heroSubtitle {
+    font-size: 1rem;
+  }
+
+  .featuresGrid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .stepsGrid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .statsGrid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .sectionTitle {
+    font-size: 1.7rem;
+  }
+
+  .ctaTitle {
+    font-size: 1.7rem;
+  }
+
+  .footerContent {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .modalCard {
+    padding: 2rem 1.5rem;
+    margin: 0.5rem;
+  }
+}

@@ -1,101 +1,64 @@
-"""Analyze Excel file for lead import — check headers, data types, values"""
+"""Dry-run simulation of import — test field extraction and phone normalization"""
 import openpyxl
-import sys
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from api.import_api import normalize_phone, _get_cell, parse_date, SALESPERSON_MAPPING, STATUS_MAPPING, RESPONSE_MAPPING, COURSE_MAPPING
 from collections import Counter
 
 path = r"C:\Users\משתמש\Documents\Downloads\_הורדה-לסנכרון-12-2-2026-22.30_02_12_2026.xlsx"
 wb = openpyxl.load_workbook(path)
 ws = wb.active
-
 headers = [cell.value for cell in ws[1]]
 total_rows = ws.max_row - 1
 
-print("=" * 70)
-print(f"HEADERS ({len(headers)} columns):")
-print("=" * 70)
-for i, h in enumerate(headers):
-    print(f"  [{i}] {h}")
+print(f"Total rows: {total_rows}")
 
-print(f"\nTotal data rows: {total_rows}")
+# Simulate import
+stats = {"ok": 0, "no_phone": 0, "bad_date": 0, "unmapped_status": 0, "unmapped_sp": 0}
+unmapped_statuses = Counter()
+unmapped_sp = Counter()
+phone_samples = []
 
-# Sample first 5 rows
-print("\n" + "=" * 70)
-print("SAMPLE ROWS (first 5):")
-print("=" * 70)
-for row_idx in range(2, min(7, ws.max_row + 1)):
-    print(f"\n--- Row {row_idx - 1} ---")
+for row_idx in range(2, ws.max_row + 1):
+    row = {}
     for i, h in enumerate(headers):
-        val = ws.cell(row_idx, i + 1).value
-        if val is not None:
-            print(f"  {h}: {repr(val)} (type: {type(val).__name__})")
+        if h:
+            row[h] = ws.cell(row_idx, i + 1).value
 
-# Analyze unique values for key columns
-print("\n" + "=" * 70)
-print("UNIQUE VALUES ANALYSIS:")
-print("=" * 70)
+    phone_raw = row.get("טלפון ראשי")
+    phone = normalize_phone(phone_raw)
+    if not phone:
+        stats["no_phone"] += 1
+        continue
 
-key_columns = ["סטאטוס ליד", "סטטוס מענה", "איש מכירות ", "מוצר שמתעניין", "שם המפרסם"]
-# Also try without trailing space
-alt_columns = ["איש מכירות"]
+    if len(phone_samples) < 10:
+        phone_samples.append(f"{phone_raw} -> {phone}")
 
-for col_name in key_columns + alt_columns:
-    if col_name in headers:
-        col_idx = headers.index(col_name) + 1
-        values = Counter()
-        for row_idx in range(2, ws.max_row + 1):
-            val = ws.cell(row_idx, col_idx).value
-            if val is not None:
-                values[str(val).strip()] += 1
-            else:
-                values["(ריק)"] += 1
-        print(f"\n  [{col_name}] ({sum(values.values())} values):")
-        for val, count in values.most_common():
-            print(f"    {val}: {count}")
+    # Status
+    status_raw = _get_cell(row, "סטאטוס ליד") or "ליד חדש"
+    status = STATUS_MAPPING.get(str(status_raw).strip())
+    if not status:
+        unmapped_statuses[str(status_raw).strip()] += 1
+        stats["unmapped_status"] += 1
 
-# Check date columns
-print("\n" + "=" * 70)
-print("DATE COLUMNS ANALYSIS:")
-print("=" * 70)
-date_columns = ["תאריך יצירה", "תאריך פניה אחרונה"]
-for col_name in date_columns:
-    if col_name in headers:
-        col_idx = headers.index(col_name) + 1
-        types = Counter()
-        sample_values = []
-        null_count = 0
-        for row_idx in range(2, ws.max_row + 1):
-            val = ws.cell(row_idx, col_idx).value
-            if val is None:
-                null_count += 1
-            else:
-                types[type(val).__name__] += 1
-                if len(sample_values) < 5:
-                    sample_values.append(repr(val))
-        print(f"\n  [{col_name}]:")
-        print(f"    Null: {null_count}")
-        for t, count in types.most_common():
-            print(f"    Type {t}: {count}")
-        print(f"    Samples: {sample_values}")
+    # Salesperson
+    sp_n = _get_cell(row, "איש מכירות", "איש מכירות ")
+    if sp_n:
+        sp_mapped = SALESPERSON_MAPPING.get(sp_n.strip())
+        if sp_mapped is None and sp_n.strip() != "N/A":
+            unmapped_sp[sp_n.strip()] += 1
+            stats["unmapped_sp"] += 1
 
-# Check phone format
-print("\n" + "=" * 70)
-print("PHONE ANALYSIS:")
-print("=" * 70)
-phone_col = "טלפון ראשי"
-if phone_col in headers:
-    col_idx = headers.index(phone_col) + 1
-    types = Counter()
-    null_count = 0
-    samples = []
-    for row_idx in range(2, ws.max_row + 1):
-        val = ws.cell(row_idx, col_idx).value
-        if val is None:
-            null_count += 1
-        else:
-            types[type(val).__name__] += 1
-            if len(samples) < 5:
-                samples.append(repr(val))
-    print(f"  Null: {null_count}")
-    for t, count in types.most_common():
-        print(f"  Type {t}: {count}")
-    print(f"  Samples: {samples}")
+    # Date
+    created_date = parse_date(_get_cell(row, "תאריך יצירה", "תאריך הגעה"))
+    if not created_date:
+        stats["bad_date"] += 1
+
+    stats["ok"] += 1
+
+print(f"\nStats: {stats}")
+print(f"\nPhone samples: {phone_samples}")
+if unmapped_statuses:
+    print(f"\nUnmapped statuses: {dict(unmapped_statuses)}")
+if unmapped_sp:
+    print(f"\nUnmapped salespeople: {dict(unmapped_sp)}")

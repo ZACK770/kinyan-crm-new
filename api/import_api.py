@@ -18,6 +18,13 @@ SALESPERSON_MAPPING = {
     "משה גרינהויז": "משה גרינהויז",
     "נתנאל גפנר": "נתנאל גפנר",
     "שלמה דנציגר": "שלמה דנציגר",
+    "אברימי ברים": "אברימי ברים",
+    "דודי וצלר": "דודי וצלר",
+    "נפתלי לרנר": "נפתלי לרנר",
+    "מוטי העכט": "מוטי העכט",
+    "חיים ברים": "חיים ברים",
+    "מרדכי ארנפלד": "מרדכי ארנפלד",
+    "מוטי דבלינגר": "מוטי דבלינגר",
     "N/A": None,
 }
 
@@ -55,6 +62,28 @@ RESPONSE_MAPPING = {
     "לא נענה (Timeout)": "לא זמין",
     "פניה כללית": None,
 }
+
+
+def normalize_phone(phone_raw) -> str | None:
+    """נירמול טלפון — מוסיף 0 בהתחלה אם חסר, מנקה תווים מיותרים"""
+    if not phone_raw:
+        return None
+    phone = str(phone_raw).strip().replace("-", "").replace(" ", "")
+    # אם הטלפון מתחיל ב-5 או בספרה ואורכו 9-10 ספרות — הוסף 0
+    if phone and phone[0] in "5" and len(phone) == 9:
+        phone = "0" + phone
+    elif phone and phone[0] not in "0+" and len(phone) <= 10:
+        phone = "0" + phone
+    return phone
+
+
+def _get_cell(row: dict, *keys):
+    """מחזיר את הערך הראשון שנמצא מתוך מספר שמות אפשריים לעמודה"""
+    for k in keys:
+        val = row.get(k)
+        if val is not None and str(val).strip():
+            return val
+    return None
 
 
 def parse_date(d):
@@ -126,43 +155,73 @@ async def import_leads_from_excel(
                 if headers[i]:
                     row[headers[i]] = ws.cell(row_idx, i + 1).value
 
-            phone = row.get("טלפון ראשי")
+            phone_raw = row.get("טלפון ראשי")
+            phone = normalize_phone(phone_raw)
             if not phone:
                 stats["skipped_no_phone"] += 1
                 continue
-            phone = str(phone).strip()
 
             # חישוב שדות
             try:
                 full_name = row.get("שם מלא") or "ליד ללא שם"
-                sp_n = row.get("איש מכירות ")
-                sp_id = sp_ids.get(SALESPERSON_MAPPING.get(sp_n.strip())) if sp_n else None
-                c_n = row.get("מוצר שמתעניין")
-                c_id = c_ids.get(COURSE_MAPPING.get(c_n.strip())) if c_n else None
-                resp = row.get("סטטוס מענה")
+                family_name = row.get("משפחה")
+                # איש מכירות — תומך בשם עם ובלי רווח בסוף
+                sp_n = _get_cell(row, "איש מכירות", "איש מכירות ")
+                sp_mapped = SALESPERSON_MAPPING.get(sp_n.strip()) if sp_n else None
+                sp_id = sp_ids.get(sp_mapped) if sp_mapped else None
+                # מוצר שמתעניין — טקסט חופשי (ממספר עמודות אפשריות)
+                requested_course = _get_cell(row, "מוצר שמתעניין", "מוצר", "שם קורס", "קורס")
+                if requested_course:
+                    requested_course = str(requested_course).strip()
+                # קורס — ניסיון מיפוי ל-ID
+                c_id = None
+                if requested_course:
+                    mapped_course = COURSE_MAPPING.get(requested_course)
+                    if mapped_course:
+                        c_id = c_ids.get(mapped_course)
+                # סטטוס מענה
+                resp = _get_cell(row, "סטטוס מענה")
                 lead_response = RESPONSE_MAPPING.get(resp.strip()) if resp else None
-                status = STATUS_MAPPING.get(row.get("סטאטוס ליד", "ליד חדש"), "ליד חדש")
-                arrival = parse_date(row.get("תאריך יצירה")) or datetime.now(timezone.utc)
-                last_contact = parse_date(row.get("תאריך פניה אחרונה"))
+                # סטטוס ליד
+                status_raw = _get_cell(row, "סטאטוס ליד") or "ליד חדש"
+                status = STATUS_MAPPING.get(str(status_raw).strip(), "ליד חדש")
+                # תאריכים
+                created_date = parse_date(_get_cell(row, "תאריך יצירה", "תאריך הגעה")) or datetime.now(timezone.utc)
+                last_contact = parse_date(_get_cell(row, "תאריך פניה אחרונה"))
+                # שדות נוספים
+                phone2 = normalize_phone(row.get("טלפון נוסף"))
+                id_number = row.get("תעודת זהות")
+                if id_number:
+                    id_number = str(id_number).strip()
+                # הערות — מיזוג משני שדות
+                notes_parts = []
+                for nk in ["הערות ליד", "הערות על הליד"]:
+                    v = row.get(nk)
+                    if v and str(v).strip():
+                        notes_parts.append(str(v).strip())
+                notes = "\n".join(notes_parts) if notes_parts else None
 
                 new_data = dict(
                     full_name=full_name,
+                    family_name=family_name,
                     phone=phone,
+                    phone2=phone2,
                     email=row.get("מייל לקוח"),
                     city=row.get("עיר מגורים"),
                     address=row.get("כתובת"),
-                    notes=row.get("הערות ליד"),
-                    source_type="ייבוא ממערכת ישנה",
+                    id_number=id_number,
+                    notes=notes,
+                    source_type=_get_cell(row, "מקור הגעה כללי") or "ייבוא ממערכת ישנה",
                     source_message=row.get("הודעה מהליד"),
-                    source_name=row.get("שלוחת מוצר"),
-                    campaign_name=row.get("שם המפרסם"),
-                    arrival_date=arrival,
+                    campaign_name=_get_cell(row, "שם המפרסם", "שם קמפיין", "קמפיין"),
+                    requested_course=requested_course,
+                    arrival_date=created_date,
                     last_contact_date=last_contact,
                     status=status,
                     lead_response=lead_response,
                     salesperson_id=sp_id,
                     course_id=c_id,
-                    created_at=arrival,  # תאריך יצירה מהמערכת הישנה
+                    created_at=created_date,  # תאריך יצירה אמיתי מהאקסל
                     created_by="import_script",
                 )
             except Exception as e:
@@ -185,6 +244,10 @@ async def import_leads_from_excel(
                             current = getattr(existing, key, None)
                             if current is None or current == "" or current == "ליד ללא שם":
                                 setattr(existing, key, val)
+                    # created_at — תמיד מעדכן מהאקסל (תאריך יצירה אמיתי)
+                    if new_data.get("created_at"):
+                        existing.created_at = new_data["created_at"]
+                        existing.arrival_date = new_data["created_at"]
                     # הערות - צירוף
                     if new_data.get("notes") and existing.notes:
                         if new_data["notes"] not in existing.notes:

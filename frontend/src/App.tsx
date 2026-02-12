@@ -1,7 +1,8 @@
 import { Routes, Route } from 'react-router-dom'
 import { AppLayout } from '@/components/layout'
 import { ProtectedRoute, ViewerRoute, AdminRoute, ManagerRoute } from '@/components/ProtectedRoute'
-import { LoginPage, RegisterPage, WelcomePage, GoogleCallbackPage } from '@/pages/auth'
+import { RegisterPage, WelcomePage, GoogleCallbackPage } from '@/pages/auth'
+import { LandingPage } from '@/pages/LandingPage'
 import { Dashboard } from '@/pages/Dashboard'
 import { LeadsPage } from '@/pages/Leads'
 import { StudentsPage } from '@/pages/Students'
@@ -34,7 +35,7 @@ export function App() {
   return (
     <Routes>
       {/* Public Auth Routes */}
-      <Route path="/auth/login" element={<LoginPage />} />
+      <Route path="/auth/login" element={<LandingPage />} />
       <Route path="/auth/register" element={<RegisterPage />} />
       <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
       
