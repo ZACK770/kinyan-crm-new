@@ -213,7 +213,7 @@ async def import_leads_from_excel(
                     notes=notes,
                     source_type=_get_cell(row, "מקור הגעה כללי") or "ייבוא ממערכת ישנה",
                     source_message=row.get("הודעה מהליד"),
-                    campaign_name=_get_cell(row, "שם המפרסם", "שם קמפיין", "קמפיין"),
+                    campaign_name=str(_get_cell(row, "שם המפרסם", "שם קמפיין") or "").strip() or None,
                     requested_course=requested_course,
                     arrival_date=created_date,
                     last_contact_date=last_contact,
