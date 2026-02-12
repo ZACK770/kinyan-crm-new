@@ -4,7 +4,7 @@ Temporary utility for migrating data from the old system.
 """
 from fastapi import APIRouter, UploadFile, File, Query
 from fastapi.responses import JSONResponse
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 import io
 
@@ -58,12 +58,22 @@ RESPONSE_MAPPING = {
 
 
 def parse_date(d):
-    """המרת תאריך מפורמט DD/MM/YYYY HH:MM:SS"""
+    """המרת תאריך — תומך ב-datetime objects מ-openpyxl וגם בפורמטי טקסט"""
     if not d:
         return None
-    for fmt in ["%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M", "%d/%m/%Y"]:
+    # openpyxl מחזיר datetime object ישירות אם התא מפורמט כתאריך
+    if isinstance(d, datetime):
+        if d.tzinfo is None:
+            return d.replace(tzinfo=timezone.utc)
+        return d
+    # ניסיון פרסור מטקסט
+    text = str(d).strip()
+    for fmt in ["%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M", "%d/%m/%Y",
+                "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d",
+                "%d.%m.%Y %H:%M:%S", "%d.%m.%Y %H:%M", "%d.%m.%Y"]:
         try:
-            return datetime.strptime(str(d), fmt)
+            dt = datetime.strptime(text, fmt)
+            return dt.replace(tzinfo=timezone.utc)
         except ValueError:
             pass
     return None
@@ -132,7 +142,7 @@ async def import_leads_from_excel(
                 resp = row.get("סטטוס מענה")
                 lead_response = RESPONSE_MAPPING.get(resp.strip()) if resp else None
                 status = STATUS_MAPPING.get(row.get("סטאטוס ליד", "ליד חדש"), "ליד חדש")
-                arrival = parse_date(row.get("תאריך יצירה")) or datetime.now()
+                arrival = parse_date(row.get("תאריך יצירה")) or datetime.now(timezone.utc)
                 last_contact = parse_date(row.get("תאריך פניה אחרונה"))
 
                 new_data = dict(
