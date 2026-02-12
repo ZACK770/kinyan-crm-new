@@ -123,6 +123,7 @@ export interface SmartTableProps<T> {
   // UI customization
   className?: string
   toolbarExtra?: ReactNode // Extra toolbar content
+  rowClassName?: (row: T) => string // Dynamic row class based on data
 }
 
 // Filter panel state

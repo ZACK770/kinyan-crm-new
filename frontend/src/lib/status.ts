@@ -2,7 +2,7 @@
    Status label mapping & badge colors
    ============================================================ */
 
-type BadgeColor = 'blue' | 'green' | 'yellow' | 'red' | 'gray' | 'orange'
+type BadgeColor = 'blue' | 'green' | 'yellow' | 'red' | 'gray' | 'orange' | 'purple' | 'teal'
 
 interface StatusDef { label: string; color: BadgeColor }
 
@@ -10,20 +10,20 @@ interface StatusDef { label: string; color: BadgeColor }
 const leadStatus: Record<string, StatusDef> = {
   // Primary keys (Hebrew — as stored in DB)
   'ליד חדש':                { label: 'ליד חדש', color: 'blue' },
-  'ליד בתהליך':             { label: 'ליד בתהליך', color: 'blue' },
+  'ליד בתהליך':             { label: 'ליד בתהליך', color: 'purple' },
   'חיוג ראשון':             { label: 'חיוג ראשון', color: 'yellow' },
-  'במעקב':                  { label: 'במעקב', color: 'yellow' },
-  'מתעניין':                { label: 'מתעניין', color: 'orange' },
+  'במעקב':                  { label: 'במעקב', color: 'orange' },
+  'מתעניין':                { label: 'מתעניין', color: 'teal' },
   'נסלק':                   { label: 'נסלק', color: 'green' },
   'ליד סגור - לקוח':       { label: 'ליד סגור - לקוח', color: 'green' },
-  'ליד סגור - לא רלוונטי': { label: 'ליד סגור - לא רלוונטי', color: 'gray' },
+  'ליד סגור - לא רלוונטי': { label: 'ליד סגור - לא רלוונטי', color: 'red' },
   'לא רלוונטי':             { label: 'לא רלוונטי', color: 'gray' },
   'converted':              { label: 'הומר לתלמיד', color: 'green' },
   // Legacy English keys (for backward compatibility)
   new:           { label: 'ליד חדש', color: 'blue' },
   first_call:    { label: 'חיוג ראשון', color: 'yellow' },
-  follow_up:     { label: 'במעקב', color: 'yellow' },
-  interested:    { label: 'מתעניין', color: 'orange' },
+  follow_up:     { label: 'במעקב', color: 'orange' },
+  interested:    { label: 'מתעניין', color: 'teal' },
   payment_done:  { label: 'נסלק', color: 'green' },
   not_relevant:  { label: 'לא רלוונטי', color: 'gray' },
   contacted:     { label: 'נוצר קשר', color: 'yellow' },

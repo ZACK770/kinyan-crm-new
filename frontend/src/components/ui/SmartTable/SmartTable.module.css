@@ -903,3 +903,19 @@
     justify-content: center;
   }
 }
+
+/* --- Row-level status coloring (global classes from rowClassName) --- */
+:global(.row-closed-won) {
+  background: #f0fdf4 !important;
+}
+:global(.row-closed-won):hover {
+  background: #dcfce7 !important;
+}
+:global(.row-closed-lost) {
+  background: #fafafa !important;
+  opacity: 0.7;
+}
+:global(.row-closed-lost):hover {
+  background: #f1f5f9 !important;
+  opacity: 1;
+}

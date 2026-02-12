@@ -52,6 +52,7 @@ export function SmartTable<T>({
   pageSizeOptions,
   className,
   toolbarExtra,
+  rowClassName,
 }: SmartTableProps<T>) {
   // Search & Pagination props with defaults
   const searchSelect = onSearchSelect ?? onRowClick
@@ -393,7 +394,7 @@ export function SmartTable<T>({
               return (
                 <tr
                   key={rowKey}
-                  className={`${onRowClick ? shared.clickable : ''} ${isSelected ? s.selectedRow : ''}`}
+                  className={`${onRowClick ? shared.clickable : ''} ${isSelected ? s.selectedRow : ''} ${rowClassName ? rowClassName(row) : ''}`}
                   onClick={() => onRowClick?.(row)}
                 >
                   {/* Selection checkbox */}

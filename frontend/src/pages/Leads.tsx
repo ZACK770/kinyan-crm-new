@@ -894,6 +894,11 @@ export function LeadsPage() {
           onServerSearch={serverSearch}
           defaultPageSize={100}
           pageSizeOptions={[50, 100, 200]}
+          rowClassName={(row) => {
+            if (row.status === 'ליד סגור - לקוח' || row.status === 'converted') return 'row-closed-won'
+            if (row.status === 'ליד סגור - לא רלוונטי' || row.status === 'לא רלוונטי') return 'row-closed-lost'
+            return ''
+          }}
           bulkActions={[
             {
               id: 'assign_sp',
