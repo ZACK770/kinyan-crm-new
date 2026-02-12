@@ -202,11 +202,10 @@ function LeadForm({
             <option value="ליד חדש">ליד חדש</option>
             <option value="ליד בתהליך">ליד בתהליך</option>
             <option value="חיוג ראשון">חיוג ראשון</option>
-            <option value="במעקב">במעקב</option>
-            <option value="מתעניין">מתעניין</option>
             <option value="נסלק">נסלק</option>
-            <option value="ליד סגור - לקוח">ליד סגור - לקוח</option>
+            <option value="תלמיד פעיל">תלמיד פעיל</option>
             <option value="ליד סגור - לא רלוונטי">ליד סגור - לא רלוונטי</option>
+            <option value="לא רלוונטי">לא רלוונטי</option>
           </select>
         </div>
       </div>
@@ -726,13 +725,10 @@ export function LeadsPage() {
         { value: 'ליד חדש', label: 'ליד חדש' },
         { value: 'ליד בתהליך', label: 'ליד בתהליך' },
         { value: 'חיוג ראשון', label: 'חיוג ראשון' },
-        { value: 'במעקב', label: 'במעקב' },
-        { value: 'מתעניין', label: 'מתעניין' },
         { value: 'נסלק', label: 'נסלק' },
-        { value: 'ליד סגור - לקוח', label: 'ליד סגור - לקוח' },
+        { value: 'תלמיד פעיל', label: 'תלמיד פעיל' },
         { value: 'ליד סגור - לא רלוונטי', label: 'ליד סגור - לא רלוונטי' },
         { value: 'לא רלוונטי', label: 'לא רלוונטי' },
-        { value: 'converted', label: 'הומר לתלמיד' },
       ],
     },
     { 
@@ -895,7 +891,7 @@ export function LeadsPage() {
           defaultPageSize={100}
           pageSizeOptions={[50, 100, 200]}
           rowClassName={(row) => {
-            if (row.status === 'ליד סגור - לקוח' || row.status === 'converted') return 'row-closed-won'
+            if (row.status === 'נסלק' || row.status === 'ליד סגור - לקוח' || row.status === 'converted' || row.status === 'תלמיד פעיל') return 'row-closed-won'
             if (row.status === 'ליד סגור - לא רלוונטי' || row.status === 'לא רלוונטי') return 'row-closed-lost'
             return ''
           }}

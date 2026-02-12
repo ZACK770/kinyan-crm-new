@@ -182,7 +182,7 @@ async def assign_salesperson(db: AsyncSession, lead_id: int, phone: str) -> Sale
         
         # Check workload limit (count open leads)
         if rules.max_open_leads is not None:
-            status_filters = rules.status_filters or ["ליד חדש", "במעקב", "מתעניין"]
+            status_filters = rules.status_filters or ["ליד חדש", "ליד בתהליך", "חיוג ראשון"]
             open_leads_stmt = (
                 select(func.count(Lead.id))
                 .where(Lead.salesperson_id == salesperson.id)
