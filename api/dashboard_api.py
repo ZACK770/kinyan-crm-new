@@ -187,7 +187,7 @@ async def advanced_dashboard(
     interested = (await db.execute(
         select(func.count()).select_from(Lead)
         .where(Lead.created_at >= start, Lead.created_at <= end)
-        .where(Lead.status.in_(["מתעניין", "במעקב", "בתהליך המרה", "converted"]))
+        .where(Lead.status.in_(["ליד בתהליך", "חיוג ראשון", "נסלק", "תלמיד פעיל", "converted"]))
     )).scalar() or 0
 
     paid = (await db.execute(
@@ -237,7 +237,7 @@ async def advanced_dashboard(
             func.count(Lead.id).label("total_leads"),
             func.sum(case((Lead.status == "ליד חדש", 1), else_=0)).label("new_leads"),
             func.sum(case((Lead.status == "converted", 1), else_=0)).label("converted"),
-            func.sum(case((Lead.status.in_(["מתעניין", "במעקב"]), 1), else_=0)).label("in_progress"),
+            func.sum(case((Lead.status.in_(["ליד בתהליך", "חיוג ראשון"]), 1), else_=0)).label("in_progress"),
         )
         .join(Lead, Lead.salesperson_id == Salesperson.id, isouter=True)
         .where(Salesperson.is_active == True)  # noqa: E712
