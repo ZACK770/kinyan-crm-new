@@ -55,6 +55,7 @@ export function EditableField({
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const savingViaChangeRef = useRef(false)
 
   // Focus input when entering edit mode — for selects, auto-open dropdown
   useEffect(() => {
@@ -100,15 +101,24 @@ export function EditableField({
       setIsEditing(false)
       return
     }
+    await saveDirect(editValue)
+  }
+
+  // Save with an explicit value (avoids stale closure issues with selects)
+  const saveDirect = async (rawValue: string) => {
+    if (rawValue === String(value ?? '')) {
+      setIsEditing(false)
+      return
+    }
 
     setSaveStatus('saving')
     try {
       // Convert to appropriate type
-      let finalValue: string | number | null = editValue
-      if (editValue === '' || editValue === undefined) {
+      let finalValue: string | number | null = rawValue
+      if (rawValue === '' || rawValue === undefined) {
         finalValue = null
-      } else if (type === 'entity-select' && editValue) {
-        finalValue = Number(editValue)
+      } else if (type === 'entity-select' && rawValue) {
+        finalValue = Number(rawValue)
       }
       
       await onSave(finalValue)
@@ -132,6 +142,11 @@ export function EditableField({
     if (relatedTarget?.closest('[data-create-entity]')) {
       return
     }
+    // Skip if select already triggered save via onChange
+    if (savingViaChangeRef.current) {
+      savingViaChangeRef.current = false
+      return
+    }
     // Auto-save on blur
     save()
   }
@@ -150,11 +165,9 @@ export function EditableField({
   const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newValue = e.target.value
     setEditValue(newValue)
-    // For selects, auto-save on selection (no need to blur)
-    setTimeout(() => {
-      if (!isEditing) return
-      save()
-    }, 50)
+    // Save directly with the new value to avoid stale closure
+    savingViaChangeRef.current = true
+    saveDirect(newValue)
   }
 
   // Displayed value (when not editing)

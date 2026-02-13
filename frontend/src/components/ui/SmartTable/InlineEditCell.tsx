@@ -31,6 +31,7 @@ export function InlineEditCell({
   const [showSaved, setShowSaved] = useState(false)
   const inputRef = useRef<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(null)
   const savedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const savingViaChangeRef = useRef(false)
 
   // Sync when value changes
   useEffect(() => {
@@ -113,7 +114,8 @@ export function InlineEditCell({
     const raw = e.target.value
     const newValue = type === 'boolean' ? raw === 'true' : raw || null
     setEditValue(newValue)
-    // Save directly with the new value to avoid stale state
+    // Save directly with the new value to avoid stale closure
+    savingViaChangeRef.current = true
     saveValue(newValue)
   }
 
@@ -161,7 +163,7 @@ export function InlineEditCell({
           value={String(editValue ?? '')}
           onChange={handleSelectChange}
           onKeyDown={handleKeyDown}
-          onBlur={cancelEditing}
+          onBlur={() => { if (!savingViaChangeRef.current) cancelEditing(); savingViaChangeRef.current = false }}
           disabled={isSaving}
         >
           <option value="">—</option>
@@ -176,7 +178,7 @@ export function InlineEditCell({
           value={editValue === true ? 'true' : editValue === false ? 'false' : ''}
           onChange={handleSelectChange}
           onKeyDown={handleKeyDown}
-          onBlur={cancelEditing}
+          onBlur={() => { if (!savingViaChangeRef.current) cancelEditing(); savingViaChangeRef.current = false }}
           disabled={isSaving}
         >
           <option value="">—</option>

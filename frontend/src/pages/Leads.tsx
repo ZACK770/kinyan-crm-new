@@ -737,6 +737,7 @@ export function LeadsPage() {
         { value: 'תלמיד פעיל', label: 'תלמיד פעיל' },
         { value: 'לא רלוונטי', label: 'לא רלוונטי' },
       ],
+      renderView: (r) => <Badge entity="lead" value={r.status} />,
     },
     { 
       key: 'salesperson_id', 

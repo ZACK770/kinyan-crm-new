@@ -470,8 +470,8 @@ function renderCell<T>(
     return column.render(row, onUpdate ? (v) => onUpdate(v) : () => {})
   }
 
-  // View-only render
-  if (column.renderView) {
+  // View-only render (only if not editable)
+  if (column.renderView && (column.editable === false || !onUpdate)) {
     return column.renderView(row)
   }
 
@@ -480,13 +480,14 @@ function renderCell<T>(
     return formatDisplayValue(value, column)
   }
 
-  // Inline editable cell
+  // Inline editable cell — use renderView as display if available
+  const customDisplay = column.renderView ? column.renderView(row) : undefined
   return (
     <InlineEditCell
       value={value}
       type={column.type}
       options={column.options}
-      displayValue={formatDisplayValue(value, column)}
+      displayValue={customDisplay ?? formatDisplayValue(value, column)}
       onSave={onUpdate}
     />
   )
