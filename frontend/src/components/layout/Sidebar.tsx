@@ -67,6 +67,7 @@ const NAV_SECTIONS: { items: NavItem[] }[] = [
       { to: '/tasks', label: 'משימות', icon: CheckSquare },
       { to: '/inquiries', label: 'פניות', icon: Inbox },
       { to: '/messages', label: 'הודעות', icon: Send },
+      { to: '/email-inbox', label: 'תיבת מייל', icon: Mail },
       { to: '/email-templates', label: 'תבניות מייל', icon: Mail },
     ],
   },

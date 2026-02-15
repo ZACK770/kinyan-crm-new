@@ -1279,3 +1279,69 @@ class StudentLessonProgress(Base):
 
     student: Mapped["Student"] = relationship()
     lesson: Mapped["Lesson"] = relationship(back_populates="progress_records")
+
+
+# ============================================================
+# InboundEmail (מיילים נכנסים/יוצאים) — synced via Make.com webhook
+# ============================================================
+class InboundEmail(Base):
+    __tablename__ = "inbound_emails"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    # Gmail message identifiers
+    gmail_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)  # Gmail message ID
+    thread_id: Mapped[Optional[str]] = mapped_column(String(100))  # Gmail thread ID for threading
+
+    # Direction: 'inbound' (INBOX) or 'outbound' (SENT)
+    direction: Mapped[str] = mapped_column(String(20), nullable=False, default="inbound")
+
+    # Sender
+    from_email: Mapped[str] = mapped_column(String(300), nullable=False)
+    from_name: Mapped[Optional[str]] = mapped_column(String(300))
+
+    # Recipients
+    to_emails: Mapped[Optional[str]] = mapped_column(Text)  # JSON array of {name, email}
+    bcc_emails: Mapped[Optional[str]] = mapped_column(Text)  # JSON array of {email}
+
+    # Content
+    subject: Mapped[Optional[str]] = mapped_column(String(500))
+    snippet: Mapped[Optional[str]] = mapped_column(String(500))
+    body_text: Mapped[Optional[str]] = mapped_column(Text)
+    body_html: Mapped[Optional[str]] = mapped_column(Text)
+
+    # Attachments
+    has_attachment: Mapped[bool] = mapped_column(Boolean, default=False)
+    attachments_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Gmail metadata
+    label_ids: Mapped[Optional[str]] = mapped_column(Text)  # JSON array of label IDs
+    folder: Mapped[Optional[str]] = mapped_column(String(50))  # INBOX / SENT / IMPORTANT etc.
+    message_id_header: Mapped[Optional[str]] = mapped_column(String(500))  # Message-ID header
+    in_reply_to: Mapped[Optional[str]] = mapped_column(String(500))  # In-Reply-To header
+    size_estimate: Mapped[Optional[int]] = mapped_column(Integer)
+    history_id: Mapped[Optional[str]] = mapped_column(String(50))
+
+    # Lead assignment
+    lead_id: Mapped[Optional[int]] = mapped_column(ForeignKey("leads.id", ondelete="SET NULL"))
+    matched_auto: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Status
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Timestamps
+    email_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))  # internalDate from Gmail
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_inbound_gmail_id", "gmail_id", unique=True),
+        Index("idx_inbound_thread", "thread_id"),
+        Index("idx_inbound_from_email", "from_email"),
+        Index("idx_inbound_lead", "lead_id"),
+        Index("idx_inbound_direction", "direction"),
+        Index("idx_inbound_date", "email_date"),
+        Index("idx_inbound_folder", "folder"),
+    )
+
+    lead: Mapped[Optional["Lead"]] = relationship()

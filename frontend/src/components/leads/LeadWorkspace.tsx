@@ -3,6 +3,8 @@ import {
   MessageSquarePlus,
   UserCheck,
   ArrowLeft,
+  ArrowDownLeft,
+  ArrowUpRight,
   CreditCard,
   ListTodo,
   MessageCircle,
@@ -801,6 +803,10 @@ interface EmailTemplate {
 }
 
 function EmailsTab({ lead, onUpdate }: { lead: Lead; onUpdate: () => void }) {
+  // Sub-tab: 'compose' (existing sent emails + compose) or 'synced' (inbound/outbound from webhook)
+  const [subTab, setSubTab] = useState<'synced' | 'compose'>('synced')
+
+  // ── Compose state (existing) ──
   const [emails, setEmails] = useState<SentEmail[]>([])
   const [loading, setLoading] = useState(true)
   const [showCompose, setShowCompose] = useState(false)
@@ -812,6 +818,42 @@ function EmailsTab({ lead, onUpdate }: { lead: Lead; onUpdate: () => void }) {
   const [selectedTemplate, setSelectedTemplate] = useState<number | null>(null)
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ id: number; filename: string; size_bytes: number }>>([])
   const [uploading, setUploading] = useState(false)
+
+  // ── Synced emails state (new) ──
+  interface SyncedEmail {
+    id: number
+    gmail_id: string
+    thread_id: string | null
+    direction: string
+    from_email: string
+    from_name: string | null
+    to_emails: Array<{ name?: string; email: string }> | null
+    subject: string | null
+    snippet: string | null
+    has_attachment: boolean
+    attachments_count: number
+    folder: string | null
+    is_read: boolean
+    email_date: string | null
+    body_html?: string | null
+    body_text?: string | null
+    thread_emails?: Array<{
+      id: number
+      direction: string
+      from_name: string | null
+      from_email: string
+      subject: string | null
+      snippet: string | null
+      email_date: string | null
+      has_attachment: boolean
+      is_current: boolean
+    }>
+  }
+  const [syncedEmails, setSyncedEmails] = useState<SyncedEmail[]>([])
+  const [syncedLoading, setSyncedLoading] = useState(true)
+  const [syncedTotal, setSyncedTotal] = useState(0)
+  const [expandedSynced, setExpandedSynced] = useState<number | null>(null)
+  const [expandedDetail, setExpandedDetail] = useState<SyncedEmail | null>(null)
 
   const fetchEmails = useCallback(async () => {
     try {
@@ -833,10 +875,39 @@ function EmailsTab({ lead, onUpdate }: { lead: Lead; onUpdate: () => void }) {
     }
   }, [])
 
+  const fetchSyncedEmails = useCallback(async () => {
+    setSyncedLoading(true)
+    try {
+      const data = await api.get<{ items: SyncedEmail[]; total: number }>(`/inbound-emails/lead/${lead.id}/emails?limit=100`)
+      setSyncedEmails(data.items)
+      setSyncedTotal(data.total)
+    } catch {
+      // ignore
+    } finally {
+      setSyncedLoading(false)
+    }
+  }, [lead.id])
+
   useEffect(() => { 
     fetchEmails()
     fetchTemplates()
-  }, [fetchEmails, fetchTemplates])
+    fetchSyncedEmails()
+  }, [fetchEmails, fetchTemplates, fetchSyncedEmails])
+
+  const loadSyncedDetail = async (emailId: number) => {
+    if (expandedSynced === emailId) {
+      setExpandedSynced(null)
+      setExpandedDetail(null)
+      return
+    }
+    setExpandedSynced(emailId)
+    try {
+      const detail = await api.get<SyncedEmail>(`/inbound-emails/${emailId}`)
+      setExpandedDetail(detail)
+    } catch {
+      setExpandedDetail(null)
+    }
+  }
 
   const handleTemplateSelect = (templateId: number) => {
     const template = templates.find(t => t.id === templateId)
@@ -907,210 +978,367 @@ function EmailsTab({ lead, onUpdate }: { lead: Lead; onUpdate: () => void }) {
     }
   }
 
+  const formatSyncedDate = (dateStr: string | null) => {
+    if (!dateStr) return ''
+    try {
+      const d = new Date(dateStr)
+      return d.toLocaleDateString('he-IL', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+    } catch { return '' }
+  }
+
   return (
     <div className={s.workspace__section_content}>
-      {/* Compose / Action bar */}
-      <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--color-border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        {!lead.email ? (
-          <span style={{ color: 'var(--color-warning, #d97706)', fontSize: 13 }}>⚠ לליד אין כתובת מייל — הוסף מייל בפרטי הקשר</span>
-        ) : (
-          <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{lead.email}</span>
-        )}
+      {/* Sub-tabs: Synced / Compose */}
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border-light)' }}>
         <button
-          className={`${s.btn} ${s['btn-primary']} ${s['btn-sm']}`}
-          onClick={() => setShowCompose(!showCompose)}
-          disabled={!lead.email}
+          onClick={() => setSubTab('synced')}
+          style={{
+            flex: 1, padding: '8px 12px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: subTab === 'synced' ? 600 : 400,
+            background: subTab === 'synced' ? 'var(--color-primary-light, #eff6ff)' : 'transparent',
+            color: subTab === 'synced' ? 'var(--color-primary, #2563eb)' : 'var(--color-text-secondary)',
+            borderBottom: subTab === 'synced' ? '2px solid var(--color-primary, #2563eb)' : '2px solid transparent',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+          }}
         >
-          <Mail size={14} /> {showCompose ? 'סגור' : 'כתוב מייל'}
+          <Mail size={13} /> תיבת מייל {syncedTotal > 0 && <span style={{ fontSize: 10, background: 'var(--color-primary)', color: '#fff', padding: '0 5px', borderRadius: 8 }}>{syncedTotal}</span>}
+        </button>
+        <button
+          onClick={() => setSubTab('compose')}
+          style={{
+            flex: 1, padding: '8px 12px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: subTab === 'compose' ? 600 : 400,
+            background: subTab === 'compose' ? 'var(--color-primary-light, #eff6ff)' : 'transparent',
+            color: subTab === 'compose' ? 'var(--color-primary, #2563eb)' : 'var(--color-text-secondary)',
+            borderBottom: subTab === 'compose' ? '2px solid var(--color-primary, #2563eb)' : '2px solid transparent',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+          }}
+        >
+          <Send size={13} /> שליחה {emails.length > 0 && <span style={{ fontSize: 10, background: 'var(--color-border)', color: 'var(--color-text-secondary)', padding: '0 5px', borderRadius: 8 }}>{emails.length}</span>}
         </button>
       </div>
 
-      {/* Send result toast */}
-      {sendResult && (
-        <div style={{
-          padding: '10px 16px',
-          background: sendResult.ok ? 'var(--color-success-light, #f0fdf4)' : 'var(--color-danger-light, #fef2f2)',
-          color: sendResult.ok ? 'var(--color-success, #16a34a)' : 'var(--color-danger, #dc2626)',
-          display: 'flex', alignItems: 'center', gap: 8, fontSize: 13,
-          borderBottom: '1px solid var(--color-border-light)',
-        }}>
-          {sendResult.ok ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
-          {sendResult.msg}
-        </div>
-      )}
-
-      {/* Compose form */}
-      {showCompose && (
-        <div style={{ padding: 16, borderBottom: '2px solid var(--color-primary)', background: 'var(--color-bg-secondary, #f8fafc)' }}>
-          {templates.length > 0 && (
-            <div style={{ marginBottom: 10 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-text-secondary)' }}>בחר תבנית</label>
-              <select
-                value={selectedTemplate || ''}
-                onChange={e => handleTemplateSelect(Number(e.target.value))}
-                style={{
-                  width: '100%', padding: '8px 12px', borderRadius: 6,
-                  border: '1px solid var(--color-border)', fontSize: 14,
-                }}
-              >
-                <option value="">כתוב מייל חופשי</option>
-                {templates.map(t => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} {t.category && `(${t.category})`}
-                  </option>
-                ))}
-              </select>
+      {/* ═══ SYNCED EMAILS SUB-TAB ═══ */}
+      {subTab === 'synced' && (
+        <>
+          {syncedLoading ? (
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)' }}>טוען...</div>
+          ) : syncedEmails.length === 0 ? (
+            <div className={s['empty-state']}>
+              <Mail size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
+              <div>אין מיילים מסונכרנים לליד זה</div>
+              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>מיילים יופיעו כאן אחרי סנכרון מתיבת המייל</div>
             </div>
-          )}
-          <div style={{ marginBottom: 10 }}>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-text-secondary)' }}>נושא</label>
-            <input
-              type="text"
-              value={subject}
-              onChange={e => setSubject(e.target.value)}
-              placeholder="נושא המייל..."
-              style={{
-                width: '100%', padding: '8px 12px', borderRadius: 6,
-                border: '1px solid var(--color-border)', fontSize: 14,
-                direction: 'rtl',
-              }}
-            />
-          </div>
-          <div style={{ marginBottom: 10 }}>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-text-secondary)' }}>תוכן</label>
-            <textarea
-              value={body}
-              onChange={e => setBody(e.target.value)}
-              placeholder="תוכן המייל..."
-              rows={6}
-              style={{
-                width: '100%', padding: '8px 12px', borderRadius: 6,
-                border: '1px solid var(--color-border)', fontSize: 14,
-                resize: 'vertical', direction: 'rtl', fontFamily: 'inherit',
-              }}
-            />
-          </div>
-          <div style={{ marginBottom: 10 }}>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--color-text-secondary)' }}>קבצים מצורפים</label>
-            <label className={`${s.btn} ${s['btn-secondary']} ${s['btn-sm']}`} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              <Upload size={14} />
-              {uploading ? 'מעלה...' : 'העלה קובץ'}
-              <input
-                type="file"
-                multiple
-                onChange={handleFileUpload}
-                disabled={uploading}
-                style={{ display: 'none' }}
-              />
-            </label>
-            {uploadedFiles.length > 0 && (
-              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {uploadedFiles.map(file => (
+          ) : (
+            <div style={{ overflow: 'auto' }}>
+              {syncedEmails.map(email => (
+                <div key={email.id}>
                   <div
-                    key={file.id}
+                    onClick={() => loadSyncedDetail(email.id)}
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '4px 8px',
-                      background: 'white',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: 4,
-                      fontSize: 12,
+                      padding: '10px 14px',
+                      borderBottom: '1px solid var(--color-border-light)',
+                      cursor: 'pointer',
+                      background: expandedSynced === email.id ? 'var(--color-primary-light, #eff6ff)' : email.is_read ? 'transparent' : 'var(--color-bg-secondary, #f8fafc)',
+                      display: 'flex', gap: 8, alignItems: 'flex-start',
                     }}
                   >
-                    <FileText size={12} />
-                    <span style={{ flex: 1 }}>{file.filename}</span>
-                    <span style={{ color: 'var(--color-text-muted)' }}>{formatFileSize(file.size_bytes)}</span>
-                    <button
-                      onClick={() => handleRemoveFile(file.id)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        padding: 2,
-                        color: 'var(--color-danger)',
-                      }}
-                    >
-                      <X size={12} />
-                    </button>
+                    <div style={{ marginTop: 2, flexShrink: 0 }}>
+                      {email.direction === 'inbound' ? (
+                        <ArrowDownLeft size={14} style={{ color: 'var(--color-primary, #2563eb)' }} />
+                      ) : (
+                        <ArrowUpRight size={14} style={{ color: 'var(--color-success, #16a34a)' }} />
+                      )}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                        <span style={{ fontWeight: email.is_read ? 400 : 600, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {email.direction === 'outbound' && email.to_emails?.length ? (email.to_emails[0].name || email.to_emails[0].email) : (email.from_name || email.from_email)}
+                        </span>
+                        <span style={{ fontSize: 10, color: 'var(--color-text-muted)', flexShrink: 0 }}>{formatSyncedDate(email.email_date)}</span>
+                      </div>
+                      <div style={{ fontSize: 12, fontWeight: email.is_read ? 400 : 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
+                        {email.subject || '(ללא נושא)'}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
+                        {email.snippet || ''}
+                      </div>
+                      <div style={{ display: 'flex', gap: 4, marginTop: 3 }}>
+                        {email.has_attachment && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, padding: '0 4px', background: 'var(--color-bg-secondary)', borderRadius: 3 }}>
+                            <Paperclip size={9} /> {email.attachments_count || ''}
+                          </span>
+                        )}
+                        <span style={{ fontSize: 10, padding: '0 4px', borderRadius: 3, background: email.direction === 'inbound' ? 'var(--color-primary-light, #eff6ff)' : 'var(--color-success-light, #f0fdf4)', color: email.direction === 'inbound' ? 'var(--color-primary)' : 'var(--color-success)' }}>
+                          {email.direction === 'inbound' ? 'נכנס' : 'יוצא'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button className={`${s.btn} ${s['btn-ghost']} ${s['btn-sm']}`} onClick={() => setShowCompose(false)}>ביטול</button>
-            <button
-              className={`${s.btn} ${s['btn-primary']} ${s['btn-sm']}`}
-              onClick={handleSend}
-              disabled={sending || !subject.trim() || !body.trim()}
-            >
-              <Send size={14} /> {sending ? 'שולח...' : 'שלח מייל'}
-            </button>
-          </div>
-        </div>
+                  {/* Expanded detail */}
+                  {expandedSynced === email.id && expandedDetail && (
+                    <div style={{ padding: '12px 16px', background: 'var(--color-bg-secondary, #f8fafc)', borderBottom: '2px solid var(--color-primary)' }}>
+                      {/* Thread indicator */}
+                      {expandedDetail.thread_emails && expandedDetail.thread_emails.length > 1 && (
+                        <div style={{ marginBottom: 8, padding: '6px 8px', background: 'white', borderRadius: 4, border: '1px solid var(--color-border-light)' }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4, color: 'var(--color-text-secondary)' }}>
+                            שרשור ({expandedDetail.thread_emails.length} הודעות)
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            {expandedDetail.thread_emails.map(te => (
+                              <div
+                                key={te.id}
+                                onClick={() => { if (!te.is_current) loadSyncedDetail(te.id) }}
+                                style={{
+                                  display: 'flex', gap: 4, alignItems: 'center', padding: '2px 4px', borderRadius: 3,
+                                  cursor: te.is_current ? 'default' : 'pointer',
+                                  background: te.is_current ? 'var(--color-primary-light, #eff6ff)' : 'transparent',
+                                  fontSize: 10,
+                                }}
+                              >
+                                {te.direction === 'inbound' ? <ArrowDownLeft size={9} /> : <ArrowUpRight size={9} />}
+                                <span style={{ fontWeight: te.is_current ? 600 : 400 }}>{te.from_name || te.from_email}</span>
+                                <span style={{ color: 'var(--color-text-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  — {te.subject || te.snippet || ''}
+                                </span>
+                                {te.has_attachment && <Paperclip size={8} />}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 8 }}>
+                        <div><strong>מאת:</strong> {expandedDetail.from_name && `${expandedDetail.from_name} `}&lt;{expandedDetail.from_email}&gt;</div>
+                        {expandedDetail.to_emails && (
+                          <div><strong>אל:</strong> {expandedDetail.to_emails.map(t => t.name ? `${t.name} <${t.email}>` : t.email).join(', ')}</div>
+                        )}
+                      </div>
+                      {expandedDetail.body_html ? (
+                        <iframe
+                          srcDoc={`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;font-size:13px;padding:8px;margin:0;direction:rtl;color:#333;}img{max-width:100%;height:auto;}a{color:#2563eb;}</style></head><body>${expandedDetail.body_html}</body></html>`}
+                          style={{ width: '100%', height: 250, border: '1px solid var(--color-border-light)', borderRadius: 4, background: 'white' }}
+                          sandbox="allow-same-origin"
+                          title="Email body"
+                        />
+                      ) : (
+                        <pre style={{ padding: 8, margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 13, background: 'white', border: '1px solid var(--color-border-light)', borderRadius: 4, maxHeight: 250, overflow: 'auto' }}>
+                          {expandedDetail.body_text || '(ללא תוכן)'}
+                        </pre>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
-      {/* Email history */}
-      {loading ? (
-        <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)' }}>טוען...</div>
-      ) : emails.length === 0 ? (
-        <div className={s['empty-state']}>
-          <Mail size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
-          <div>לא נשלחו מיילים לליד זה</div>
-          {lead.email && (
-            <button className={`${s.btn} ${s['btn-primary']} ${s['btn-sm']}`} onClick={() => setShowCompose(true)} style={{ marginTop: 12 }}>
-              <Mail size={14} /> שלח מייל ראשון
+      {/* ═══ COMPOSE SUB-TAB (existing functionality) ═══ */}
+      {subTab === 'compose' && (
+        <>
+          {/* Compose / Action bar */}
+          <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--color-border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {!lead.email ? (
+              <span style={{ color: 'var(--color-warning, #d97706)', fontSize: 13 }}>⚠ לליד אין כתובת מייל — הוסף מייל בפרטי הקשר</span>
+            ) : (
+              <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{lead.email}</span>
+            )}
+            <button
+              className={`${s.btn} ${s['btn-primary']} ${s['btn-sm']}`}
+              onClick={() => setShowCompose(!showCompose)}
+              disabled={!lead.email}
+            >
+              <Mail size={14} /> {showCompose ? 'סגור' : 'כתוב מייל'}
             </button>
+          </div>
+
+          {/* Send result toast */}
+          {sendResult && (
+            <div style={{
+              padding: '10px 16px',
+              background: sendResult.ok ? 'var(--color-success-light, #f0fdf4)' : 'var(--color-danger-light, #fef2f2)',
+              color: sendResult.ok ? 'var(--color-success, #16a34a)' : 'var(--color-danger, #dc2626)',
+              display: 'flex', alignItems: 'center', gap: 8, fontSize: 13,
+              borderBottom: '1px solid var(--color-border-light)',
+            }}>
+              {sendResult.ok ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
+              {sendResult.msg}
+            </div>
           )}
-        </div>
-      ) : (
-        <div className={s.timeline} style={{ padding: 16 }}>
-          {emails.map(email => (
-            <div key={email.id} className={s['timeline-item']}>
-              <div className={s['timeline-dot']} style={{
-                background: email.status === 'נשלח' ? 'var(--color-success, #16a34a)' : email.status === 'נכשל' ? 'var(--color-danger, #dc2626)' : 'var(--color-border)',
-              }} />
-              <div className={s['timeline-content']}>
-                <div className={s['timeline-date']}>
-                  {formatDateTime(email.sent_at || email.created_at)}
-                  <span style={{
-                    marginRight: 8, fontSize: 11, padding: '1px 6px', borderRadius: 4,
-                    background: email.status === 'נשלח' ? 'var(--color-success-light, #f0fdf4)' : 'var(--color-danger-light, #fef2f2)',
-                    color: email.status === 'נשלח' ? 'var(--color-success, #16a34a)' : 'var(--color-danger, #dc2626)',
-                  }}>{email.status}</span>
+
+          {/* Compose form */}
+          {showCompose && (
+            <div style={{ padding: 16, borderBottom: '2px solid var(--color-primary)', background: 'var(--color-bg-secondary, #f8fafc)' }}>
+              {templates.length > 0 && (
+                <div style={{ marginBottom: 10 }}>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-text-secondary)' }}>בחר תבנית</label>
+                  <select
+                    value={selectedTemplate || ''}
+                    onChange={e => handleTemplateSelect(Number(e.target.value))}
+                    style={{
+                      width: '100%', padding: '8px 12px', borderRadius: 6,
+                      border: '1px solid var(--color-border)', fontSize: 14,
+                    }}
+                  >
+                    <option value="">כתוב מייל חופשי</option>
+                    {templates.map(t => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} {t.category && `(${t.category})`}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <div style={{ fontWeight: 600, fontSize: 14, marginTop: 4 }}>{email.subject}</div>
-                <div style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-secondary)', whiteSpace: 'pre-wrap', maxHeight: 100, overflow: 'hidden' }}>
-                  {email.body.replace(/<[^>]*>/g, '').substring(0, 200)}
-                  {email.body.length > 200 && '...'}
-                </div>
-                {email.attachments && email.attachments.length > 0 && (
-                  <div style={{ marginTop: 8, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                    {email.attachments.map(att => (
+              )}
+              <div style={{ marginBottom: 10 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-text-secondary)' }}>נושא</label>
+                <input
+                  type="text"
+                  value={subject}
+                  onChange={e => setSubject(e.target.value)}
+                  placeholder="נושא המייל..."
+                  style={{
+                    width: '100%', padding: '8px 12px', borderRadius: 6,
+                    border: '1px solid var(--color-border)', fontSize: 14,
+                    direction: 'rtl',
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: 10 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-text-secondary)' }}>תוכן</label>
+                <textarea
+                  value={body}
+                  onChange={e => setBody(e.target.value)}
+                  placeholder="תוכן המייל..."
+                  rows={6}
+                  style={{
+                    width: '100%', padding: '8px 12px', borderRadius: 6,
+                    border: '1px solid var(--color-border)', fontSize: 14,
+                    resize: 'vertical', direction: 'rtl', fontFamily: 'inherit',
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: 10 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--color-text-secondary)' }}>קבצים מצורפים</label>
+                <label className={`${s.btn} ${s['btn-secondary']} ${s['btn-sm']}`} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <Upload size={14} />
+                  {uploading ? 'מעלה...' : 'העלה קובץ'}
+                  <input
+                    type="file"
+                    multiple
+                    onChange={handleFileUpload}
+                    disabled={uploading}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+                {uploadedFiles.length > 0 && (
+                  <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {uploadedFiles.map(file => (
                       <div
-                        key={att.id}
+                        key={file.id}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 4,
-                          padding: '2px 6px',
-                          background: 'var(--color-bg-secondary)',
+                          gap: 8,
+                          padding: '4px 8px',
+                          background: 'white',
+                          border: '1px solid var(--color-border)',
                           borderRadius: 4,
-                          fontSize: 11,
+                          fontSize: 12,
                         }}
                       >
-                        <Paperclip size={10} />
-                        <span>{att.filename}</span>
+                        <FileText size={12} />
+                        <span style={{ flex: 1 }}>{file.filename}</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>{formatFileSize(file.size_bytes)}</span>
+                        <button
+                          onClick={() => handleRemoveFile(file.id)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: 2,
+                            color: 'var(--color-danger)',
+                          }}
+                        >
+                          <X size={12} />
+                        </button>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button className={`${s.btn} ${s['btn-ghost']} ${s['btn-sm']}`} onClick={() => setShowCompose(false)}>ביטול</button>
+                <button
+                  className={`${s.btn} ${s['btn-primary']} ${s['btn-sm']}`}
+                  onClick={handleSend}
+                  disabled={sending || !subject.trim() || !body.trim()}
+                >
+                  <Send size={14} /> {sending ? 'שולח...' : 'שלח מייל'}
+                </button>
+              </div>
             </div>
-          ))}
-        </div>
+          )}
+
+          {/* Email history */}
+          {loading ? (
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)' }}>טוען...</div>
+          ) : emails.length === 0 ? (
+            <div className={s['empty-state']}>
+              <Mail size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
+              <div>לא נשלחו מיילים לליד זה</div>
+              {lead.email && (
+                <button className={`${s.btn} ${s['btn-primary']} ${s['btn-sm']}`} onClick={() => setShowCompose(true)} style={{ marginTop: 12 }}>
+                  <Mail size={14} /> שלח מייל ראשון
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className={s.timeline} style={{ padding: 16 }}>
+              {emails.map(email => (
+                <div key={email.id} className={s['timeline-item']}>
+                  <div className={s['timeline-dot']} style={{
+                    background: email.status === 'נשלח' ? 'var(--color-success, #16a34a)' : email.status === 'נכשל' ? 'var(--color-danger, #dc2626)' : 'var(--color-border)',
+                  }} />
+                  <div className={s['timeline-content']}>
+                    <div className={s['timeline-date']}>
+                      {formatDateTime(email.sent_at || email.created_at)}
+                      <span style={{
+                        marginRight: 8, fontSize: 11, padding: '1px 6px', borderRadius: 4,
+                        background: email.status === 'נשלח' ? 'var(--color-success-light, #f0fdf4)' : 'var(--color-danger-light, #fef2f2)',
+                        color: email.status === 'נשלח' ? 'var(--color-success, #16a34a)' : 'var(--color-danger, #dc2626)',
+                      }}>{email.status}</span>
+                    </div>
+                    <div style={{ fontWeight: 600, fontSize: 14, marginTop: 4 }}>{email.subject}</div>
+                    <div style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-secondary)', whiteSpace: 'pre-wrap', maxHeight: 100, overflow: 'hidden' }}>
+                      {email.body.replace(/<[^>]*>/g, '').substring(0, 200)}
+                      {email.body.length > 200 && '...'}
+                    </div>
+                    {email.attachments && email.attachments.length > 0 && (
+                      <div style={{ marginTop: 8, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                        {email.attachments.map(att => (
+                          <div
+                            key={att.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              padding: '2px 6px',
+                              background: 'var(--color-bg-secondary)',
+                              borderRadius: 4,
+                              fontSize: 11,
+                            }}
+                          >
+                            <Paperclip size={10} />
+                            <span>{att.filename}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   )

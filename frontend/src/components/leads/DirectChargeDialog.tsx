@@ -85,15 +85,22 @@ export function DirectChargeDialog({
         throw new Error('סכום לא תקין')
       }
       
-      const response = await api.post<any>(`/leads/${leadId}/charge-card-direct`, {
+      // Build payload - don't send installments at all for HK
+      const payload: any = {
         card_number: cleanCardNumber,
         expiry: cleanExpiry,
         cvv: cvv,
         amount: amount,
-        installments: paymentType === 'HK' ? 0 : 1, // HK: no Tashloumim; RAGIL: always 1 (direct cards don't support installments)
         payment_type: paymentType,
         comments: comments || undefined
-      })
+      }
+      
+      // Add installments ONLY for RAGIL (never for HK!)
+      if (paymentType === 'RAGIL') {
+        payload.installments = 1
+      }
+      
+      const response = await api.post<any>(`/leads/${leadId}/charge-card-direct`, payload)
       
       setResult(response)
       toast.success(`סליקה הצליחה! אישור: ${response.confirmation}`)

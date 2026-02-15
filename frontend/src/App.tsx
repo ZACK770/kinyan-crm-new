@@ -26,6 +26,7 @@ import { PlaceholderPage } from '@/pages/Placeholder'
 import { TracksPage } from '@/pages/TracksPage'
 import { EntryPointsPage } from '@/pages/EntryPointsPage'
 import EmailTemplates from '@/pages/EmailTemplates'
+import { EmailInboxPage } from '@/pages/EmailInbox'
 import { CourseTopicsPage } from '@/pages/CourseTopics'
 import { TopicLessonsPage } from '@/pages/TopicLessons'
 import { LessonWorkspacePage } from '@/pages/LessonWorkspace'
@@ -66,6 +67,7 @@ export function App() {
                 <Route path="/tasks" element={<ViewerRoute><TasksPage /></ViewerRoute>} />
                 <Route path="/inquiries" element={<ViewerRoute><InquiriesPage /></ViewerRoute>} />
                 <Route path="/messages" element={<ViewerRoute><MessagesPage /></ViewerRoute>} />
+                <Route path="/email-inbox" element={<ViewerRoute><EmailInboxPage /></ViewerRoute>} />
                 <Route path="/email-templates" element={<ViewerRoute><EmailTemplates /></ViewerRoute>} />
                 <Route path="/lecturers" element={<ViewerRoute><LecturersPage /></ViewerRoute>} />
                 <Route path="/expenses" element={<ViewerRoute><ExpensesPage /></ViewerRoute>} />
