@@ -24,6 +24,7 @@ from api import course_tracks_api, lecturers_api, messages_api, templates_api, l
 from api import import_api, webhook_logs_api, webhook_queue_api, export_api, topics_api
 from api import inbound_emails_api
 from webhooks import inbound_email as inbound_email_webhook
+from webhooks import regulation_approval
 
 # Frontend build directory
 FRONTEND_DIR = Path(__file__).parent / "frontend" / "dist"
@@ -85,6 +86,7 @@ app.include_router(export_api.router, prefix="/api/export", tags=["export"])
 app.include_router(topics_api.router, prefix="/api/topics", tags=["topics"])
 app.include_router(inbound_emails_api.router, prefix="/api/inbound-emails", tags=["inbound-emails"])
 app.include_router(inbound_email_webhook.router, prefix="/webhooks", tags=["webhooks"])
+app.include_router(regulation_approval.router, prefix="/webhooks", tags=["webhooks"])
 
 
 # Health check endpoint (for Render and monitoring)

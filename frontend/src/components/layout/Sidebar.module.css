@@ -102,6 +102,17 @@
   border-radius: var(--radius-full);
 }
 
+/* Locked state for restricted items */
+.sidebar__item.locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sidebar__item.locked:hover {
+  background: none;
+  color: var(--color-text-secondary);
+}
+
 /* Icon container */
 .sidebar__icon {
   display: flex;

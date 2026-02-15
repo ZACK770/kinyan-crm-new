@@ -21,6 +21,7 @@ const SP_COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b', '#22c55e', '#f43f5e', '#06b6
 interface AdvancedDashboard {
   period: { from: string; to: string; days: number }
   kpis: {
+    total_leads_all_time: number
     total_leads: number; prev_leads: number
     converted: number; prev_converted: number
     conversion_rate: number; prev_conversion_rate: number
@@ -127,10 +128,16 @@ export const Dashboard: FC = () => {
       <div className={s.kpis}>
         <KpiCard
           icon={<Users size={18} />}
-          label="לידים נכנסים"
+          label="סה״כ לידים במערכת"
+          value={kpis.total_leads_all_time}
+          color="blue"
+        />
+        <KpiCard
+          icon={<Activity size={18} />}
+          label="לידים בתקופה"
           value={kpis.total_leads}
           prev={kpis.prev_leads}
-          color="blue"
+          color="purple"
         />
         <KpiCard
           icon={<Target size={18} />}

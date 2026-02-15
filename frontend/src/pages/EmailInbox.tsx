@@ -111,8 +111,8 @@ export function EmailInboxPage() {
   const [loadingDetail, setLoadingDetail] = useState(false)
 
   // Filters
-  const [direction, setDirection] = useState<string>('')
-  const [isRead, setIsRead] = useState<string>('')
+  const [direction, setDirection] = useState<string>('all')
+  const [isRead, setIsRead] = useState<string>('all')
   const [unmatched, setUnmatched] = useState(false)
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
@@ -129,7 +129,7 @@ export function EmailInboxPage() {
     setLoading(true)
     try {
       const params = new URLSearchParams()
-      if (direction) params.set('direction', direction)
+      if (direction && direction !== 'all') params.set('direction', direction)
       if (isRead === 'true') params.set('is_read', 'true')
       if (isRead === 'false') params.set('is_read', 'false')
       if (unmatched) params.set('unmatched', 'true')
@@ -217,7 +217,7 @@ export function EmailInboxPage() {
           {/* Filters */}
           <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--color-border-light)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ display: 'flex', gap: 4 }}>
-              <FilterBtn active={!direction} onClick={() => { setDirection(''); setPage(0) }}>הכל</FilterBtn>
+              <FilterBtn active={direction === 'all'} onClick={() => { setDirection('all'); setPage(0) }}>הכל</FilterBtn>
               <FilterBtn active={direction === 'inbound'} onClick={() => { setDirection('inbound'); setPage(0) }}>
                 <ArrowDownLeft size={12} /> נכנסים
               </FilterBtn>
@@ -227,7 +227,7 @@ export function EmailInboxPage() {
             </div>
             <div style={{ width: 1, height: 20, background: 'var(--color-border-light)' }} />
             <div style={{ display: 'flex', gap: 4 }}>
-              <FilterBtn active={isRead === 'false'} onClick={() => { setIsRead(isRead === 'false' ? '' : 'false'); setPage(0) }}>
+              <FilterBtn active={isRead === 'false'} onClick={() => { setIsRead(isRead === 'false' ? 'all' : 'false'); setPage(0) }}>
                 לא נקראו
               </FilterBtn>
               <FilterBtn active={unmatched} onClick={() => { setUnmatched(!unmatched); setPage(0) }}>

@@ -53,19 +53,25 @@ def _parse_email_date(date_str: str | None) -> datetime | None:
         return None
 
 
-async def _match_lead(db: AsyncSession, from_email: str, to_emails: list[dict]) -> tuple[int | None, bool]:
+async def _match_lead(db: AsyncSession, from_email: str, to_emails: list[dict], direction: str) -> tuple[int | None, bool]:
     """
     Try to auto-match an email to a lead.
     For outbound: match by to_email
     For inbound: match by from_email
     Returns (lead_id, matched_auto)
     """
-    # Collect all email addresses to search
-    emails_to_search = [from_email.lower()]
-    for to in to_emails:
-        email = to.get("email", "").lower()
-        if email:
-            emails_to_search.append(email)
+    emails_to_search = []
+    
+    if direction == "inbound":
+        # For inbound emails, match by sender (from_email)
+        if from_email:
+            emails_to_search.append(from_email.lower())
+    else:
+        # For outbound emails, match by recipients (to_emails)
+        for to in to_emails:
+            email = to.get("email", "").lower()
+            if email:
+                emails_to_search.append(email)
 
     if not emails_to_search:
         return None, False
@@ -126,7 +132,7 @@ async def process_email_batch(
             email_date = _parse_email_date(email_data.get("internalDate"))
 
             # Auto-match to lead
-            lead_id, matched_auto = await _match_lead(db, from_email, to_list)
+            lead_id, matched_auto = await _match_lead(db, from_email, to_list, direction)
 
             record = InboundEmail(
                 gmail_id=gmail_id,

@@ -96,6 +96,12 @@ async def advanced_dashboard(
     start, end = _parse_date_range(days, from_date, to_date)
 
     # ── KPI Cards ──
+    # Total leads in system (all time)
+    total_leads_all_time = (await db.execute(
+        select(func.count()).select_from(Lead)
+    )).scalar() or 0
+
+    # Leads in selected period
     total_leads_period = (await db.execute(
         select(func.count()).select_from(Lead)
         .where(Lead.created_at >= start, Lead.created_at <= end)
@@ -144,6 +150,7 @@ async def advanced_dashboard(
     prev_conversion_rate = round((prev_converted / prev_leads * 100), 1) if prev_leads > 0 else 0
 
     kpis = {
+        "total_leads_all_time": total_leads_all_time,
         "total_leads": total_leads_period,
         "prev_leads": prev_leads,
         "converted": converted_period,

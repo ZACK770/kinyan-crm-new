@@ -25,6 +25,7 @@ import {
   Activity,
   AlertCircle,
   Mail,
+  Lock,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import clsx from 'clsx'
@@ -67,7 +68,6 @@ const NAV_SECTIONS: { items: NavItem[] }[] = [
       { to: '/tasks', label: 'משימות', icon: CheckSquare },
       { to: '/inquiries', label: 'פניות', icon: Inbox },
       { to: '/messages', label: 'הודעות', icon: Send },
-      { to: '/email-inbox', label: 'תיבת מייל', icon: Mail },
       { to: '/email-templates', label: 'תבניות מייל', icon: Mail },
     ],
   },
@@ -81,6 +81,7 @@ const NAV_SECTIONS: { items: NavItem[] }[] = [
 
 // Admin-only navigation items
 const ADMIN_NAV_ITEMS: NavItem[] = [
+  { to: '/email-inbox', label: 'תיבת מייל', icon: Mail },
   { to: '/admin/users', label: 'ניהול משתמשים', icon: Shield },
   { to: '/admin/webhook-queue', label: 'תור וובהוקים', icon: AlertCircle },
   { to: '/admin/import-leads', label: 'ייבוא לידים', icon: Upload },
@@ -156,15 +157,61 @@ export const Sidebar: FC<SidebarProps> = ({
             </div>
           ))}
           
-          {/* Admin section - only for admin users */}
+          {/* Admin section - visible to all, but locked for non-admins */}
+          <>
+            <div className={styles.sidebar__divider} />
+            <div className={styles.sidebar__section}>
+              <div className={styles.sidebar__section_title}>
+                {!collapsed && <span>ניהול מערכת</span>}
+              </div>
+              {ADMIN_NAV_ITEMS.map((item) => {
+                const Icon = item.icon
+                const isActive = location.pathname.startsWith(item.to)
+                const isLocked = user?.role_name !== 'admin'
+
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    className={clsx(
+                      styles.sidebar__item,
+                      isActive && styles.active,
+                      isLocked && styles.locked,
+                    )}
+                    onClick={(e) => {
+                      if (isLocked) {
+                        e.preventDefault()
+                      } else {
+                        onCloseMobile()
+                      }
+                    }}
+                  >
+                    <span className={styles.sidebar__icon}>
+                      <Icon size={20} strokeWidth={1.5} />
+                    </span>
+                    <span className={styles.sidebar__label}>
+                      {item.label}
+                      {isLocked && (
+                        <Lock size={14} strokeWidth={2} style={{ marginLeft: 6, opacity: 0.6 }} />
+                      )}
+                    </span>
+                    {collapsed && (
+                      <span className={styles.sidebar__tooltip}>
+                        {item.label}
+                        {isLocked && ' 🔒'}
+                      </span>
+                    )}
+                  </NavLink>
+                )
+              })}
+            </div>
+          </>
+
+          {/* Manager+ section - visible to all, but locked for non-managers */}
           {user?.role_name === 'admin' && (
             <>
-              <div className={styles.sidebar__divider} />
               <div className={styles.sidebar__section}>
-                <div className={styles.sidebar__section_title}>
-                  {!collapsed && <span>ניהול מערכת</span>}
-                </div>
-                {ADMIN_NAV_ITEMS.map((item) => {
+                {MANAGER_NAV_ITEMS.map((item) => {
                   const Icon = item.icon
                   const isActive = location.pathname.startsWith(item.to)
 
@@ -195,17 +242,9 @@ export const Sidebar: FC<SidebarProps> = ({
               </div>
             </>
           )}
-
-          {/* Manager+ section - for manager and admin */}
-          {(user?.role_name === 'admin' || user?.role_name === 'manager') && (
+          {user?.role_name === 'manager' && (
             <>
-              {user?.role_name !== 'admin' && <div className={styles.sidebar__divider} />}
               <div className={styles.sidebar__section}>
-                {user?.role_name !== 'admin' && (
-                  <div className={styles.sidebar__section_title}>
-                    {!collapsed && <span>ניהול מערכת</span>}
-                  </div>
-                )}
                 {MANAGER_NAV_ITEMS.map((item) => {
                   const Icon = item.icon
                   const isActive = location.pathname.startsWith(item.to)
