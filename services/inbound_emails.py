@@ -184,7 +184,8 @@ async def list_emails(
     offset: int = 0,
 ) -> tuple[list[InboundEmail], int]:
     """List inbound emails with filters. Returns (items, total_count)."""
-    base = select(InboundEmail)
+    from sqlalchemy.orm import selectinload
+    base = select(InboundEmail).options(selectinload(InboundEmail.lead))
     count_base = select(func.count()).select_from(InboundEmail)
 
     conditions = []
