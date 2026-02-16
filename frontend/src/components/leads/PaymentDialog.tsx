@@ -1,5 +1,15 @@
-import React, { useState } from 'react';
-import { X, DollarSign, Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, DollarSign, Loader2, CheckCircle2, Plus } from 'lucide-react';
+
+interface Payment {
+  id: number;
+  amount: number;
+  payment_method: string;
+  status: string;
+  payment_date?: string;
+  reference?: string;
+  nedarim_transaction_id?: string;
+}
 
 interface Props {
   leadId: number;
@@ -10,6 +20,10 @@ interface Props {
 const PaymentDialog: React.FC<Props> = ({ leadId, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [totalPaid, setTotalPaid] = useState(0);
+  const [totalPrice, setTotalPrice] = useState(0);
+  const [showAddForm, setShowAddForm] = useState(false);
   
   const [formData, setFormData] = useState({
     amount: '',
@@ -17,6 +31,40 @@ const PaymentDialog: React.FC<Props> = ({ leadId, onClose, onSuccess }) => {
     reference: '',
     verified: false
   });
+
+  useEffect(() => {
+    fetchPayments();
+  }, [leadId]);
+
+  const fetchPayments = async () => {
+    try {
+      const response = await fetch(`/api/leads/${leadId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      if (!response.ok) throw new Error('Failed to fetch lead');
+      const lead = await response.json();
+      
+      // Fetch payments
+      const paymentsResponse = await fetch(`/api/payments?lead_id=${leadId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      if (paymentsResponse.ok) {
+        const paymentsData = await paymentsResponse.json();
+        setPayments(paymentsData.items || []);
+        const paid = paymentsData.items?.reduce((sum: number, p: Payment) => 
+          p.status === 'שולם' ? sum + p.amount : sum, 0) || 0;
+        setTotalPaid(paid);
+      }
+      
+      setTotalPrice(lead.selected_price || 0);
+    } catch (err) {
+      console.error('Error fetching payments:', err);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,8 +97,10 @@ const PaymentDialog: React.FC<Props> = ({ leadId, onClose, onSuccess }) => {
         throw new Error(data.detail || 'שגיאה ברישום התשלום');
       }
 
+      await fetchPayments();
+      setShowAddForm(false);
+      setFormData({ amount: '', method: 'אשראי', reference: '', verified: false });
       onSuccess();
-      onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'שגיאה ברישום התשלום');
     } finally {
@@ -67,7 +117,12 @@ const PaymentDialog: React.FC<Props> = ({ leadId, onClose, onSuccess }) => {
             <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
               <DollarSign className="w-5 h-5 text-green-600" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900">רישום סליקה</h2>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">ניהול תשלומים</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                נסלק: ₪{totalPaid.toLocaleString()} מתוך ₪{totalPrice.toLocaleString()}
+              </p>
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -77,8 +132,95 @@ const PaymentDialog: React.FC<Props> = ({ leadId, onClose, onSuccess }) => {
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        {/* Content */}
+        <div className="p-6 space-y-4">
+          {/* Existing Payments */}
+          {payments.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="font-semibold text-gray-900">תשלומים קיימים</h3>
+              {payments.map((payment) => (
+                <div
+                  key={payment.id}
+                  className={`p-4 rounded-lg border-2 ${
+                    payment.status === 'שולם'
+                      ? 'bg-green-50 border-green-200'
+                      : 'bg-gray-50 border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        {payment.status === 'שולם' && (
+                          <CheckCircle2 className="w-5 h-5 text-green-600" />
+                        )}
+                        <span className="font-semibold text-gray-900">
+                          ₪{payment.amount.toLocaleString()}
+                        </span>
+                        <span className="text-sm text-gray-600">• {payment.payment_method}</span>
+                      </div>
+                      {payment.nedarim_transaction_id && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          אישור: {payment.nedarim_transaction_id}
+                        </p>
+                      )}
+                      {payment.payment_date && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(payment.payment_date).toLocaleDateString('he-IL')}
+                        </p>
+                      )}
+                    </div>
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        payment.status === 'שולם'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      {payment.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Progress Bar */}
+          {totalPrice > 0 && (
+            <div className="p-4 bg-blue-50 rounded-lg">
+              <div className="flex items-center justify-between text-sm mb-2">
+                <span className="font-medium text-gray-700">התקדמות תשלום</span>
+                <span className="font-bold text-blue-600">
+                  {Math.round((totalPaid / totalPrice) * 100)}%
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                <div
+                  className="bg-gradient-to-r from-blue-500 to-indigo-600 h-full transition-all duration-500"
+                  style={{ width: `${Math.min((totalPaid / totalPrice) * 100, 100)}%` }}
+                />
+              </div>
+              <p className="text-xs text-gray-600 mt-2">
+                {totalPaid >= totalPrice
+                  ? '✅ התשלום הושלם במלואו'
+                  : `נותרו לתשלום: ₪${(totalPrice - totalPaid).toLocaleString()}`}
+              </p>
+            </div>
+          )}
+
+          {/* Add Payment Button */}
+          {!showAddForm && totalPaid < totalPrice && (
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="w-full px-4 py-3 border-2 border-dashed border-blue-300 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors font-medium flex items-center justify-center gap-2"
+            >
+              <Plus className="w-5 h-5" />
+              הוסף תשלום נוסף
+            </button>
+          )}
+
+          {/* Add Payment Form */}
+          {showAddForm && (
+            <form onSubmit={handleSubmit} className="space-y-4 p-4 bg-gray-50 rounded-lg border-2 border-blue-200">
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800">
               {error}
@@ -159,32 +301,47 @@ const PaymentDialog: React.FC<Props> = ({ leadId, onClose, onSuccess }) => {
             </label>
           </div>
 
-          {/* Actions */}
-          <div className="flex gap-3 pt-4">
+              {/* Actions */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddForm(false);
+                    setFormData({ amount: '', method: 'אשראי', reference: '', verified: false });
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                  disabled={loading}
+                >
+                  ביטול
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      שומר...
+                    </>
+                  ) : (
+                    'שמור תשלום'
+                  )}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Close Button */}
+          {!showAddForm && (
             <button
-              type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-              disabled={loading}
+              className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
             >
-              ביטול
+              סגור
             </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  שומר...
-                </>
-              ) : (
-                'שמור סליקה'
-              )}
-            </button>
-          </div>
-        </form>
+          )}
+        </div>
       </div>
     </div>
   );

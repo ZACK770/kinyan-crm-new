@@ -48,13 +48,14 @@ async def handle_nedarim_debitcard_webhook(
     logger.info(f"Received Nedarim DebitCard callback: {data}")
     
     try:
-        # Extract key fields
-        confirmation = data.get('confirmation') or data.get('מספר אישור')
-        amount_str = data.get('amount') or data.get('סכום', '0')
-        installments_str = data.get('installments') or data.get('תשלומים', '1')
-        card_last_4 = data.get('card_last_4') or data.get('4 ספרות אחרונות')
-        comments = data.get('comments') or data.get('הערות', '')
-        param2 = data.get('param2') or data.get('Param2')  # lead_id
+        # Extract key fields - fields come with capital letters from Nedarim
+        confirmation = data.get('Confirmation') or data.get('confirmation') or data.get('מספר אישור')
+        amount_str = data.get('Amount') or data.get('amount') or data.get('סכום', '0')
+        installments_str = data.get('Tashloumim') or data.get('installments') or data.get('תשלומים', '1')
+        card_last_4 = data.get('LastNum') or data.get('card_last_4') or data.get('4 ספרות אחרונות')
+        comments = data.get('Comments') or data.get('comments') or data.get('הערות', '')
+        param2 = data.get('Param2') or data.get('param2')  # lead_id
+        transaction_id = data.get('TransactionId') or data.get('transaction_id')  # Nedarim transaction ID
         
         # Parse amount
         try:
@@ -72,12 +73,19 @@ async def handle_nedarim_debitcard_webhook(
             logger.error("No confirmation number in callback")
             return {"success": False, "error": "Missing confirmation number"}
         
-        # Try to find the payment by confirmation number
-        stmt = select(Payment).where(Payment.nedarim_transaction_id == confirmation)
-        result = await db.execute(stmt)
-        payment = result.scalar_one_or_none()
+        # Try to find the payment by confirmation number or transaction_id
+        payment = None
+        if confirmation:
+            stmt = select(Payment).where(Payment.nedarim_transaction_id == confirmation)
+            result = await db.execute(stmt)
+            payment = result.scalar_one_or_none()
         
-        # If not found by confirmation, try by lead_id from param2
+        if not payment and transaction_id:
+            stmt = select(Payment).where(Payment.nedarim_donation_id == transaction_id)
+            result = await db.execute(stmt)
+            payment = result.scalar_one_or_none()
+        
+        # If not found by confirmation/transaction_id, try by lead_id from param2
         if not payment and param2:
             try:
                 lead_id = int(param2)
@@ -133,6 +141,8 @@ async def handle_nedarim_debitcard_webhook(
             payment.payment_date = datetime.now().date()
             if not payment.nedarim_transaction_id:
                 payment.nedarim_transaction_id = confirmation
+            if not payment.nedarim_donation_id and transaction_id:
+                payment.nedarim_donation_id = transaction_id
             if card_last_4:
                 payment.reference = f"{confirmation} | {card_last_4}"
             logger.info(f"Updated payment {payment.id} from callback")
