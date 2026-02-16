@@ -207,7 +207,7 @@ async def handle_nedarim_debitcard_webhook(
                             lead_id=lead.id,
                             action_type="המרה לתלמיד",
                             description=f"הליד הומר לתלמיד בהצלחה. תשלום ראשון: ₪{amount}",
-                            metadata={
+                            extra_data={
                                 "student_id": student.id,
                                 "payment_id": payment.id,
                                 "confirmation": confirmation,
@@ -222,7 +222,7 @@ async def handle_nedarim_debitcard_webhook(
                 lead_id=payment.lead_id,
                 action_type="תשלום התקבל",
                 description=f"תשלום בסך ₪{amount} התקבל בהצלחה דרך נדרים פלוס (אישור: {confirmation})",
-                metadata={
+                extra_data={
                     "payment_id": payment.id,
                     "amount": float(amount),
                     "installments": installments,
