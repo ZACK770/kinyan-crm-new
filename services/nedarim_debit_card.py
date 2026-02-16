@@ -4,6 +4,7 @@ Direct credit card charging via Nedarim Plus
 """
 import logging
 import time
+import json
 from typing import Dict, Any, Optional
 from datetime import datetime
 
@@ -143,7 +144,20 @@ class NedarimDebitCardService:
             # For regular payment: must have installments
             payload['Tashlumim'] = str(installments)
         
-        logger.info(f"Charging card via Nedarim DebitCard API: {client_name}, Amount: {amount} ILS, PaymentType: {payment_type}, Tashlumim: {payload.get('Tashlumim', 'NOT SENT')}, Groupe: {groupe or 'N/A'}, Param1: {param1 or 'N/A'}")
+        # Log full payload (mask card number for security)
+        safe_payload = {k: v for k, v in payload.items()}
+        if 'CardNumber' in safe_payload:
+            safe_payload['CardNumber'] = f"****{safe_payload['CardNumber'][-4:]}"
+        if 'CVV' in safe_payload:
+            safe_payload['CVV'] = '***'
+        if 'ApiPassword' in safe_payload:
+            safe_payload['ApiPassword'] = '***'
+        logger.info(f"=== NEDARIM DEBITCARD REQUEST ===")
+        logger.info(f"URL: {self.base_url}{self.endpoint}")
+        logger.info(f"PaymentType: {payload.get('PaymentType')}")
+        logger.info(f"Amount: {payload.get('Amount')}")
+        logger.info(f"Tashlumim: {payload.get('Tashlumim', 'NOT IN PAYLOAD')}")
+        logger.info(f"Full payload: {json.dumps(safe_payload, ensure_ascii=False)}")
         
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -155,6 +169,8 @@ class NedarimDebitCardService:
                 
                 response.raise_for_status()
                 result = response.json()
+                logger.info(f"=== NEDARIM DEBITCARD RESPONSE ===")
+                logger.info(f"Full response: {json.dumps(result, ensure_ascii=False)}")
                 
                 # Check if transaction succeeded
                 if result.get('Status') == 'OK':
@@ -270,6 +286,9 @@ async def charge_lead_card(
     from db import settings
     base_url = getattr(settings, 'BASE_URL', 'https://kinyan-crm-new-1.onrender.com')
     callback_url = f"{base_url}/webhooks/nedarim-debitcard"
+    
+    logger.info(f"=== DIRECT CHARGE REQUEST from frontend ===")
+    logger.info(f"lead_id={lead_id}, payment_type={payment_type}, amount={amount}, installments={installments}")
     
     try:
         result = await service.charge_card(

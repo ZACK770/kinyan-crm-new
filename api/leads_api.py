@@ -1,10 +1,13 @@
 """
 Leads API endpoints.
 """
+import logging
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from db import get_db
 from services import leads as lead_svc
@@ -551,6 +554,8 @@ async def charge_lead_card_direct(
     This performs immediate credit card charging without payment links.
     """
     from services import nedarim_debit_card
+    
+    logger.info(f"=== DIRECT CHARGE API REQUEST === lead_id={lead_id}, payment_type={data.payment_type}, amount={data.amount}, installments={data.installments}")
     
     try:
         result = await nedarim_debit_card.charge_lead_card(
