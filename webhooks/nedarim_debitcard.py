@@ -24,22 +24,19 @@ async def handle_nedarim_debitcard_webhook(
     The callback is sent as an email-like notification with transaction details.
     We need to parse it and update the payment status and lead conversion.
     
-    Expected data structure (from email/callback):
+    Expected data structure (actual Nedarim API callback):
     {
-        "transaction_date": "16/02/2026 16:25",
-        "client_name": "Test User - Real Card 20 ILS",
-        "amount": "20.00",
-        "installments": "3",
-        "category": "",
-        "comments": "Test HK - 3 חודשים של ₪20 (סה\"כ ₪60)",
-        "card_last_4": "9957",
-        "card_brand": "ויזה",
-        "confirmation": "0212274",
-        "terminal_location": "Online",
-        "phone": "0501234567",
-        "email": "test@example.com",
-        "param1": "Salesperson Name",  # Optional
-        "param2": "123"  # lead_id
+        "Confirmation": "0918185",
+        "Amount": "8.00",
+        "CreditTerms": "2",  # Monthly installments for הוראת קבע (NOT Tashloumim!)
+        "Tashloumim": "1",  # Regular installments (not used for הוראת קבע)
+        "Comments": "ליד #4558 | טל: 0548403828",
+        "LastNum": "9957",
+        "TransactionId": "66303840",
+        "Phone": "0548403828",
+        "Mail": "a027698420@mail.com",
+        "Param1": "Salesperson Name",  # Optional
+        "Param2": "4558"  # lead_id
     }
     
     Returns:
@@ -51,7 +48,8 @@ async def handle_nedarim_debitcard_webhook(
         # Extract key fields - fields come with capital letters from Nedarim
         confirmation = data.get('Confirmation') or data.get('confirmation') or data.get('מספר אישור')
         amount_str = data.get('Amount') or data.get('amount') or data.get('סכום', '0')
-        installments_str = data.get('Tashloumim') or data.get('installments') or data.get('תשלומים', '1')
+        # CreditTerms = monthly installments for הוראת קבע (not Tashloumim!)
+        credit_terms_str = data.get('CreditTerms') or data.get('credit_terms', '1')
         card_last_4 = data.get('LastNum') or data.get('card_last_4') or data.get('4 ספרות אחרונות')
         comments = data.get('Comments') or data.get('comments') or data.get('הערות', '')
         param2 = data.get('Param2') or data.get('param2')  # lead_id
@@ -63,9 +61,9 @@ async def handle_nedarim_debitcard_webhook(
         except (ValueError, AttributeError):
             amount = 0
         
-        # Parse installments
+        # Parse monthly installments (CreditTerms for הוראת קבע)
         try:
-            installments = int(installments_str)
+            installments = int(credit_terms_str)
         except (ValueError, AttributeError):
             installments = 1
         

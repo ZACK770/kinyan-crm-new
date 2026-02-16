@@ -51,7 +51,7 @@
   user-select: none;
 }
 .header__logo {
-  height: 42px;
+  height: 56px;
   width: auto;
   object-fit: contain;
 }
@@ -61,14 +61,14 @@
   gap: 0;
 }
 .header__title {
-  font-size: 1.14rem;
+  font-size: 1.35rem;
   font-weight: 700;
   color: var(--color-text);
   line-height: 1.2;
   letter-spacing: -0.01em;
 }
 .header__subtitle {
-  font-size: 0.72rem;
+  font-size: 0.85rem;
   color: var(--color-text-muted);
   line-height: 1;
 }
