@@ -27,14 +27,16 @@ export function DirectChargeDialog({
   const [expiry, setExpiry] = useState('')
   const [cvv, setCvv] = useState('')
   const [comments, setComments] = useState('')
-  // Default to RAGIL (regular payment with installments)
-  const [paymentType, setPaymentType] = useState<'RAGIL' | 'HK'>('RAGIL')
+  // Default to HK (standing order - הוראת קבע)
+  const [paymentType, setPaymentType] = useState<'RAGIL' | 'HK'>('HK')
   
   // Use props directly - no local state needed
   const totalAmount = defaultAmount || 0
   const installments = defaultInstallments || 1
-  // For HK: Amount = monthly payment (total / installments)
-  // For RAGIL: Amount = total amount, Tashloumim = installments
+  
+  // Calculate amounts based on payment type:
+  // HK: Amount = monthly payment (total / installments), Tashlumim = number of months
+  // RAGIL: Amount = total amount (full), Tashlumim = number of installments (with authorization hold)
   const monthlyAmount = installments > 0 ? Math.round((totalAmount / installments) * 100) / 100 : totalAmount
   const amount = paymentType === 'HK' ? monthlyAmount : totalAmount
   
@@ -85,7 +87,7 @@ export function DirectChargeDialog({
         throw new Error('סכום לא תקין')
       }
       
-      // Build payload - don't send installments at all for HK
+      // Build payload
       const payload: any = {
         card_number: cleanCardNumber,
         expiry: cleanExpiry,
@@ -95,8 +97,10 @@ export function DirectChargeDialog({
         comments: comments || undefined
       }
       
-      // Add installments ONLY for RAGIL (never for HK!)
-      if (paymentType === 'RAGIL') {
+      // Add installments for both RAGIL and HK
+      // RAGIL: installments = number of payments (with authorization hold)
+      // HK: installments = number of months (without authorization hold)
+      if (installments && installments > 0) {
         payload.installments = installments
       }
       
@@ -216,7 +220,7 @@ export function DirectChargeDialog({
                       onChange={() => setPaymentType('RAGIL')}
                       disabled={isProcessing}
                     />
-                    <span>חיוב רגיל (חד-פעמי מלא)</span>
+                    <span>חיוב רגיל (עם תשלומים)</span>
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
                     <input
@@ -231,12 +235,15 @@ export function DirectChargeDialog({
                   </label>
                 </div>
                 {paymentType === 'RAGIL' && (
-                  <div style={{ marginTop: '12px', padding: '12px', background: '#fff3e0', borderRadius: '6px', border: '1px solid #ff9800' }}>
-                    <div style={{ fontWeight: 500, color: '#e65100' }}>
-                      ⚠️ חיוב חד-פעמי של הסכום המלא: ₪{totalAmount}
+                  <div style={{ marginTop: '12px', padding: '12px', background: '#e3f2fd', borderRadius: '6px', border: '1px solid #2196f3' }}>
+                    <div style={{ fontWeight: 500, color: '#1565c0' }}>
+                      💳 חיוב רגיל - {installments} תשלומים
                     </div>
                     <small style={{ fontSize: '12px', color: '#555', display: 'block', marginTop: '6px' }}>
-                      💡 הכרטיס יחויב פעם אחת בלבד. לתשלומים חודשיים בחר "הוראת קבע".
+                      💡 הכרטיס יחויב {installments} פעמים, כל פעם ₪{monthlyAmount} (סה"כ ₪{totalAmount})
+                    </small>
+                    <small style={{ fontSize: '11px', color: '#888', display: 'block', marginTop: '4px' }}>
+                      התשלומים יבוצעו אוטומטית על ידי חברת האשראי
                     </small>
                   </div>
                 )}

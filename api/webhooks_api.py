@@ -18,6 +18,7 @@ from webhooks.elementor import handle_elementor_webhook
 from webhooks.yemot import handle_yemot_webhook
 from webhooks.generic import handle_generic_webhook
 from webhooks.nedarim import handle_nedarim_webhook
+from webhooks.nedarim_debitcard import handle_nedarim_debitcard_webhook
 from webhooks.lesson_complete import handle_lesson_complete_webhook
 from webhooks.kinyan_approval import handle_kinyan_approval_webhook
 from webhooks.file_upload import handle_file_upload_webhook
@@ -305,6 +306,56 @@ async def nedarim_webhook(request: Request):
             if webhook_log:
                 await save_failed_webhook(
                     db, webhook_log.id, "nedarim", data,
+                    _get_client_ip(request), str(e)
+                )
+            await db.commit()
+        return {"success": False, "error": str(e)}
+
+
+@router.api_route("/nedarim-debitcard", methods=["GET", "POST"])
+async def nedarim_debitcard_webhook(request: Request):
+    """
+    Handle Nedarim Plus DebitCard API callbacks.
+    Processes direct credit card charge notifications.
+    """
+    timer = WebhookTimer()
+    data = None
+    try:
+        with timer:
+            data = await _extract_data(request)
+            data = _unwrap_array(data)
+            logger.info(f"Nedarim DebitCard callback: confirmation={data.get('confirmation')}")
+            
+            async for db in get_db():
+                result = await handle_nedarim_debitcard_webhook(db, data)
+                await db.commit()
+                
+                await log_webhook(
+                    db, webhook_type="nedarim-debitcard", raw_payload=data,
+                    source_ip=_get_client_ip(request),
+                    success=result.get("success", False),
+                    action="payment_confirmed" if result.get("success") else "payment_failed",
+                    result_data=result,
+                    entity_type="payment" if result.get("payment_id") else None,
+                    entity_id=result.get("payment_id"),
+                    processing_time_ms=timer.elapsed_ms,
+                )
+                await db.commit()
+                
+                return result
+    
+    except Exception as e:
+        logger.error(f"Nedarim DebitCard webhook error: {e}")
+        async for db in get_db():
+            webhook_log = await log_webhook(
+                db, webhook_type="nedarim-debitcard", raw_payload=data,
+                source_ip=_get_client_ip(request),
+                success=False, error_message=str(e),
+                processing_time_ms=timer.elapsed_ms,
+            )
+            if webhook_log:
+                await save_failed_webhook(
+                    db, webhook_log.id, "nedarim-debitcard", data,
                     _get_client_ip(request), str(e)
                 )
             await db.commit()

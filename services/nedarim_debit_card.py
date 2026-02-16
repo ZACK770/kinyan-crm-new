@@ -55,6 +55,8 @@ class NedarimDebitCardService:
         payment_type: str = "RAGIL",  # RAGIL (regular) or HK (standing order)
         groupe: Optional[str] = None,
         param1: Optional[str] = None,
+        param2: Optional[str] = None,
+        callback_url: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Charge a credit card directly via Nedarim Plus
@@ -121,23 +123,27 @@ class NedarimDebitCardService:
             'Avour': comments or 'תשלום CRM',
             'Groupe': groupe or '',
             'Param1': param1 or '',
+            'Param2': param2 or '',
+            'CallBack': callback_url or '',
             'AjaxId': str(int(time.time() * 1000))
         }
         
-        # Handle Tashloumim based on payment type
-        # For HK (standing order): DO NOT send Tashloumim at all.
-        #   - Direct/debit cards reject any Tashloumim value with HK
-        #   - The HK itself handles monthly recurring charges
-        #   - Cancellation is done manually through Nedarim Plus
-        # For RAGIL (regular): number of installments (must be >= 1)
+        # Handle Tashlumim based on payment type
+        # For HK (standing order): Send Tashlumim to define number of monthly payments
+        #   - With Tashlumim: Creates standing order for X months (no authorization hold)
+        #   - Without Tashlumim: Creates infinite standing order (until manual cancellation)
+        #   - Note: Debit cards may reject Tashlumim with HK
+        # For RAGIL (regular): Tashlumim = installments with authorization hold (must be >= 1)
         if payment_type == 'HK':
-            # Never send Tashloumim with HK - causes "direct card" errors
-            pass
+            # For HK: Send Tashlumim to create standing order with defined number of payments
+            if installments and installments > 1:
+                payload['Tashlumim'] = str(installments)
+            # If installments=1 or None, don't send Tashlumim (infinite standing order)
         else:
             # For regular payment: must have installments
-            payload['Tashloumim'] = str(installments)
+            payload['Tashlumim'] = str(installments)
         
-        logger.info(f"Charging card via Nedarim DebitCard API: {client_name}, Amount: {amount} ILS, PaymentType: {payment_type}, Tashloumim: {payload.get('Tashloumim', 'NOT SENT')}, Groupe: {groupe or 'N/A'}, Param1: {param1 or 'N/A'}")
+        logger.info(f"Charging card via Nedarim DebitCard API: {client_name}, Amount: {amount} ILS, PaymentType: {payment_type}, Tashlumim: {payload.get('Tashlumim', 'NOT SENT')}, Groupe: {groupe or 'N/A'}, Param1: {param1 or 'N/A'}")
         
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -260,6 +266,11 @@ async def charge_lead_card(
             comments_parts.append(f"טל: {lead.phone}")
         comments = " | ".join(comments_parts)
     
+    # Build callback URL for Nedarim to notify us when payment is processed
+    from db import settings
+    base_url = getattr(settings, 'BASE_URL', 'https://kinyan-crm-new-1.onrender.com')
+    callback_url = f"{base_url}/webhooks/nedarim-debitcard"
+    
     try:
         result = await service.charge_card(
             client_name=lead.full_name,
@@ -274,6 +285,8 @@ async def charge_lead_card(
             comments=comments,
             groupe=groupe,
             param1=salesperson_name,
+            param2=str(lead_id),  # Pass lead_id in Param2 for callback identification
+            callback_url=callback_url,
         )
         
         # Create payment record
