@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle2, Loader2, AlertCircle, CreditCard, FileText, Package, MessageCircle, UserCheck, Sparkles, TrendingUp, Award } from 'lucide-react';
+import styles from './LeadConversionChecklist.module.css';
 import PaymentDialog from './PaymentDialog';
 import KinyanDialog from './KinyanDialog';
 import ShippingDialog from './ShippingDialog';
@@ -92,19 +93,19 @@ const LeadConversionChecklist: React.FC<Props> = ({ lead, onUpdate }) => {
 
   if (loading && !progress) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+      <div className={styles.loading}>
+        <Loader2 size={24} className="animate-spin" style={{ color: '#3b82f6' }} />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
-        <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+      <div className={styles.error}>
+        <AlertCircle size={20} style={{ color: '#dc2626', flexShrink: 0, marginTop: 2 }} />
         <div>
-          <p className="text-sm font-medium text-red-800">שגיאה בטעינת נתונים</p>
-          <p className="text-sm text-red-600 mt-1">{error}</p>
+          <p>שגיאה בטעינת נתונים</p>
+          <p>{error}</p>
         </div>
       </div>
     );
@@ -123,61 +124,59 @@ const LeadConversionChecklist: React.FC<Props> = ({ lead, onUpdate }) => {
   const percentage = Math.round((completed / total) * 100);
 
   return (
-    <div className="bg-gradient-to-br from-white via-blue-50/30 to-purple-50/30 border-2 border-blue-200/50 rounded-2xl shadow-2xl overflow-hidden">
+    <div className={styles.container}>
       {/* Header */}
-      <div className="relative border-b-2 border-blue-200/50 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 px-8 py-6 overflow-hidden">
+      <div className={styles.header}>
         {/* Animated background pattern */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-0 left-0 w-64 h-64 bg-white rounded-full blur-3xl animate-pulse" />
-          <div className="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className={styles.headerBg}>
+          <div className={styles.headerBgCircle1} />
+          <div className={styles.headerBgCircle2} />
         </div>
         
-        <div className="relative z-10 flex items-center justify-between">
-          <div className="flex items-start gap-4">
-            <div className="bg-white/20 backdrop-blur-sm p-3 rounded-2xl border border-white/30 shadow-lg">
-              <Sparkles className="w-8 h-8 text-white" strokeWidth={2} />
+        <div className={styles.headerContent}>
+          <div className={styles.headerLeft}>
+            <div className={styles.headerIcon}>
+              <Sparkles size={32} color="white" strokeWidth={2} />
             </div>
-            <div>
-              <h3 className="text-2xl font-bold text-white flex items-center gap-3 mb-2">
+            <div className={styles.headerText}>
+              <h3>
                 מסע ההמרה לתלמיד
-                <TrendingUp className="w-6 h-6 animate-bounce" />
+                <TrendingUp size={24} style={{ animation: 'bounce 1s infinite' }} />
               </h3>
-              <p className="text-blue-100 text-sm font-medium">
+              <p>
                 השלם את כל השלבים והליד יומר לתלמיד באופן אוטומטי ✨
               </p>
             </div>
           </div>
           {lead.conversion_checklist_complete && (
-            <div className="flex items-center gap-3 bg-gradient-to-r from-green-400 to-emerald-500 text-white px-6 py-3 rounded-2xl shadow-2xl border-2 border-white/30 animate-pulse">
-              <Award className="w-6 h-6" strokeWidth={2.5} />
-              <span className="font-bold text-lg">הומר לתלמיד!</span>
+            <div className={styles.completeBadge}>
+              <Award size={24} strokeWidth={2.5} />
+              <span>הומר לתלמיד!</span>
             </div>
           )}
         </div>
         
         {/* Enhanced Progress Bar */}
-        <div className="relative z-10 mt-6">
-          <div className="flex items-center justify-between text-sm mb-3">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-white text-lg">התקדמות:</span>
-              <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full font-bold text-white border border-white/30">
+        <div className={styles.progressSection}>
+          <div className={styles.progressHeader}>
+            <div className={styles.progressLeft}>
+              <span>התקדמות:</span>
+              <span className={styles.progressCount}>
                 {completed}/{total}
               </span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-3xl font-black text-white drop-shadow-lg">{percentage}%</span>
+            <div>
+              <span className={styles.progressPercentage}>{percentage}%</span>
             </div>
           </div>
-          <div className="relative w-full bg-white/20 backdrop-blur-sm rounded-full h-5 overflow-hidden border-2 border-white/30 shadow-inner">
+          <div className={styles.progressBarContainer}>
             <div 
-              className="bg-gradient-to-r from-yellow-300 via-orange-400 to-pink-500 h-full transition-all duration-700 ease-out relative overflow-hidden"
+              className={styles.progressBar}
               style={{ width: `${percentage}%` }}
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer" />
-            </div>
+            />
             {percentage === 100 && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-white animate-spin" />
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Sparkles size={16} color="white" style={{ animation: 'spin 1s linear infinite' }} />
               </div>
             )}
           </div>
@@ -185,7 +184,7 @@ const LeadConversionChecklist: React.FC<Props> = ({ lead, onUpdate }) => {
       </div>
 
       {/* Checklist Steps */}
-      <div className="p-8 space-y-5">
+      <div className={styles.stepsContainer}>
         {/* Step 1: Payment */}
         <div className={`group relative flex items-start gap-5 p-6 rounded-2xl border-2 transition-all duration-300 transform hover:scale-[1.02] ${
           steps.payment 

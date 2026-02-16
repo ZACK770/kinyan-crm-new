@@ -1,0 +1,396 @@
+/* Lead Conversion Checklist - Modern Design */
+
+.container {
+  background: linear-gradient(135deg, #ffffff 0%, #f0f4ff 50%, #f5f0ff 100%);
+  border: 2px solid rgba(99, 102, 241, 0.3);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+}
+
+/* Header with gradient */
+.header {
+  position: relative;
+  border-bottom: 2px solid rgba(99, 102, 241, 0.3);
+  background: linear-gradient(135deg, #3b82f6 0%, #6366f1 50%, #8b5cf6 100%);
+  padding: 32px;
+  overflow: hidden;
+}
+
+.headerBg {
+  position: absolute;
+  inset: 0;
+  opacity: 0.1;
+}
+
+.headerBgCircle1 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 256px;
+  height: 256px;
+  background: white;
+  border-radius: 50%;
+  filter: blur(60px);
+  animation: pulse 2s infinite;
+}
+
+.headerBgCircle2 {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 384px;
+  height: 384px;
+  background: white;
+  border-radius: 50%;
+  filter: blur(60px);
+  animation: pulse 2s infinite;
+  animation-delay: 1s;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.1; }
+  50% { opacity: 0.2; }
+}
+
+.headerContent {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.headerIcon {
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(8px);
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.headerText h3 {
+  font-size: 28px;
+  font-weight: 700;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.headerText p {
+  color: rgba(219, 234, 254, 1);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.completeBadge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(16, 185, 129, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  animation: pulse 2s infinite;
+}
+
+.completeBadge span {
+  font-weight: 700;
+  font-size: 18px;
+}
+
+/* Progress Bar */
+.progressSection {
+  position: relative;
+  z-index: 10;
+  margin-top: 24px;
+}
+
+.progressHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.progressLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.progressLeft span:first-child {
+  font-weight: 700;
+  color: white;
+  font-size: 18px;
+}
+
+.progressCount {
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(8px);
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-weight: 700;
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.progressPercentage {
+  font-size: 32px;
+  font-weight: 900;
+  color: white;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.progressBarContainer {
+  position: relative;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(8px);
+  border-radius: 20px;
+  height: 20px;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.progressBar {
+  background: linear-gradient(90deg, #fcd34d 0%, #fb923c 50%, #ec4899 100%);
+  height: 100%;
+  transition: width 700ms ease-out;
+  position: relative;
+  overflow: hidden;
+}
+
+.progressBar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.4) 50%, transparent 100%);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Steps Container */
+.stepsContainer {
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Step Card */
+.stepCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 24px;
+  border-radius: 16px;
+  border: 2px solid;
+  transition: all 300ms ease;
+  position: relative;
+}
+
+.stepCard:hover {
+  transform: scale(1.02);
+}
+
+.stepCardPending {
+  background: white;
+  border-color: #e0e7ff;
+}
+
+.stepCardPending:hover {
+  border-color: #818cf8;
+  box-shadow: 0 12px 40px rgba(99, 102, 241, 0.15);
+}
+
+.stepCardComplete {
+  background: linear-gradient(135deg, #f0fdf4 0%, #d1fae5 50%, #a7f3d0 100%);
+  border-color: #86efac;
+  box-shadow: 0 8px 32px rgba(134, 239, 172, 0.3);
+}
+
+/* Step Icon */
+.stepIcon {
+  position: relative;
+  padding: 12px;
+  border-radius: 16px;
+  transition: all 300ms ease;
+}
+
+.stepIconPending {
+  background: linear-gradient(135deg, #dbeafe 0%, #c7d2fe 100%);
+}
+
+.stepIconComplete {
+  background: linear-gradient(135deg, #22c55e 0%, #10b981 100%);
+  box-shadow: 0 8px 24px rgba(34, 197, 94, 0.3);
+}
+
+.stepBadge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #fbbf24;
+  border-radius: 50%;
+  padding: 4px;
+  animation: bounce 1s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+/* Step Content */
+.stepContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.stepHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.stepTitle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stepNumber {
+  font-size: 28px;
+  font-weight: 900;
+  color: #d1d5db;
+}
+
+.stepTitle h4 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+.stepButton {
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+  transition: all 300ms ease;
+}
+
+.stepButton:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.4);
+}
+
+.stepButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Step Details */
+.stepDetails {
+  margin-top: 12px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(8px);
+  border-radius: 12px;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.stepDetails p {
+  font-size: 16px;
+  font-weight: 700;
+  color: #15803d;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.stepDetails p + p {
+  font-size: 14px;
+  font-weight: 500;
+  color: #16a34a;
+  margin-top: 8px;
+}
+
+/* Loading & Error States */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+
+.error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.error p {
+  margin: 0;
+}
+
+.error p:first-of-type {
+  font-size: 14px;
+  font-weight: 500;
+  color: #991b1b;
+}
+
+.error p:last-of-type {
+  font-size: 14px;
+  color: #dc2626;
+  margin-top: 4px;
+}
+
+/* Color variants for different steps */
+.stepCardBlue:hover { border-color: #60a5fa; box-shadow: 0 12px 40px rgba(59, 130, 246, 0.15); }
+.stepCardPurple:hover { border-color: #c084fc; box-shadow: 0 12px 40px rgba(168, 85, 247, 0.15); }
+.stepCardOrange:hover { border-color: #fb923c; box-shadow: 0 12px 40px rgba(249, 115, 22, 0.15); }
+.stepCardCyan:hover { border-color: #22d3ee; box-shadow: 0 12px 40px rgba(6, 182, 212, 0.15); }
+.stepCardIndigo:hover { border-color: #818cf8; box-shadow: 0 12px 40px rgba(99, 102, 241, 0.15); }
+
+.stepIconBlue { background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); }
+.stepIconPurple { background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%); }
+.stepIconOrange { background: linear-gradient(135deg, #ffedd5 0%, #fed7aa 100%); }
+.stepIconCyan { background: linear-gradient(135deg, #cffafe 0%, #a5f3fc 100%); }
+.stepIconIndigo { background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%); }
+
+.stepButtonBlue { background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%); }
+.stepButtonPurple { background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%); }
+.stepButtonOrange { background: linear-gradient(135deg, #f97316 0%, #f59e0b 100%); }
+.stepButtonCyan { background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%); }
+.stepButtonIndigo { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); }
