@@ -734,6 +734,7 @@ export function LeadsPage() {
         { value: 'ליד בתהליך', label: 'ליד בתהליך' },
         { value: 'חיוג ראשון', label: 'חיוג ראשון' },
         { value: 'נסלק', label: 'נסלק' },
+        { value: 'converted', label: 'הומר לתלמיד' },
         { value: 'תלמיד פעיל', label: 'תלמיד פעיל' },
         { value: 'לא רלוונטי', label: 'לא רלוונטי' },
       ],

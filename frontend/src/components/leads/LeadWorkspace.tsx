@@ -835,6 +835,7 @@ function EmailsTab({ lead, onUpdate }: { lead: Lead; onUpdate: () => void }) {
   const [syncedTotal, setSyncedTotal] = useState(0)
   const [expandedSynced, setExpandedSynced] = useState<number | null>(null)
   const [expandedDetail, setExpandedDetail] = useState<SyncedEmail | null>(null)
+  const [loadingDetail, setLoadingDetail] = useState(false)
 
   const fetchTemplates = useCallback(async () => {
     try {
@@ -870,11 +871,15 @@ function EmailsTab({ lead, onUpdate }: { lead: Lead; onUpdate: () => void }) {
       return
     }
     setExpandedSynced(emailId)
+    setExpandedDetail(null)
+    setLoadingDetail(true)
     try {
       const detail = await api.get<SyncedEmail>(`/inbound-emails/${emailId}`)
       setExpandedDetail(detail)
     } catch {
       setExpandedDetail(null)
+    } finally {
+      setLoadingDetail(false)
     }
   }
 
@@ -1166,54 +1171,62 @@ function EmailsTab({ lead, onUpdate }: { lead: Lead; onUpdate: () => void }) {
                     </div>
                   </div>
                   {/* Expanded detail */}
-                  {expandedSynced === email.id && expandedDetail && (
+                  {expandedSynced === email.id && (
                     <div style={{ padding: '12px 16px', background: 'var(--color-bg-secondary, #f8fafc)', borderBottom: '2px solid var(--color-primary)' }}>
-                      {/* Thread indicator */}
-                      {expandedDetail.thread_emails && expandedDetail.thread_emails.length > 1 && (
-                        <div style={{ marginBottom: 8, padding: '6px 8px', background: 'white', borderRadius: 4, border: '1px solid var(--color-border-light)' }}>
-                          <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4, color: 'var(--color-text-secondary)' }}>
-                            שרשור ({expandedDetail.thread_emails.length} הודעות)
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            {expandedDetail.thread_emails.map(te => (
-                              <div
-                                key={te.id}
-                                onClick={() => { if (!te.is_current) loadSyncedDetail(te.id) }}
-                                style={{
-                                  display: 'flex', gap: 4, alignItems: 'center', padding: '2px 4px', borderRadius: 3,
-                                  cursor: te.is_current ? 'default' : 'pointer',
-                                  background: te.is_current ? 'var(--color-primary-light, #eff6ff)' : 'transparent',
-                                  fontSize: 10,
-                                }}
-                              >
-                                {te.direction === 'inbound' ? <ArrowDownLeft size={9} /> : <ArrowUpRight size={9} />}
-                                <span style={{ fontWeight: te.is_current ? 600 : 400 }}>{te.from_name || te.from_email}</span>
-                                <span style={{ color: 'var(--color-text-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  — {te.subject || te.snippet || ''}
-                                </span>
-                                {te.has_attachment && <Paperclip size={8} />}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 8 }}>
-                        <div><strong>מאת:</strong> {expandedDetail.from_name && `${expandedDetail.from_name} `}&lt;{expandedDetail.from_email}&gt;</div>
-                        {expandedDetail.to_emails && (
-                          <div><strong>אל:</strong> {expandedDetail.to_emails.map(t => t.name ? `${t.name} <${t.email}>` : t.email).join(', ')}</div>
-                        )}
-                      </div>
-                      {expandedDetail.body_html ? (
-                        <iframe
-                          srcDoc={`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;font-size:13px;padding:8px;margin:0;direction:rtl;color:#333;}img{max-width:100%;height:auto;}a{color:#2563eb;}</style></head><body>${expandedDetail.body_html}</body></html>`}
-                          style={{ width: '100%', height: 250, border: '1px solid var(--color-border-light)', borderRadius: 4, background: 'white' }}
-                          sandbox="allow-same-origin"
-                          title="Email body"
-                        />
+                      {loadingDetail ? (
+                        <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)' }}>טוען תוכן...</div>
+                      ) : !expandedDetail ? (
+                        <div style={{ padding: 12, textAlign: 'center', color: 'var(--color-danger)' }}>שגיאה בטעינת המייל</div>
                       ) : (
-                        <pre style={{ padding: 8, margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 13, background: 'white', border: '1px solid var(--color-border-light)', borderRadius: 4, maxHeight: 250, overflow: 'auto' }}>
-                          {expandedDetail.body_text || '(ללא תוכן)'}
-                        </pre>
+                        <>
+                          {/* Thread indicator */}
+                          {expandedDetail.thread_emails && expandedDetail.thread_emails.length > 1 && (
+                            <div style={{ marginBottom: 8, padding: '6px 8px', background: 'white', borderRadius: 4, border: '1px solid var(--color-border-light)' }}>
+                              <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4, color: 'var(--color-text-secondary)' }}>
+                                שרשור ({expandedDetail.thread_emails.length} הודעות)
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                {expandedDetail.thread_emails.map(te => (
+                                  <div
+                                    key={te.id}
+                                    onClick={() => { if (!te.is_current) loadSyncedDetail(te.id) }}
+                                    style={{
+                                      display: 'flex', gap: 4, alignItems: 'center', padding: '2px 4px', borderRadius: 3,
+                                      cursor: te.is_current ? 'default' : 'pointer',
+                                      background: te.is_current ? 'var(--color-primary-light, #eff6ff)' : 'transparent',
+                                      fontSize: 10,
+                                    }}
+                                  >
+                                    {te.direction === 'inbound' ? <ArrowDownLeft size={9} /> : <ArrowUpRight size={9} />}
+                                    <span style={{ fontWeight: te.is_current ? 600 : 400 }}>{te.from_name || te.from_email}</span>
+                                    <span style={{ color: 'var(--color-text-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      — {te.subject || te.snippet || ''}
+                                    </span>
+                                    {te.has_attachment && <Paperclip size={8} />}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 8 }}>
+                            <div><strong>מאת:</strong> {expandedDetail.from_name && `${expandedDetail.from_name} `}&lt;{expandedDetail.from_email}&gt;</div>
+                            {expandedDetail.to_emails && (
+                              <div><strong>אל:</strong> {expandedDetail.to_emails.map(t => t.name ? `${t.name} <${t.email}>` : t.email).join(', ')}</div>
+                            )}
+                          </div>
+                          {expandedDetail.body_html ? (
+                            <iframe
+                              srcDoc={`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;font-size:13px;padding:8px;margin:0;direction:rtl;color:#333;}img{max-width:100%;height:auto;}a{color:#2563eb;}</style></head><body>${expandedDetail.body_html}</body></html>`}
+                              style={{ width: '100%', height: 250, border: '1px solid var(--color-border-light)', borderRadius: 4, background: 'white' }}
+                              sandbox="allow-same-origin"
+                              title="Email body"
+                            />
+                          ) : (
+                            <pre style={{ padding: 8, margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 13, background: 'white', border: '1px solid var(--color-border-light)', borderRadius: 4, maxHeight: 250, overflow: 'auto' }}>
+                              {expandedDetail.body_text || '(ללא תוכן)'}
+                            </pre>
+                          )}
+                        </>
                       )}
                     </div>
                   )}

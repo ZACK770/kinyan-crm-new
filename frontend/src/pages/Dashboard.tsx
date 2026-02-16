@@ -182,7 +182,7 @@ export const Dashboard: FC = () => {
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis
                   dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false}
-                  tickFormatter={v => { const d = new Date(v); return `${d.getDate()}/${d.getMonth()+1}` }}
+                  tickFormatter={(v: string | number) => { const d = new Date(v); return `${d.getDate()}/${d.getMonth()+1}` }}
                 />
                 <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={35} />
                 <Tooltip content={<ChartTooltip />} />
@@ -233,7 +233,7 @@ export const Dashboard: FC = () => {
                   innerRadius={55} outerRadius={95}
                   paddingAngle={3}
                   dataKey="value"
-                  label={({ name, percent }) => `${name} (${((percent ?? 0) * 100).toFixed(0)}%)`}
+                  label={(props: any) => `${props.name} (${((props.percent ?? 0) * 100).toFixed(0)}%)`}
                   labelLine={{ strokeWidth: 1 }}
                   style={{ fontSize: 11 }}
                 >

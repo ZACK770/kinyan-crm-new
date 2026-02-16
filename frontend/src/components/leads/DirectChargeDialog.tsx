@@ -27,8 +27,8 @@ export function DirectChargeDialog({
   const [expiry, setExpiry] = useState('')
   const [cvv, setCvv] = useState('')
   const [comments, setComments] = useState('')
-  // Default to HK (standing order) - as per lead's payment_type default
-  const [paymentType, setPaymentType] = useState<'RAGIL' | 'HK'>('HK')
+  // Default to RAGIL (regular payment with installments)
+  const [paymentType, setPaymentType] = useState<'RAGIL' | 'HK'>('RAGIL')
   
   // Use props directly - no local state needed
   const totalAmount = defaultAmount || 0
@@ -97,7 +97,7 @@ export function DirectChargeDialog({
       
       // Add installments ONLY for RAGIL (never for HK!)
       if (paymentType === 'RAGIL') {
-        payload.installments = 1
+        payload.installments = installments
       }
       
       const response = await api.post<any>(`/leads/${leadId}/charge-card-direct`, payload)
@@ -283,7 +283,7 @@ export function DirectChargeDialog({
                   <input
                     type="text"
                     className={s.input}
-                    value={paymentType === 'HK' ? installments : 1}
+                    value={installments}
                     readOnly
                     disabled
                     style={{ background: '#f5f5f5', cursor: 'not-allowed' }}
@@ -291,7 +291,7 @@ export function DirectChargeDialog({
                   <small style={{ fontSize: '12px', color: '#666', display: 'block', marginTop: '4px' }}>
                     {paymentType === 'HK'
                       ? `${installments} חיובים חודשיים של ₪${monthlyAmount}`
-                      : 'חיוב חד-פעמי מלא'
+                      : `${installments} תשלומים של ₪${monthlyAmount} כל אחד`
                     }
                   </small>
                 </div>

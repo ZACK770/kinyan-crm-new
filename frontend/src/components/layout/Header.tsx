@@ -195,8 +195,11 @@ export const Header: FC<HeaderProps> = ({ onToggleSidebar }) => {
 
         {/* Brand */}
         <div className={styles.header__brand}>
-          <span className={styles.header__title}>קניין הוראה</span>
-          <span className={styles.header__subtitle}>ניהול שיווק ולמידה</span>
+          <img src="/logo.png" alt="קניין הוראה" className={styles.header__logo} />
+          <div className={styles.header__text}>
+            <span className={styles.header__title}>קניין הוראה</span>
+            <span className={styles.header__subtitle}>ניהול שיווק ולמידה</span>
+          </div>
         </div>
 
         <div className={styles.header__spacer} />
