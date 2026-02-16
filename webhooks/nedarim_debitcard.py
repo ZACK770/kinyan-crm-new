@@ -9,7 +9,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import Lead, Payment, Student
+from db.models import Lead, Payment, Student, Commitment, Collection, HistoryEntry
 
 logger = logging.getLogger(__name__)
 
@@ -202,14 +202,103 @@ async def handle_nedarim_debitcard_webhook(
                         
                         logger.info(f"✅ Lead {lead.id} converted to student {student.id}")
                         
-                        return {
-                            "success": True,
-                            "payment_id": payment.id,
-                            "lead_id": lead.id,
-                            "student_id": student.id,
-                            "converted": True,
-                            "message": f"Payment confirmed and lead converted to student"
-                        }
+                        # Create history entry for conversion
+                        history_entry = HistoryEntry(
+                            lead_id=lead.id,
+                            action_type="המרה לתלמיד",
+                            description=f"הליד הומר לתלמיד בהצלחה. תשלום ראשון: ₪{amount}",
+                            metadata={
+                                "student_id": student.id,
+                                "payment_id": payment.id,
+                                "confirmation": confirmation,
+                                "amount": float(amount)
+                            }
+                        )
+                        db.add(history_entry)
+        
+        # Create history entry for payment
+        if payment.lead_id:
+            history_entry = HistoryEntry(
+                lead_id=payment.lead_id,
+                action_type="תשלום התקבל",
+                description=f"תשלום בסך ₪{amount} התקבל בהצלחה דרך נדרים פלוס (אישור: {confirmation})",
+                metadata={
+                    "payment_id": payment.id,
+                    "amount": float(amount),
+                    "installments": installments,
+                    "confirmation": confirmation,
+                    "transaction_id": transaction_id,
+                    "card_last_4": card_last_4
+                }
+            )
+            db.add(history_entry)
+        
+        # Create/Update Commitment and Collection records
+        if payment.student_id and installments > 1:
+            # This is a recurring payment (HK with installments)
+            # Check if commitment already exists
+            stmt = select(Commitment).where(
+                Commitment.student_id == payment.student_id,
+                Commitment.nedarim_subscription_id == transaction_id
+            )
+            result = await db.execute(stmt)
+            commitment = result.scalar_one_or_none()
+            
+            if not commitment:
+                # Create new commitment
+                commitment = Commitment(
+                    student_id=payment.student_id,
+                    course_id=payment.course_id,
+                    monthly_amount=amount,
+                    total_amount=amount * installments,
+                    installments=installments,
+                    payment_method="כרטיס אשראי - הוראת קבע",
+                    status="פעיל",
+                    nedarim_subscription_id=transaction_id,
+                    reference=confirmation
+                )
+                db.add(commitment)
+                await db.flush()
+                logger.info(f"Created commitment {commitment.id} for student {payment.student_id}")
+            
+            # Create collection record for this charge
+            collection = Collection(
+                student_id=payment.student_id,
+                commitment_id=commitment.id,
+                payment_id=payment.id,
+                course_id=payment.course_id,
+                amount=amount,
+                due_date=datetime.now().date(),
+                installment_number=1,  # First installment
+                total_installments=installments,
+                status="נגבה",
+                collected_at=datetime.now(),
+                reference=confirmation,
+                nedarim_donation_id=transaction_id,
+                nedarim_transaction_id=confirmation,
+                nedarim_subscription_id=transaction_id
+            )
+            db.add(collection)
+            logger.info(f"Created collection record for payment {payment.id}")
+        
+        elif payment.student_id:
+            # Single payment - create collection without commitment
+            collection = Collection(
+                student_id=payment.student_id,
+                payment_id=payment.id,
+                course_id=payment.course_id,
+                amount=amount,
+                due_date=datetime.now().date(),
+                installment_number=1,
+                total_installments=1,
+                status="נגבה",
+                collected_at=datetime.now(),
+                reference=confirmation,
+                nedarim_donation_id=transaction_id,
+                nedarim_transaction_id=confirmation
+            )
+            db.add(collection)
+            logger.info(f"Created single collection record for payment {payment.id}")
         
         await db.flush()
         
@@ -217,7 +306,8 @@ async def handle_nedarim_debitcard_webhook(
             "success": True,
             "payment_id": payment.id,
             "lead_id": payment.lead_id,
-            "message": "Payment confirmed"
+            "student_id": payment.student_id,
+            "message": "Payment confirmed, history and collection records created"
         }
     
     except Exception as e:
