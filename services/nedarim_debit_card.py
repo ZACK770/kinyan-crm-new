@@ -129,20 +129,18 @@ class NedarimDebitCardService:
             'AjaxId': str(int(time.time() * 1000))
         }
         
-        # Handle Tashlumim based on payment type
-        # For HK (standing order): Send Tashlumim to define number of monthly payments
-        #   - With Tashlumim: Creates standing order for X months (no authorization hold)
-        #   - Without Tashlumim: Creates infinite standing order (until manual cancellation)
-        #   - Note: Debit cards may reject Tashlumim with HK
-        # For RAGIL (regular): Tashlumim = installments with authorization hold (must be >= 1)
+        # Handle Tashloumim based on payment type
+        # IMPORTANT: The correct spelling is 'Tashloumim' (with 'ou'), NOT 'Tashlumim'!
+        # Nedarim API ignores 'Tashlumim' but recognizes 'Tashloumim'.
+        # For HK (standing order): Tashloumim = number of months to charge
+        #   - With Tashloumim: Creates standing order for X months
+        #   - Without Tashloumim: Creates infinite standing order (until manual cancellation)
+        # For RAGIL (regular): Tashloumim = number of installments (must be >= 1)
         if payment_type == 'HK':
-            # For HK: Send Tashlumim to create standing order with defined number of payments
             if installments and installments > 1:
-                payload['Tashlumim'] = str(installments)
-            # If installments=1 or None, don't send Tashlumim (infinite standing order)
+                payload['Tashloumim'] = str(installments)
         else:
-            # For regular payment: must have installments
-            payload['Tashlumim'] = str(installments)
+            payload['Tashloumim'] = str(installments)
         
         # Log full payload (mask card number for security)
         safe_payload = {k: v for k, v in payload.items()}
@@ -156,12 +154,12 @@ class NedarimDebitCardService:
         logger.info(f"URL: {self.base_url}{self.endpoint}")
         logger.info(f"PaymentType: {payload.get('PaymentType')}")
         logger.info(f"Amount: {payload.get('Amount')}")
-        logger.info(f"Tashlumim: {payload.get('Tashlumim', 'NOT IN PAYLOAD')}")
+        logger.info(f"Tashloumim: {payload.get('Tashloumim', 'NOT IN PAYLOAD')}")
         logger.info(f"Full payload: {json.dumps(safe_payload, ensure_ascii=False)}")
         print(f"\n=== NEDARIM DEBITCARD REQUEST ===")
         print(f"PaymentType: {payload.get('PaymentType')}")
         print(f"Amount: {payload.get('Amount')}")
-        print(f"Tashlumim: {payload.get('Tashlumim', 'NOT IN PAYLOAD')}")
+        print(f"Tashloumim: {payload.get('Tashloumim', 'NOT IN PAYLOAD')}")
         print(f"Full payload: {json.dumps(safe_payload, ensure_ascii=False)}")
         
         try:
