@@ -158,6 +158,11 @@ class NedarimDebitCardService:
         logger.info(f"Amount: {payload.get('Amount')}")
         logger.info(f"Tashlumim: {payload.get('Tashlumim', 'NOT IN PAYLOAD')}")
         logger.info(f"Full payload: {json.dumps(safe_payload, ensure_ascii=False)}")
+        print(f"\n=== NEDARIM DEBITCARD REQUEST ===")
+        print(f"PaymentType: {payload.get('PaymentType')}")
+        print(f"Amount: {payload.get('Amount')}")
+        print(f"Tashlumim: {payload.get('Tashlumim', 'NOT IN PAYLOAD')}")
+        print(f"Full payload: {json.dumps(safe_payload, ensure_ascii=False)}")
         
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -171,6 +176,8 @@ class NedarimDebitCardService:
                 result = response.json()
                 logger.info(f"=== NEDARIM DEBITCARD RESPONSE ===")
                 logger.info(f"Full response: {json.dumps(result, ensure_ascii=False)}")
+                print(f"\n=== NEDARIM DEBITCARD RESPONSE ===")
+                print(f"Full response: {json.dumps(result, ensure_ascii=False)}")
                 
                 # Check if transaction succeeded
                 if result.get('Status') == 'OK':

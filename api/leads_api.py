@@ -556,6 +556,7 @@ async def charge_lead_card_direct(
     from services import nedarim_debit_card
     
     logger.info(f"=== DIRECT CHARGE API REQUEST === lead_id={lead_id}, payment_type={data.payment_type}, amount={data.amount}, installments={data.installments}")
+    print(f"\n=== DIRECT CHARGE API REQUEST === lead_id={lead_id}, payment_type={data.payment_type}, amount={data.amount}, installments={data.installments}")
     
     try:
         result = await nedarim_debit_card.charge_lead_card(
