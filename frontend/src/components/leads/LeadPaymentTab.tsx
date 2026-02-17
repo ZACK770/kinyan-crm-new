@@ -115,11 +115,11 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
     return () => clearTimeout(timer)
   }, [selectedCourseId, price, discountAmount, lead.id])
 
-  // Save course selection
-  const handleSelectCourse = async () => {
+  // Save course selection (returns true on success)
+  const handleSelectCourse = async (): Promise<boolean> => {
     if (!selectedCourseId) {
       setError('יש לבחור קורס')
-      return
+      return false
     }
     
     setError(null)
@@ -139,11 +139,12 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
         })
       }
       
-      toast.success('קורס ותמחור נשמרו בהצלחה')
       onUpdate()
+      return true
     } catch (err) {
       const message = err instanceof Error ? err.message : 'שגיאה בשמירת קורס'
       setError(message)
+      return false
     }
   }
 
@@ -286,20 +287,12 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
               </div>
             </div>
 
-            {pricing && (
+            {pricing && Number(paymentsCount) > 0 && (
               <div className={ps.monthlyPayment}>
                 <Calculator size={14} />
-                <span>תשלום חודשי: <strong>{formatCurrency(pricing.monthly_payment)}</strong></span>
+                <span>תשלום חודשי: <strong>{formatCurrency(pricing.final_price / Number(paymentsCount))}</strong></span>
               </div>
             )}
-
-            <button
-              className={`${s.btn} ${s['btn-primary']}`}
-              onClick={handleSelectCourse}
-              disabled={!selectedCourseId}
-            >
-              שמור קורס ותמחור
-            </button>
           </>
         )}
       </div>
@@ -330,7 +323,10 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
           <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
             <button
               className={`${s.btn} ${s['btn-primary']}`}
-              onClick={() => setShowDirectChargeDialog(true)}
+              onClick={async () => {
+                const saved = await handleSelectCourse()
+                if (saved) setShowDirectChargeDialog(true)
+              }}
               disabled={!selectedCourseId}
               style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
             >
@@ -338,7 +334,10 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
             </button>
             <button
               className={`${s.btn} ${s['btn-secondary']}`}
-              onClick={handleCreateLink}
+              onClick={async () => {
+                const saved = await handleSelectCourse()
+                if (saved) handleCreateLink()
+              }}
               disabled={isCreatingLink || !selectedCourseId}
             >
               <CreditCard size={16} /> {isCreatingLink ? 'יוצר לינק...' : 'או צור לינק תשלום'}
