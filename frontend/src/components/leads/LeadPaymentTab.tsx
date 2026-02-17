@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
 import { api } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
-import { CreditCard, CheckCircle2, XCircle, Copy, Calculator, Tag } from 'lucide-react'
+import { CreditCard, CheckCircle2, XCircle, Calculator, Tag, AlertCircle } from 'lucide-react'
 import type { Lead, Course, Payment } from '@/types'
 import { formatCurrency, formatDateTime } from '@/lib/status'
-import { DirectChargeDialog } from './DirectChargeDialog'
 import s from '@/styles/shared.module.css'
 import ps from './LeadPaymentTab.module.css'
 
@@ -46,12 +45,14 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
   const [pricing, setPricing] = useState<PricingCalculation | null>(null)
   const [isCalculating, setIsCalculating] = useState(false)
   
-  // Payment link state
-  const [isCreatingLink, setIsCreatingLink] = useState(false)
-  const [createdPaymentLink, setCreatedPaymentLink] = useState<string | null>(null)
-  
-  // Direct charge dialog
-  const [showDirectChargeDialog, setShowDirectChargeDialog] = useState(false)
+  // Card details (inline - no dialog)
+  const [cardNumber, setCardNumber] = useState('')
+  const [expiry, setExpiry] = useState('')
+  const [cvv, setCvv] = useState('')
+  const [comments, setComments] = useState('')
+  const [paymentType, setPaymentType] = useState<'RAGIL' | 'HK'>('HK')
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [chargeResult, setChargeResult] = useState<any>(null)
   
   // Payment status
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null)
@@ -61,15 +62,17 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
 
   const selectedCourse = courses.find(c => c.id === selectedCourseId)
 
+  // Derived amounts
+  const numPayments = Number(paymentsCount) || 1
+  const finalPrice = pricing?.final_price ?? 0
+  const monthlyAmount = numPayments > 0 ? Math.round((finalPrice / numPayments) * 100) / 100 : finalPrice
+
   // Load course defaults when selected
   useEffect(() => {
     if (selectedCourse) {
-      console.log('Selected course:', selectedCourse)
-      console.log('Course price:', selectedCourse.price)
-      console.log('Course payments_count:', selectedCourse.payments_count)
       setPrice(String(selectedCourse.price ?? ''))
       setPaymentsCount(String(selectedCourse.payments_count ?? 1))
-      setPaymentDay('15') // Default
+      setPaymentDay('15')
       setDiscountAmount('0')
     }
   }, [selectedCourse])
@@ -127,7 +130,7 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
       await api.post(`/leads/${lead.id}/select-course`, {
         course_id: selectedCourseId,
         price: Number(price),
-        payments_count: Number(paymentsCount),
+        payments_count: numPayments,
         payment_day: Number(paymentDay),
       })
       
@@ -135,7 +138,7 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
       if (Number(discountAmount) > 0) {
         await api.patch(`/leads/${lead.id}/update-discount`, {
           discount_amount: Number(discountAmount),
-          installments_override: Number(paymentsCount),
+          installments_override: numPayments,
         })
       }
       
@@ -148,51 +151,76 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
     }
   }
 
-  // Create payment link
-  const handleCreateLink = async () => {
-    if (!selectedCourseId) {
-      setError('יש לבחור ולשמור קורס קודם')
-      return
-    }
+  // Format card number with spaces
+  const handleCardNumberChange = (value: string) => {
+    const cleaned = value.replace(/\s/g, '')
+    const formatted = cleaned.match(/.{1,4}/g)?.join(' ') || cleaned
+    setCardNumber(formatted)
+  }
 
-    setIsCreatingLink(true)
-    setError(null)
-    try {
-      const result = await api.post<any>(`/leads/${lead.id}/create-payment-link`, {})
-      console.log('=== Payment Link Response ===')
-      console.log('Full result:', JSON.stringify(result, null, 2))
-      console.log('result.payment_link:', result.payment_link)
-      console.log('result.nedarim_payment_link:', result.nedarim_payment_link)
-      
-      const paymentLink = result.payment_link || result.nedarim_payment_link
-      console.log('Extracted payment link:', paymentLink)
-      console.log('Type of paymentLink:', typeof paymentLink)
-      
-      if (paymentLink) {
-        setCreatedPaymentLink(paymentLink)
-        console.log('✓ Set createdPaymentLink state to:', paymentLink)
-        toast.success('לינק תשלום נוצר בהצלחה')
-      } else {
-        console.error('✗ No payment link found in response!')
-        console.error('Available keys:', Object.keys(result))
-        toast.error('לינק נוצר אך לא נמצא בתגובה')
-      }
-      onUpdate()
-    } catch (err: any) {
-      console.error('Payment link error:', err)
-      const message = err?.message || 'שגיאה ביצירת לינק'
-      setError(message)
-      toast.error(message)
-    } finally {
-      setIsCreatingLink(false)
+  // Format expiry as MM/YY
+  const handleExpiryChange = (value: string) => {
+    const cleaned = value.replace(/\D/g, '')
+    if (cleaned.length >= 2) {
+      setExpiry(cleaned.slice(0, 2) + '/' + cleaned.slice(2, 4))
+    } else {
+      setExpiry(cleaned)
     }
   }
 
-  const copyLink = () => {
-    const link = createdPaymentLink || lead.nedarim_payment_link
-    if (link) {
-      navigator.clipboard.writeText(link)
-      toast.info('הלינק הועתק ללוח')
+  // Direct charge submit
+  const handleCharge = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    // Save course first
+    const saved = await handleSelectCourse()
+    if (!saved) return
+
+    setIsProcessing(true)
+    setError(null)
+    setChargeResult(null)
+    
+    try {
+      const cleanCardNumber = cardNumber.replace(/\s/g, '')
+      const cleanExpiry = expiry.replace(/\D/g, '')
+      
+      if (cleanCardNumber.length < 13 || cleanCardNumber.length > 16) {
+        throw new Error('מספר כרטיס לא תקין (13-16 ספרות)')
+      }
+      if (cleanExpiry.length !== 4) {
+        throw new Error('תוקף לא תקין (MMYY)')
+      }
+      if (cvv.length < 3 || cvv.length > 4) {
+        throw new Error('CVV לא תקין (3-4 ספרות)')
+      }
+      
+      const amount = paymentType === 'HK' ? monthlyAmount : finalPrice
+      if (!amount || amount <= 0) {
+        throw new Error('סכום לא תקין')
+      }
+      
+      const payload: any = {
+        card_number: cleanCardNumber,
+        expiry: cleanExpiry,
+        cvv: cvv,
+        amount: amount,
+        installments: numPayments,
+        payment_type: paymentType,
+        comments: comments || undefined
+      }
+      
+      const response = await api.post<any>(`/leads/${lead.id}/charge-card-direct`, payload)
+      
+      setChargeResult(response)
+      toast.success(`סליקה הצליחה! אישור: ${response.confirmation || response.keva_id}`)
+      onUpdate()
+      
+    } catch (err: any) {
+      const errorMsg = err?.message || err?.response?.data?.detail || 'שגיאה בסליקה'
+      setError(errorMsg)
+      toast.error(errorMsg)
+    } finally {
+      setIsProcessing(false)
     }
   }
 
@@ -255,7 +283,7 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
                   <div className={ps.priceRow}>
                     <span className={ps.priceLabel}>מחיר סופי:</span>
                     <span className={ps.priceFinal}>
-                      {isCalculating ? '...' : formatCurrency(pricing.final_price)}
+                      {isCalculating ? '...' : formatCurrency(finalPrice)}
                     </span>
                   </div>
                 </>
@@ -287,78 +315,182 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
               </div>
             </div>
 
-            {pricing && Number(paymentsCount) > 0 && (
+            {pricing && numPayments > 0 && (
               <div className={ps.monthlyPayment}>
                 <Calculator size={14} />
-                <span>תשלום חודשי: <strong>{formatCurrency(pricing.final_price / Number(paymentsCount))}</strong></span>
+                <span>תשלום חודשי: <strong>{formatCurrency(monthlyAmount)}</strong></span>
               </div>
             )}
           </>
         )}
       </div>
 
-      {/* Payment Link Section */}
-      <div className={ps.card}>
-        <h3 className={ps.cardTitle}>
-          <CreditCard size={16} />
-          סליקה
-        </h3>
-        {(createdPaymentLink || lead.nedarim_payment_link) ? (
-          <>
-            <div className={ps.linkDisplay}>
-              <input className={s.input} value={createdPaymentLink || lead.nedarim_payment_link} readOnly />
-              <button className={`${s.btn} ${s['btn-secondary']}`} onClick={copyLink}>
-                <Copy size={14} /> העתק
-              </button>
-            </div>
-            <div className={ps.status}>
-              {lead.first_payment ? (
-                <span className={ps.paid}><CheckCircle2 size={14} /> תשלום ראשון בוצע</span>
-              ) : (
-                <span className={ps.pending}><XCircle size={14} /> ממתין לתשלום</span>
-              )}
-            </div>
-          </>
-        ) : (
-          <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
-            <button
-              className={`${s.btn} ${s['btn-primary']}`}
-              onClick={async () => {
-                const saved = await handleSelectCourse()
-                if (saved) setShowDirectChargeDialog(true)
-              }}
-              disabled={!selectedCourseId}
-              style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
-            >
-              <CreditCard size={16} /> סלוק כרטיס אשראי ישירות
-            </button>
-            <button
-              className={`${s.btn} ${s['btn-secondary']}`}
-              onClick={async () => {
-                const saved = await handleSelectCourse()
-                if (saved) handleCreateLink()
-              }}
-              disabled={isCreatingLink || !selectedCourseId}
-            >
-              <CreditCard size={16} /> {isCreatingLink ? 'יוצר לינק...' : 'או צור לינק תשלום'}
-            </button>
-          </div>
-        )}
-      </div>
+      {/* Inline Payment Form */}
+      {selectedCourse && pricing && (
+        <div className={ps.card}>
+          <h3 className={ps.cardTitle}>
+            <CreditCard size={16} />
+            סליקה
+          </h3>
 
-      {/* Direct Charge Dialog */}
-      {showDirectChargeDialog && (
-        <DirectChargeDialog
-          leadId={lead.id}
-          leadName={lead.full_name}
-          defaultAmount={pricing?.final_price || (selectedCourse?.price ? Number(selectedCourse.price) : undefined)}
-          defaultInstallments={Number(paymentsCount) || 1}
-          onClose={() => setShowDirectChargeDialog(false)}
-          onSuccess={() => {
-            onUpdate()
-            setShowDirectChargeDialog(false)
-          }}
-        />
+          {chargeResult ? (
+            <div style={{
+              background: '#d4edda',
+              border: '1px solid #c3e6cb',
+              borderRadius: '8px',
+              padding: '20px',
+              textAlign: 'center'
+            }}>
+              <CheckCircle2 size={48} style={{ color: '#155724', margin: '0 auto 15px' }} />
+              <h3 style={{ color: '#155724', marginBottom: '15px', fontSize: '20px' }}>
+                הסליקה הושלמה בהצלחה!
+              </h3>
+              <div style={{ fontSize: '14px', color: '#155724', textAlign: 'right' }}>
+                {chargeResult.confirmation && (
+                  <div style={{ padding: '8px 0', borderBottom: '1px solid #c3e6cb' }}>
+                    <strong>מספר אישור:</strong> {chargeResult.confirmation}
+                  </div>
+                )}
+                {chargeResult.keva_id && (
+                  <div style={{ padding: '8px 0', borderBottom: '1px solid #c3e6cb' }}>
+                    <strong>מזהה הוראת קבע:</strong> {chargeResult.keva_id}
+                  </div>
+                )}
+                <div style={{ padding: '8px 0', borderBottom: '1px solid #c3e6cb' }}>
+                  <strong>סכום:</strong> {formatCurrency(chargeResult.amount)}
+                </div>
+                <div style={{ padding: '8px 0' }}>
+                  <strong>תשלומים:</strong> {chargeResult.installments}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleCharge}>
+              {/* Payment Type Selection */}
+              <div className={s['form-group']}>
+                <label className={s['form-label']}>סוג תשלום</label>
+                <div style={{ display: 'flex', gap: '15px', marginTop: '8px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="paymentType"
+                      value="HK"
+                      checked={paymentType === 'HK'}
+                      onChange={() => setPaymentType('HK')}
+                      disabled={isProcessing}
+                    />
+                    <span>הוראת קבע (חודשי)</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="paymentType"
+                      value="RAGIL"
+                      checked={paymentType === 'RAGIL'}
+                      onChange={() => setPaymentType('RAGIL')}
+                      disabled={isProcessing}
+                    />
+                    <span>חיוב רגיל (תשלומים)</span>
+                  </label>
+                </div>
+                <div style={{ marginTop: '8px', padding: '10px', background: paymentType === 'HK' ? '#e8f5e9' : '#e3f2fd', borderRadius: '6px', border: `1px solid ${paymentType === 'HK' ? '#4caf50' : '#2196f3'}`, fontSize: '13px', color: '#555' }}>
+                  {paymentType === 'HK'
+                    ? `הוראת קבע: ${formatCurrency(monthlyAmount)} x ${numPayments} חודשים = ${formatCurrency(finalPrice)}`
+                    : `חיוב רגיל: ${formatCurrency(finalPrice)} מחולק ל-${numPayments} תשלומים של ${formatCurrency(monthlyAmount)}`
+                  }
+                </div>
+              </div>
+
+              {/* Card Number */}
+              <div className={s['form-group']}>
+                <label className={s['form-label']}>מספר כרטיס אשראי</label>
+                <input
+                  type="text"
+                  className={s.input}
+                  value={cardNumber}
+                  onChange={e => handleCardNumberChange(e.target.value)}
+                  placeholder="4580 1234 5678 9012"
+                  maxLength={19}
+                  required
+                  disabled={isProcessing}
+                  style={{ direction: 'ltr', textAlign: 'left' }}
+                />
+              </div>
+
+              {/* Expiry & CVV */}
+              <div className={s['form-row']}>
+                <div className={s['form-group']}>
+                  <label className={s['form-label']}>תוקף (MM/YY)</label>
+                  <input
+                    type="text"
+                    className={s.input}
+                    value={expiry}
+                    onChange={e => handleExpiryChange(e.target.value)}
+                    placeholder="12/26"
+                    maxLength={5}
+                    required
+                    disabled={isProcessing}
+                    style={{ direction: 'ltr', textAlign: 'left' }}
+                  />
+                </div>
+                <div className={s['form-group']}>
+                  <label className={s['form-label']}>CVV</label>
+                  <input
+                    type="text"
+                    className={s.input}
+                    value={cvv}
+                    onChange={e => setCvv(e.target.value.replace(/\D/g, ''))}
+                    placeholder="123"
+                    maxLength={4}
+                    required
+                    disabled={isProcessing}
+                    style={{ direction: 'ltr', textAlign: 'left' }}
+                  />
+                </div>
+              </div>
+
+              {/* Comments */}
+              <div className={s['form-group']}>
+                <label className={s['form-label']}>הערות</label>
+                <input
+                  type="text"
+                  className={s.input}
+                  value={comments}
+                  onChange={e => setComments(e.target.value)}
+                  placeholder="תיאור התשלום (אופציונלי)"
+                  disabled={isProcessing}
+                />
+              </div>
+
+              {/* Warning + Submit */}
+              <div style={{
+                background: '#fff3cd',
+                border: '1px solid #ffc107',
+                borderRadius: '8px',
+                padding: '10px 12px',
+                marginTop: '12px',
+                display: 'flex',
+                gap: '8px',
+                alignItems: 'center',
+                fontSize: '13px',
+                color: '#856404'
+              }}>
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                <span>פעולה זו תבצע חיוב אמיתי של כרטיס אשראי</span>
+              </div>
+
+              <button
+                type="submit"
+                className={`${s.btn} ${s['btn-primary']}`}
+                disabled={isProcessing}
+                style={{ marginTop: '12px', width: '100%', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+              >
+                <CreditCard size={16} />
+                {isProcessing ? 'מעבד...' : 'בצע סליקה'}
+              </button>
+            </form>
+          )}
+        </div>
       )}
 
       {/* Payment History Section */}
