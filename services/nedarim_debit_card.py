@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from db import settings
-from db.models import Lead, Payment, Salesperson, Course
+from db.models import Lead, Payment, Salesperson, Course, Commitment
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,8 @@ class NedarimDebitCardService:
     
     def __init__(self):
         self.base_url = "https://www.matara.pro/nedarimplus/V6/Files/WebServices"
-        self.endpoint = "/DebitCard.aspx"
+        self.debit_card_endpoint = "/DebitCard.aspx"
+        self.debit_keva_endpoint = "/DebitKeva.aspx"
         self.mosad_id = settings.NEDARIM_MOSAD_ID
         self.api_password = getattr(settings, 'NEDARIM_API_PASSWORD', settings.NEDARIM_API_KEY)
         
@@ -58,34 +59,32 @@ class NedarimDebitCardService:
         param1: Optional[str] = None,
         param2: Optional[str] = None,
         callback_url: Optional[str] = None,
+        zeout: Optional[str] = None,
+        day: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Charge a credit card directly via Nedarim Plus
+        
+        Routes to the correct endpoint:
+        - RAGIL → DebitCard.aspx (regular payment, Amount=total, Tashloumim=split count)
+        - HK → DebitKeva.aspx (standing order, Amount=monthly, Tashloumim=months)
         
         Args:
             client_name: Full name of the client
             card_number: Credit card number (13-16 digits)
             expiry: Card expiry in MMYY format (4 digits)
             cvv: Card CVV (3-4 digits)
-            amount: Amount to charge in ILS
-            installments: Number of installments (1-36)
+            amount: For RAGIL: total amount. For HK: monthly amount.
+            installments: For RAGIL: split count (1-36). For HK: number of months.
             email: Client email (optional)
             phone: Client phone (optional)
             comments: Transaction comments (optional)
             payment_type: RAGIL (regular one-time) or HK (standing order/הוראת קבע)
+            zeout: ID number for HK (optional)
+            day: Day of month for HK charge (optional, defaults to today)
         
         Returns:
-            Dict with transaction details:
-            {
-                'success': bool,
-                'transaction_id': str,
-                'confirmation': str,
-                'amount': float,
-                'transaction_time': str,
-                'card_last_4': str,
-                'receipt_number': str,
-                'message': str
-            }
+            Dict with transaction details
         
         Raises:
             NedarimDebitCardError: If the transaction fails
@@ -108,41 +107,101 @@ class NedarimDebitCardService:
         if payment_type != 'HK' and (installments < 1 or installments > 36):
             raise NedarimDebitCardError("Installments must be between 1 and 36")
         
-        # Prepare payload
+        # Route to correct endpoint based on payment type
+        if payment_type == 'HK':
+            return await self._charge_keva(client_name, card_number_clean, expiry_clean, cvv, amount, installments, email, phone, comments, groupe, zeout, day)
+        else:
+            return await self._charge_ragil(client_name, card_number_clean, expiry_clean, cvv, amount, installments, email, phone, comments, groupe, param1, param2, callback_url)
+        
+    async def _charge_ragil(
+        self, client_name, card_number, expiry, cvv, amount, installments,
+        email, phone, comments, groupe, param1, param2, callback_url
+    ) -> Dict[str, Any]:
+        """RAGIL payment via DebitCard.aspx — Amount=total, Tashloumim=split count"""
         payload = {
             'Mosad': self.mosad_id,
             'ApiPassword': self.api_password,
             'ClientName': client_name,
             'Mail': email or '',
             'Phone': phone or '',
-            'CardNumber': card_number_clean,
-            'Tokef': expiry_clean,
+            'CardNumber': card_number,
+            'Tokef': expiry,
             'CVV': cvv,
             'Amount': f"{amount:.2f}",
-            'Currency': '1',  # 1 = ILS, 2 = USD
-            'PaymentType': payment_type,  # RAGIL or HK
+            'Currency': '1',
+            'PaymentType': 'RAGIL',
             'Avour': comments or 'תשלום CRM',
             'Groupe': groupe or '',
             'Param1': param1 or '',
             'Param2': param2 or '',
             'CallBack': callback_url or '',
-            'AjaxId': str(int(time.time() * 1000))
+            'Tashloumim': str(installments),
+            'AjaxId': str(int(time.time() * 1000)),
         }
+        url = f"{self.base_url}{self.debit_card_endpoint}"
+        result = await self._send_request(url, payload, 'RAGIL')
+        return {
+            'success': True,
+            'transaction_id': result.get('TransactionId'),
+            'confirmation': result.get('Confirmation'),
+            'amount': float(result.get('Amount', amount)),
+            'transaction_time': result.get('TransactionTime'),
+            'card_last_4': result.get('LastNum'),
+            'receipt_number': result.get('ReceiptDocNum'),
+            'installments': installments,
+            'message': f'Transaction successful. Confirmation: {result.get("Confirmation")}'
+        }
+
+    async def _charge_keva(
+        self, client_name, card_number, expiry, cvv, monthly_amount, months,
+        email, phone, comments, groupe, zeout, day
+    ) -> Dict[str, Any]:
+        """HK (standing order) via DebitKeva.aspx — Amount=monthly, Tashloumim=months"""
+        from datetime import datetime as dt
+        payload = {
+            'MosadId': self.mosad_id,
+            'ClientName': client_name,
+            'Street': '',
+            'City': '',
+            'Mail': email or '',
+            'Phone': phone or '',
+            'CardNumber': card_number,
+            'Tokef': expiry,
+            'CVV': cvv,
+            'Amount': f"{monthly_amount:.2f}",
+            'Currency': '1',
+            'Groupe': groupe or '',
+            'Avour': comments or 'תשלום CRM',
+            'Zeout': zeout or '',
+            'Day': str(day or dt.now().day),
+            'ChoosedCard': '',
+            'AjaxId': str(int(time.time() * 1000)),
+        }
+        # IMPORTANT: Tashloumim for Keva = number of months to charge
+        if months and months > 1:
+            payload['Tashloumim'] = str(months)
         
-        # Handle Tashloumim based on payment type
-        # IMPORTANT: The correct spelling is 'Tashloumim' (with 'ou'), NOT 'Tashlumim'!
-        # Nedarim API ignores 'Tashlumim' but recognizes 'Tashloumim'.
-        # For HK (standing order): Tashloumim = number of months to charge
-        #   - With Tashloumim: Creates standing order for X months
-        #   - Without Tashloumim: Creates infinite standing order (until manual cancellation)
-        # For RAGIL (regular): Tashloumim = number of installments (must be >= 1)
-        if payment_type == 'HK':
-            if installments and installments > 1:
-                payload['Tashloumim'] = str(installments)
-        else:
-            payload['Tashloumim'] = str(installments)
-        
-        # Log full payload (mask card number for security)
+        url = f"{self.base_url}{self.debit_keva_endpoint}"
+        result = await self._send_request(url, payload, 'HK')
+        return {
+            'success': True,
+            'keva_id': result.get('KevaId'),
+            'transaction_id': result.get('TransactionId'),
+            'confirmation': result.get('Confirmation'),
+            'amount': float(result.get('Amount', monthly_amount)),
+            'monthly_amount': monthly_amount,
+            'months': months,
+            'total_amount': monthly_amount * (months or 1),
+            'transaction_time': result.get('TransactionTime'),
+            'card_last_4': result.get('LastNum'),
+            'receipt_number': result.get('ReceiptDocNum'),
+            'installments': months,
+            'message': f'הוראת קבע נוצרה בהצלחה. KevaId: {result.get("KevaId")}'
+        }
+
+    async def _send_request(self, url: str, payload: dict, payment_type: str) -> dict:
+        """Send request to Nedarim and handle response"""
+        # Log (mask sensitive data)
         safe_payload = {k: v for k, v in payload.items()}
         if 'CardNumber' in safe_payload:
             safe_payload['CardNumber'] = f"****{safe_payload['CardNumber'][-4:]}"
@@ -150,49 +209,32 @@ class NedarimDebitCardService:
             safe_payload['CVV'] = '***'
         if 'ApiPassword' in safe_payload:
             safe_payload['ApiPassword'] = '***'
-        logger.info(f"=== NEDARIM DEBITCARD REQUEST ===")
-        logger.info(f"URL: {self.base_url}{self.endpoint}")
-        logger.info(f"PaymentType: {payload.get('PaymentType')}")
-        logger.info(f"Amount: {payload.get('Amount')}")
-        logger.info(f"Tashloumim: {payload.get('Tashloumim', 'NOT IN PAYLOAD')}")
+        logger.info(f"=== NEDARIM {payment_type} REQUEST ===")
+        logger.info(f"URL: {url}")
         logger.info(f"Full payload: {json.dumps(safe_payload, ensure_ascii=False)}")
-        print(f"\n=== NEDARIM DEBITCARD REQUEST ===")
-        print(f"PaymentType: {payload.get('PaymentType')}")
-        print(f"Amount: {payload.get('Amount')}")
-        print(f"Tashloumim: {payload.get('Tashloumim', 'NOT IN PAYLOAD')}")
+        print(f"\n=== NEDARIM {payment_type} REQUEST ===")
+        print(f"URL: {url}")
         print(f"Full payload: {json.dumps(safe_payload, ensure_ascii=False)}")
         
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
-                    f"{self.base_url}{self.endpoint}",
+                    url,
                     data=payload,
                     headers={'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
                 )
                 
                 response.raise_for_status()
                 result = response.json()
-                logger.info(f"=== NEDARIM DEBITCARD RESPONSE ===")
+                logger.info(f"=== NEDARIM {payment_type} RESPONSE ===")
                 logger.info(f"Full response: {json.dumps(result, ensure_ascii=False)}")
-                print(f"\n=== NEDARIM DEBITCARD RESPONSE ===")
+                print(f"\n=== NEDARIM {payment_type} RESPONSE ===")
                 print(f"Full response: {json.dumps(result, ensure_ascii=False)}")
                 
-                # Check if transaction succeeded
                 if result.get('Status') == 'OK':
-                    logger.info(f"Transaction successful: {result.get('Confirmation')}")
-                    return {
-                        'success': True,
-                        'transaction_id': result.get('TransactionId'),
-                        'confirmation': result.get('Confirmation'),
-                        'amount': float(result.get('Amount', amount)),
-                        'transaction_time': result.get('TransactionTime'),
-                        'card_last_4': result.get('LastNum'),
-                        'receipt_number': result.get('ReceiptDocNum'),
-                        'installments': installments,
-                        'message': f'Transaction successful. Confirmation: {result.get("Confirmation")}'
-                    }
+                    logger.info(f"Transaction successful")
+                    return result
                 else:
-                    # Transaction failed
                     error_msg = result.get('Message', 'Transaction failed')
                     error_details = result.get('BackMessage', '')
                     logger.error(f"Transaction failed: {error_msg} - {error_details}")
@@ -207,6 +249,8 @@ class NedarimDebitCardService:
         except httpx.RequestError as e:
             logger.error(f"Connection error during transaction: {str(e)}")
             raise NedarimDebitCardError(f"Connection error: {str(e)}")
+        except NedarimDebitCardError:
+            raise
         except Exception as e:
             logger.error(f"Unexpected error during transaction: {str(e)}")
             raise NedarimDebitCardError(f"Unexpected error: {str(e)}")
@@ -313,20 +357,33 @@ async def charge_lead_card(
             callback_url=callback_url,
         )
         
+        is_hk = payment_type == 'HK'
+        
+        if is_hk:
+            # HK: amount is monthly, total = monthly * months
+            payment_amount = result.get('monthly_amount', amount)
+            total = result.get('total_amount', amount * installments)
+            tx_type = "נדרים פלוס - הוראת קבע"
+        else:
+            # RAGIL: amount is total
+            payment_amount = result['amount']
+            total = result['amount']
+            tx_type = "נדרים פלוס - סליקה ישירה"
+        
         # Create payment record
         payment = Payment(
             lead_id=lead_id,
             course_id=lead.selected_course_id,
-            amount=result['amount'],
+            amount=payment_amount,
             currency="ILS",
             payment_method="כרטיס אשראי",
             installments=installments,
-            transaction_type="נדרים פלוס - סליקה ישירה",
+            transaction_type=tx_type,
             status="שולם",
             payment_date=datetime.now().date(),
-            nedarim_donation_id=result['transaction_id'],
-            nedarim_transaction_id=result['confirmation'],
-            reference=result['confirmation'],
+            nedarim_donation_id=result.get('transaction_id'),
+            nedarim_transaction_id=result.get('confirmation') or result.get('keva_id'),
+            reference=result.get('confirmation') or result.get('keva_id'),
         )
         db.add(payment)
         await db.flush()
@@ -338,7 +395,7 @@ async def charge_lead_card(
         
         await db.flush()
         
-        logger.info(f"Payment record created for lead {lead_id}: {payment.id}")
+        logger.info(f"Payment record created for lead {lead_id}: {payment.id} (type={payment_type})")
         
         return {
             **result,
@@ -355,7 +412,7 @@ async def charge_lead_card(
             currency="ILS",
             payment_method="כרטיס אשראי",
             installments=installments,
-            transaction_type="נדרים פלוס - סליקה ישירה",
+            transaction_type=f"נדרים פלוס - {'הוראת קבע' if payment_type == 'HK' else 'סליקה ישירה'}",
             status="נכשל",
             reference=f"Error: {e.message}",
         )
