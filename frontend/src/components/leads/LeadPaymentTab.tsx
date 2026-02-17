@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { api } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
-import { CreditCard, CheckCircle2, XCircle, Calculator, Tag, AlertCircle } from 'lucide-react'
+import { CreditCard, CheckCircle2, XCircle, Calculator, Tag, AlertCircle, RefreshCw, Info } from 'lucide-react'
 import type { Lead, Course, Payment } from '@/types'
 import { formatCurrency, formatDateTime } from '@/lib/status'
 import s from '@/styles/shared.module.css'
@@ -25,6 +25,8 @@ interface PaymentStatus {
   lead_id: number
   first_payment: boolean
   nedarim_payment_link: string | null
+  selected_price: number | null
+  selected_payments_count: number | null
   payments: Payment[]
 }
 
@@ -212,7 +214,14 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
       const response = await api.post<any>(`/leads/${lead.id}/charge-card-direct`, payload)
       
       setChargeResult(response)
-      toast.success(`סליקה הצליחה! אישור: ${response.confirmation || response.keva_id}`)
+      if (response.is_hk_setup) {
+        toast.success(`הוראת קבע הוקמה בהצלחה! KevaId: ${response.keva_id}`)
+      } else {
+        toast.success(`סליקה הצליחה! אישור: ${response.confirmation}`)
+      }
+      // Refresh payment status
+      const updatedStatus = await api.get<PaymentStatus>(`/leads/${lead.id}/payment-status`)
+      setPaymentStatus(updatedStatus)
       onUpdate()
       
     } catch (err: any) {
@@ -335,15 +344,18 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
 
           {chargeResult ? (
             <div style={{
-              background: '#d4edda',
-              border: '1px solid #c3e6cb',
+              background: chargeResult.is_hk_setup ? '#e8f5e9' : '#d4edda',
+              border: `1px solid ${chargeResult.is_hk_setup ? '#a5d6a7' : '#c3e6cb'}`,
               borderRadius: '8px',
               padding: '20px',
               textAlign: 'center'
             }}>
               <CheckCircle2 size={48} style={{ color: '#155724', margin: '0 auto 15px' }} />
               <h3 style={{ color: '#155724', marginBottom: '15px', fontSize: '20px' }}>
-                הסליקה הושלמה בהצלחה!
+                {chargeResult.is_hk_setup
+                  ? 'הוראת קבע הוקמה בהצלחה!'
+                  : 'הסליקה הושלמה בהצלחה!'
+                }
               </h3>
               <div style={{ fontSize: '14px', color: '#155724', textAlign: 'right' }}>
                 {chargeResult.confirmation && (
@@ -358,11 +370,25 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
                 )}
                 <div style={{ padding: '8px 0', borderBottom: '1px solid #c3e6cb' }}>
                   <strong>סכום:</strong> {formatCurrency(chargeResult.amount)}
+                  {chargeResult.is_hk_setup && ' (חודשי)'}
                 </div>
                 <div style={{ padding: '8px 0' }}>
                   <strong>תשלומים:</strong> {chargeResult.installments}
                 </div>
+                {chargeResult.is_hk_setup && (
+                  <div style={{ padding: '10px', marginTop: '10px', background: '#fff3cd', border: '1px solid #ffc107', borderRadius: '6px', fontSize: '13px', color: '#856404' }}>
+                    <Info size={14} style={{ display: 'inline', marginLeft: '4px' }} />
+                    הוראת הקבע הוקמה — החיוב הראשון יתבצע בתאריך שנקבע. סטטוס החיובים יתעדכן אוטומטית.
+                  </div>
+                )}
               </div>
+              <button
+                onClick={() => { setChargeResult(null); setCardNumber(''); setExpiry(''); setCvv(''); setComments(''); }}
+                style={{ marginTop: '15px', padding: '8px 20px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
+              >
+                <RefreshCw size={14} style={{ display: 'inline', marginLeft: '4px' }} />
+                בצע סליקה נוספת
+              </button>
             </div>
           ) : (
             <form onSubmit={handleCharge}>
@@ -495,31 +521,103 @@ export function LeadPaymentTab({ lead, courses, onUpdate }: LeadPaymentTabProps)
 
       {/* Payment History Section */}
       <div className={ps.card}>
-        <h3 className={ps.cardTitle}>היסטוריית תשלומים</h3>
-        {!paymentStatus.payments || paymentStatus.payments.length === 0 ? (
-          <p style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>אין עדיין תשלומים עבור ליד זה.</p>
-        ) : (
-          <table className={s.table}>
-            <thead>
-              <tr>
-                <th>תאריך</th>
-                <th>סכום</th>
-                <th>סטטוס</th>
-                <th>אסמכתא</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paymentStatus.payments.map(p => (
-                <tr key={p.id}>
-                  <td>{formatDateTime(p.payment_date || p.created_at)}</td>
-                  <td>{formatCurrency(p.amount)}</td>
-                  <td>{p.status}</td>
-                  <td>{p.reference || '-'}</td>
-                </tr>
+        <h3 className={ps.cardTitle}>היסטוריית תשלומים וחיובים</h3>
+        {(() => {
+          const payments = paymentStatus.payments || []
+          if (payments.length === 0) {
+            return <p style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>אין עדיין תשלומים עבור ליד זה.</p>
+          }
+
+          // Separate HK setups from actual charges
+          const hkSetups = payments.filter(p => p.transaction_type?.includes('הקמת הוראת קבע'))
+          const actualCharges = payments.filter(p => !p.transaction_type?.includes('הקמת הוראת קבע'))
+          // Only count actual successful charges as paid
+          const totalCharged = actualCharges
+            .filter(p => p.status === 'שולם')
+            .reduce((sum, p) => sum + p.amount, 0)
+          const selectedPrice = paymentStatus.selected_price || 0
+
+          return (
+            <>
+              {/* Summary */}
+              {selectedPrice > 0 && (
+                <div style={{ padding: '10px 12px', background: '#f0f4ff', borderRadius: '6px', marginBottom: '12px', fontSize: '13px', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>סה"כ נגבה: <strong>{formatCurrency(totalCharged)}</strong></span>
+                  <span>מתוך: <strong>{formatCurrency(selectedPrice)}</strong></span>
+                  <span>יתרה: <strong style={{ color: totalCharged >= selectedPrice ? '#28a745' : '#dc3545' }}>{formatCurrency(selectedPrice - totalCharged)}</strong></span>
+                </div>
+              )}
+
+              {/* HK Setups — info blocks */}
+              {hkSetups.map(p => (
+                <div key={p.id} style={{
+                  padding: '12px',
+                  background: '#e8f5e9',
+                  border: '1px solid #a5d6a7',
+                  borderRadius: '8px',
+                  marginBottom: '8px',
+                  fontSize: '13px',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <RefreshCw size={14} style={{ color: '#2e7d32' }} />
+                      <strong style={{ color: '#2e7d32' }}>הוראת קבע הוקמה</strong>
+                    </div>
+                    <span style={{ color: '#666' }}>{formatDateTime(p.payment_date || p.created_at)}</span>
+                  </div>
+                  <div style={{ marginTop: '6px', color: '#555' }}>
+                    {formatCurrency(p.amount)} × {p.installments || '?'} חודשים
+                    {p.reference && <span style={{ marginRight: '10px' }}>| {p.reference}</span>}
+                  </div>
+                  <div style={{ marginTop: '4px', fontSize: '12px', color: '#888' }}>
+                    סטטוס: {p.status} — החיובים בפועל יופיעו בנפרד
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
-        )}
+
+              {/* Actual Charges — table */}
+              {actualCharges.length > 0 && (
+                <table className={s.table}>
+                  <thead>
+                    <tr>
+                      <th>תאריך</th>
+                      <th>סכום</th>
+                      <th>סוג</th>
+                      <th>סטטוס</th>
+                      <th>אסמכתא</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {actualCharges.map(p => (
+                      <tr key={p.id} style={{
+                        background: p.status === 'נכשל' ? '#fff5f5' : undefined
+                      }}>
+                        <td>{formatDateTime(p.payment_date || p.created_at)}</td>
+                        <td>{formatCurrency(p.amount)}</td>
+                        <td style={{ fontSize: '12px' }}>
+                          {p.transaction_type?.includes('הוראת קבע') ? 'הו"ק' : p.transaction_type?.includes('סליקה') ? 'סליקה' : p.transaction_type || '-'}
+                        </td>
+                        <td>
+                          <span style={{
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            fontSize: '12px',
+                            fontWeight: 500,
+                            background: p.status === 'שולם' ? '#d4edda' : p.status === 'נכשל' ? '#f8d7da' : '#fff3cd',
+                            color: p.status === 'שולם' ? '#155724' : p.status === 'נכשל' ? '#721c24' : '#856404',
+                          }}>
+                            {p.status}
+                          </span>
+                        </td>
+                        <td style={{ fontSize: '12px' }}>{p.reference || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </>
+          )
+        })()}
       </div>
     </div>
   )

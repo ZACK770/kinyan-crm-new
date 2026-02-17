@@ -3,7 +3,6 @@ Nedarim Plus DebitCard API Service
 Direct credit card charging via Nedarim Plus
 """
 import logging
-import time
 import json
 from typing import Dict, Any, Optional
 from datetime import datetime
@@ -13,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from db import settings
-from db.models import Lead, Payment, Salesperson, Course, Commitment
+from db.models import Lead, Payment, Course, Commitment, HistoryEntry
 
 logger = logging.getLogger(__name__)
 
@@ -51,16 +50,13 @@ class NedarimDebitCardService:
         cvv: str,
         amount: float,
         installments: int = 1,
-        email: Optional[str] = None,
         phone: Optional[str] = None,
         comments: Optional[str] = None,
         payment_type: str = "RAGIL",  # RAGIL (regular) or HK (standing order)
         groupe: Optional[str] = None,
-        param1: Optional[str] = None,
-        param2: Optional[str] = None,
-        callback_url: Optional[str] = None,
         zeout: Optional[str] = None,
         day: Optional[int] = None,
+        adresse: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Charge a credit card directly via Nedarim Plus
@@ -76,12 +72,13 @@ class NedarimDebitCardService:
             cvv: Card CVV (3-4 digits)
             amount: For RAGIL: total amount. For HK: monthly amount.
             installments: For RAGIL: split count (1-36). For HK: number of months.
-            email: Client email (optional)
             phone: Client phone (optional)
             comments: Transaction comments (optional)
             payment_type: RAGIL (regular one-time) or HK (standing order/הוראת קבע)
-            zeout: ID number for HK (optional)
+            groupe: Course name (optional)
+            zeout: ID number (optional)
             day: Day of month for HK charge (optional, defaults to today)
+            adresse: Client address (optional, for RAGIL)
         
         Returns:
             Dict with transaction details
@@ -109,34 +106,32 @@ class NedarimDebitCardService:
         
         # Route to correct endpoint based on payment type
         if payment_type == 'HK':
-            return await self._charge_keva(client_name, card_number_clean, expiry_clean, cvv, amount, installments, email, phone, comments, groupe, zeout, day)
+            return await self._charge_keva(client_name, card_number_clean, expiry_clean, cvv, amount, installments, phone, comments, groupe, zeout, day)
         else:
-            return await self._charge_ragil(client_name, card_number_clean, expiry_clean, cvv, amount, installments, email, phone, comments, groupe, param1, param2, callback_url)
+            return await self._charge_ragil(client_name, card_number_clean, expiry_clean, cvv, amount, installments, phone, comments, groupe, zeout, adresse)
         
     async def _charge_ragil(
         self, client_name, card_number, expiry, cvv, amount, installments,
-        email, phone, comments, groupe, param1, param2, callback_url
+        phone, comments, groupe, zeout, adresse
     ) -> Dict[str, Any]:
         """RAGIL payment via DebitCard.aspx — Amount=total, Tashloumim=split count"""
         payload = {
             'Mosad': self.mosad_id,
-            'ApiPassword': self.api_password,
             'ClientName': client_name,
-            'Mail': email or '',
+            'Adresse': adresse or '',
             'Phone': phone or '',
+            'ClientId': '',
             'CardNumber': card_number,
             'Tokef': expiry,
             'CVV': cvv,
-            'Amount': f"{amount:.2f}",
-            'Currency': '1',
-            'PaymentType': 'RAGIL',
-            'Avour': comments or 'תשלום CRM',
-            'Groupe': groupe or '',
-            'Param1': param1 or '',
-            'Param2': param2 or '',
-            'CallBack': callback_url or '',
+            'Amount': amount,
             'Tashloumim': str(installments),
-            'AjaxId': str(int(time.time() * 1000)),
+            'Currency': '1',
+            'Groupe': groupe or '',
+            'Avour': comments or 'תשלום CRM',
+            'Token': '',
+            'Zeout': zeout or '',
+            'MasofId': 'Online',
         }
         url = f"{self.base_url}{self.debit_card_endpoint}"
         result = await self._send_request(url, payload, 'RAGIL')
@@ -154,7 +149,7 @@ class NedarimDebitCardService:
 
     async def _charge_keva(
         self, client_name, card_number, expiry, cvv, monthly_amount, months,
-        email, phone, comments, groupe, zeout, day
+        phone, comments, groupe, zeout, day
     ) -> Dict[str, Any]:
         """HK (standing order) via DebitKeva.aspx — Amount=monthly, Tashloumim=months"""
         from datetime import datetime as dt
@@ -163,23 +158,23 @@ class NedarimDebitCardService:
             'ClientName': client_name,
             'Street': '',
             'City': '',
-            'Mail': email or '',
+            'mail': '',
             'Phone': phone or '',
+            'ClientId': '',
             'CardNumber': card_number,
             'Tokef': expiry,
-            'CVV': cvv,
-            'Amount': f"{monthly_amount:.2f}",
-            'Currency': '1',
+            'Amount': monthly_amount,
+            'Tashloumim': str(months or 1),
             'Groupe': groupe or '',
             'Avour': comments or 'תשלום CRM',
-            'Zeout': zeout or '',
+            'Token': '',
+            'CVV': cvv,
             'Day': str(day or dt.now().day),
+            'Zeout': zeout or '',
+            'Currency': '1',
             'ChoosedCard': '',
-            'AjaxId': str(int(time.time() * 1000)),
+            'MasofId': 'Online',
         }
-        # IMPORTANT: Tashloumim for Keva = number of months to charge
-        if months and months > 1:
-            payload['Tashloumim'] = str(months)
         
         url = f"{self.base_url}{self.debit_keva_endpoint}"
         result = await self._send_request(url, payload, 'HK')
@@ -221,7 +216,10 @@ class NedarimDebitCardService:
                 response = await client.post(
                     url,
                     data=payload,
-                    headers={'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
+                    headers={
+                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                    }
                 )
                 
                 response.raise_for_status()
@@ -313,31 +311,27 @@ async def charge_lead_card(
         if course:
             groupe = course.name
     
-    # Get salesperson name for Param1
-    salesperson_name = None
-    if lead.salesperson_id:
-        sp_stmt = select(Salesperson).where(Salesperson.id == lead.salesperson_id)
-        sp_result = await db.execute(sp_stmt)
-        sp = sp_result.scalar_one_or_none()
-        if sp:
-            salesperson_name = sp.name
-    
-    # Prepare detailed comments with lead info
+    # Prepare comments with lead info for Avour field
     if not comments:
-        comments_parts = [f"ליד #{lead_id}"]
+        comments_parts = []
+        if groupe:
+            comments_parts.append(f"קורס: {groupe}")
         if lead.full_name:
-            comments_parts.append(lead.full_name)
-        if lead.phone:
-            comments_parts.append(f"טל: {lead.phone}")
-        comments = " | ".join(comments_parts)
+            comments_parts.append(f"תלמיד: {lead.full_name}")
+        comments = " | ".join(comments_parts) if comments_parts else f"ליד #{lead_id}"
     
-    # Build callback URL for Nedarim to notify us when payment is processed
-    from db import settings
-    base_url = getattr(settings, 'BASE_URL', 'https://kinyan-crm-new-1.onrender.com')
-    callback_url = f"{base_url}/webhooks/nedarim-debitcard"
+    # Build address from lead data
+    adresse_parts = []
+    if lead.address:
+        adresse_parts.append(lead.address)
+    if lead.city:
+        adresse_parts.append(lead.city)
+    adresse = ", ".join(adresse_parts) if adresse_parts else ""
     
     logger.info(f"=== DIRECT CHARGE REQUEST from frontend ===")
     logger.info(f"lead_id={lead_id}, payment_type={payment_type}, amount={amount}, installments={installments}")
+    
+    is_hk = payment_type == 'HK'
     
     try:
         result = await service.charge_card(
@@ -347,51 +341,114 @@ async def charge_lead_card(
             cvv=cvv,
             amount=amount,
             installments=installments,
-            email=lead.email,
             phone=lead.phone,
             payment_type=payment_type,
             comments=comments,
             groupe=groupe,
-            param1=salesperson_name,
-            param2=str(lead_id),  # Pass lead_id in Param2 for callback identification
-            callback_url=callback_url,
+            zeout=getattr(lead, 'id_number', None),
+            day=lead.selected_payment_day,
+            adresse=adresse,
         )
-        
-        is_hk = payment_type == 'HK'
         
         if is_hk:
-            # HK: amount is monthly, total = monthly * months
-            payment_amount = result.get('monthly_amount', amount)
-            total = result.get('total_amount', amount * installments)
-            tx_type = "נדרים פלוס - הוראת קבע"
+            # HK: DebitKeva succeeded = standing order CREATED (not yet charged)
+            # Amount = monthly amount, Tashloumim = number of months
+            # Don't count as "שולם" — the actual charges come via keva webhooks
+            tx_type = "נדרים פלוס - הקמת הוראת קבע"
+            payment = Payment(
+                lead_id=lead_id,
+                course_id=lead.selected_course_id,
+                amount=amount,  # monthly amount
+                currency="ILS",
+                payment_method="כרטיס אשראי",
+                installments=installments,
+                transaction_type=tx_type,
+                status="הוקם",  # NOT שולם — HK setup only
+                payment_date=datetime.now().date(),
+                nedarim_donation_id=result.get('transaction_id'),
+                nedarim_transaction_id=result.get('keva_id'),
+                reference=f"KevaId: {result.get('keva_id')}",
+            )
         else:
-            # RAGIL: amount is total
-            payment_amount = result['amount']
-            total = result['amount']
+            # RAGIL: DebitCard succeeded = actual charge completed
             tx_type = "נדרים פלוס - סליקה ישירה"
+            payment = Payment(
+                lead_id=lead_id,
+                course_id=lead.selected_course_id,
+                amount=result['amount'],  # total amount charged
+                currency="ILS",
+                payment_method="כרטיס אשראי",
+                installments=installments,
+                transaction_type=tx_type,
+                status="שולם",
+                payment_date=datetime.now().date(),
+                nedarim_donation_id=result.get('transaction_id'),
+                nedarim_transaction_id=result.get('confirmation'),
+                reference=f"{result.get('confirmation')} | {result.get('card_last_4', '')}",
+            )
         
-        # Create payment record
-        payment = Payment(
-            lead_id=lead_id,
-            course_id=lead.selected_course_id,
-            amount=payment_amount,
-            currency="ILS",
-            payment_method="כרטיס אשראי",
-            installments=installments,
-            transaction_type=tx_type,
-            status="שולם",
-            payment_date=datetime.now().date(),
-            nedarim_donation_id=result.get('transaction_id'),
-            nedarim_transaction_id=result.get('confirmation') or result.get('keva_id'),
-            reference=result.get('confirmation') or result.get('keva_id'),
-        )
         db.add(payment)
         await db.flush()
         
-        # Update lead
-        lead.first_payment = True
-        lead.first_payment_id = payment.id
-        lead.status = "נסלק"
+        # Update lead — for RAGIL mark as charged, for HK mark as HK setup
+        if is_hk:
+            # HK setup — don't mark first_payment yet (actual charge hasn't happened)
+            if lead.status not in ["תלמיד", "נסלק"]:
+                lead.status = "הוקם הו\"ק"
+            
+            # Create Commitment record so keva webhook can find it by KevaId
+            keva_id = result.get('keva_id')
+            if keva_id:
+                commitment = Commitment(
+                    student_id=0,  # Will be linked when lead converts to student
+                    course_id=lead.selected_course_id,
+                    monthly_amount=amount,
+                    total_amount=amount * installments,
+                    installments=installments,
+                    charge_day=lead.selected_payment_day,
+                    payment_method="כרטיס אשראי - הוראת קבע",
+                    status="פעיל",
+                    nedarim_subscription_id=str(keva_id),
+                    reference=f"KevaId: {keva_id}",
+                )
+                # Commitment requires student_id (NOT NULL) — we'll set it to 0 temporarily
+                # and the keva webhook will update it when the first charge comes in
+                # Actually, student_id is required. Let's check if lead already has a student
+                if lead.student_id:
+                    commitment.student_id = lead.student_id
+                    db.add(commitment)
+                    await db.flush()
+                    payment.commitment_id = commitment.id
+                    logger.info(f"Created commitment {commitment.id} for KevaId {keva_id}")
+                else:
+                    # No student yet — commitment will be created by keva webhook when first charge arrives
+                    logger.info(f"HK setup for lead {lead_id} — commitment will be created when student exists (KevaId={keva_id})")
+        else:
+            # RAGIL — actual charge happened
+            lead.first_payment = True
+            lead.first_payment_id = payment.id
+            lead.status = "נסלק"
+        
+        # Create HistoryEntry
+        history_entry = HistoryEntry(
+            lead_id=lead_id,
+            action_type="הקמת הוראת קבע" if is_hk else "סליקה ישירה",
+            description=(
+                f"הוראת קבע הוקמה בהצלחה: ₪{amount} × {installments} חודשים (KevaId: {result.get('keva_id')})"
+                if is_hk else
+                f"סליקה ישירה בוצעה בהצלחה: ₪{result['amount']} (אישור: {result.get('confirmation')})"
+            ),
+            extra_data={
+                "payment_id": payment.id,
+                "payment_type": payment_type,
+                "amount": float(amount),
+                "installments": installments,
+                "confirmation": result.get('confirmation'),
+                "keva_id": result.get('keva_id'),
+                "transaction_id": result.get('transaction_id'),
+            }
+        )
+        db.add(history_entry)
         
         await db.flush()
         
@@ -400,7 +457,8 @@ async def charge_lead_card(
         return {
             **result,
             'payment_id': payment.id,
-            'lead_id': lead_id
+            'lead_id': lead_id,
+            'is_hk_setup': is_hk,
         }
     
     except NedarimDebitCardError as e:
@@ -412,7 +470,7 @@ async def charge_lead_card(
             currency="ILS",
             payment_method="כרטיס אשראי",
             installments=installments,
-            transaction_type=f"נדרים פלוס - {'הוראת קבע' if payment_type == 'HK' else 'סליקה ישירה'}",
+            transaction_type=f"נדרים פלוס - {'הקמת הוראת קבע' if is_hk else 'סליקה ישירה'}",
             status="נכשל",
             reference=f"Error: {e.message}",
         )

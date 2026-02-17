@@ -94,7 +94,6 @@ async def test_hk_correct():
                 amount=test_case['monthly_amount'],  # Monthly amount
                 installments=test_case['months'],     # Number of months
                 payment_type=test_case['payment_type'],
-                email="test@example.com",
                 phone="0501234567",
                 comments=f"Test {test_case['name']}",
             )

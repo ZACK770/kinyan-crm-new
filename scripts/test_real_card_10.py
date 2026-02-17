@@ -68,7 +68,6 @@ async def test_real_credit_card_10():
             amount=test_case['monthly_amount'],  # Monthly amount: 10 ILS
             installments=test_case['months'],     # Number of months: 3
             payment_type=test_case['payment_type'],
-            email="test@example.com",
             phone="0501234567",
             comments=f"Test {test_case['name']}",
         )

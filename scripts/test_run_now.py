@@ -18,7 +18,6 @@ async def main():
         amount=5.50,
         installments=3,
         payment_type="HK",
-        email="test@example.com",
         phone="0501234567",
         comments="Test HK via service",
     )

@@ -88,7 +88,6 @@ async def test_hk_with_installments():
                 amount=test_case['monthly_amount'],  # Monthly amount, not total!
                 installments=test_case['installments'],
                 payment_type=test_case['payment_type'],
-                email="test@example.com",
                 phone="0501234567",
                 comments=f"Test {test_case['name']}",
             )

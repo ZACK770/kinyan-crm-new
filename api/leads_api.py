@@ -419,6 +419,11 @@ async def get_lead_payment_status(
                 "status": p.status,
                 "payment_date": str(p.payment_date) if p.payment_date else None,
                 "nedarim_donation_id": p.nedarim_donation_id,
+                "nedarim_transaction_id": p.nedarim_transaction_id,
+                "transaction_type": p.transaction_type,
+                "reference": p.reference,
+                "installments": p.installments,
+                "payment_method": p.payment_method,
                 "created_at": str(p.created_at),
             }
             for p in payments
@@ -578,7 +583,7 @@ async def charge_lead_card_direct(
             user=user,
             entity_type="payments",
             entity_id=result["payment_id"],
-            description=f"בוצעה סליקה ישירה לליד #{lead_id} - {result['amount']} ש\"ח - אישור: {result['confirmation']}",
+            description=f"{'הוקמה הוראת קבע' if result.get('is_hk_setup') else 'בוצעה סליקה ישירה'} לליד #{lead_id} - {result['amount']} ש\"ח - {('KevaId: ' + str(result.get('keva_id'))) if result.get('is_hk_setup') else ('אישור: ' + str(result.get('confirmation')))}",
             request=request,
         )
         

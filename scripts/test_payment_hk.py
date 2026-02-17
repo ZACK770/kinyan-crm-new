@@ -77,7 +77,6 @@ async def test_hk_payment():
                 amount=test_case['amount'],
                 installments=test_case['installments'] or 1,  # Default to 1 but won't be sent
                 payment_type=test_case['payment_type'],
-                email="test@example.com",
                 phone="0501234567",
                 comments=f"Test {test_case['name']}",
             )
