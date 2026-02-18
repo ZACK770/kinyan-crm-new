@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, type FormEvent } from 'react'
-import { UserCheck, Plus, ArrowRight } from 'lucide-react'
+import { UserCheck, Plus } from 'lucide-react'
+import { BackButton } from '@/components/ui/BackButton'
 import { api } from '@/lib/api'
 import { formatDate } from '@/lib/status'
 import { useToast } from '@/components/ui/Toast'
@@ -127,9 +128,7 @@ export function LecturersPage() {
       <div>
         <div className={s['page-header']}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button className={`${s.btn} ${s['btn-ghost']}`} onClick={backToList} style={{ padding: '6px 10px' }}>
-              <ArrowRight size={18} /> חזרה לרשימה
-            </button>
+            <BackButton onClick={backToList} label="חזרה למרצים" />
             <h1 className={s['page-title']} style={{ fontSize: '1.2rem' }}>
               {selectedLecturer ? `עריכת מרצה — ${selectedLecturer.name}` : 'מרצה חדש'}
             </h1>

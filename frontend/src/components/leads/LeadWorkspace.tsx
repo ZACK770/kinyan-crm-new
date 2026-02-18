@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect, useMemo, type ReactNode, type FormEve
 import {
   MessageSquarePlus,
   UserCheck,
-  ArrowLeft,
   ArrowDownLeft,
   ArrowUpRight,
   CreditCard,
@@ -20,6 +19,7 @@ import {
   X,
   Paperclip,
 } from 'lucide-react'
+import { BackButton } from '@/components/ui/BackButton'
 import { api } from '@/lib/api'
 import { getStatus, formatDateTime } from '@/lib/status'
 import { EditableField, type SelectOption } from '@/components/ui/EditableField'
@@ -244,13 +244,11 @@ export function LeadWorkspace({
         <form onSubmit={handleCreate} className={s.workspace__sidebar}>
           {/* Header */}
           <div className={s.workspace__header}>
+            <BackButton onClick={handleClose} label="חזרה ללידים" />
             <div className={s.workspace__title}>
               <span>{form.full_name || 'ליד חדש'} {form.family_name}</span>
               <Badge entity="leads" value={form.status} />
             </div>
-            <button type="button" className={`${s.btn} ${s['btn-ghost']} ${s['btn-icon']}`} onClick={handleClose} title="חזור">
-              <ArrowLeft size={18} />
-            </button>
           </div>
 
           {/* Contact Info */}
@@ -371,13 +369,11 @@ export function LeadWorkspace({
       <div className={s.workspace__sidebar}>
         {/* Header */}
         <div className={s.workspace__header}>
+          <BackButton onClick={onClose} label="חזרה ללידים" />
           <div className={s.workspace__title}>
             <span>{lead!.full_name} {lead!.family_name ?? ''}</span>
             <Badge entity="leads" value={lead!.status} />
           </div>
-          <button className={`${s.btn} ${s['btn-ghost']} ${s['btn-icon']}`} onClick={onClose} title="חזור">
-            <ArrowLeft size={18} />
-          </button>
         </div>
 
         {/* Converted badge */}

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
-import { X, Save, BookOpen } from 'lucide-react'
+import { Save, BookOpen } from 'lucide-react'
+import { BackButton } from '@/components/ui/BackButton'
 import { api } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
 import { EditableField } from '@/components/ui/EditableField'
@@ -121,13 +122,11 @@ export function CourseWorkspace({
     return (
       <div className={s.workspace}>
         <div className={s['workspace-header']}>
+          <BackButton onClick={onClose} label="חזרה לקורסים" />
           <h2 className={s['workspace-title']}>
             <BookOpen size={20} />
             קורס חדש
           </h2>
-          <button className={`${s.btn} ${s['btn-ghost']}`} onClick={onClose}>
-            <X size={18} />
-          </button>
         </div>
 
         <div className={s['workspace-body']}>
@@ -279,13 +278,11 @@ export function CourseWorkspace({
   return (
     <div className={s.workspace}>
       <div className={s['workspace-header']}>
+        <BackButton onClick={onClose} label="חזרה לקורסים" />
         <h2 className={s['workspace-title']}>
           <BookOpen size={20} />
           {course.name}
         </h2>
-        <button className={`${s.btn} ${s['btn-ghost']}`} onClick={onClose}>
-          <X size={18} />
-        </button>
       </div>
 
       <div className={s['workspace-body']}>

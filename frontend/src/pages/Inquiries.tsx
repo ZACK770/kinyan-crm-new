@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, type FormEvent } from 'react'
-import { Plus, Inbox, MessageSquarePlus, ArrowRight } from 'lucide-react'
+import { Plus, Inbox, MessageSquarePlus } from 'lucide-react'
+import { BackButton } from '@/components/ui/BackButton'
 import { api } from '@/lib/api'
 import { getStatus, formatDateTime } from '@/lib/status'
 import { useModal } from '@/components/ui/Modal'
@@ -295,9 +296,7 @@ export function InquiriesPage() {
       <div>
         <div className={s['page-header']}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button className={`${s.btn} ${s['btn-ghost']}`} onClick={backToList} style={{ padding: '6px 10px' }}>
-              <ArrowRight size={18} /> חזרה לרשימה
-            </button>
+            <BackButton onClick={backToList} label="חזרה לפניות" />
             <h1 className={s['page-title']} style={{ fontSize: '1.2rem' }}>פנייה חדשה</h1>
           </div>
         </div>

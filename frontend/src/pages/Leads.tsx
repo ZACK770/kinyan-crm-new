@@ -464,6 +464,7 @@ export function LeadsPage() {
   type ViewMode = 'list' | 'create'
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
+  const [loadingWorkspace, setLoadingWorkspace] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
 
   // Auto-open create form when ?create=true or load workspace when ?lead=ID
@@ -475,6 +476,7 @@ export function LeadsPage() {
     } else if (searchParams.get('lead')) {
       const leadId = Number(searchParams.get('lead'))
       if (leadId && !isNaN(leadId) && selectedLead?.id !== leadId) {
+        setLoadingWorkspace(true)
         // Load the lead workspace
         api.get<Lead>(`leads/${leadId}`)
           .then(lead => {
@@ -485,6 +487,7 @@ export function LeadsPage() {
             toast.error('ליד לא נמצא')
             setSearchParams({}, { replace: true })
           })
+          .finally(() => setLoadingWorkspace(false))
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -874,6 +877,15 @@ export function LeadsPage() {
         onAddInteraction={() => openAddInteraction(selectedLead.id)}
         onConvert={() => openConvert(selectedLead)}
       />
+    )
+  }
+
+  // Loading workspace from URL — show placeholder instead of flashing the table
+  if (loadingWorkspace) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 80, color: 'var(--color-text-muted)' }}>
+        טוען מרחב עבודה...
+      </div>
     )
   }
 

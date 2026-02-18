@@ -50,6 +50,25 @@
 .btn-sm { height: 30px; padding: 0 10px; font-size: 12px; }
 .btn-xs { height: 26px; padding: 0 8px; font-size: 11px; }
 
+/* --- Back Button (unified) --- */
+.back-btn {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 500;
+  gap: 4px;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 1px solid var(--color-border-light);
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+.back-btn:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
 /* --- Badge --- */
 .badge {
   display: inline-flex;

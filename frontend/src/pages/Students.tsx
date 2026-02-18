@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Plus, GraduationCap, Eye, ArrowRight, BookOpen } from 'lucide-react'
+import { Plus, GraduationCap, Eye, BookOpen } from 'lucide-react'
+import { BackButton } from '@/components/ui/BackButton'
 import { api } from '@/lib/api'
 import { getStatus, formatDate, formatCurrency } from '@/lib/status'
 import { useModal } from '@/components/ui/Modal'
@@ -331,9 +332,7 @@ export function StudentsPage() {
       <div>
         <div className={s['page-header']}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button className={`${s.btn} ${s['btn-ghost']}`} onClick={backToList} style={{ padding: '6px 10px' }}>
-              <ArrowRight size={18} /> חזרה לרשימה
-            </button>
+            <BackButton onClick={backToList} label="חזרה לתלמידים" />
             <h1 className={s['page-title']} style={{ fontSize: '1.2rem' }}>המרת ליד לתלמיד</h1>
           </div>
         </div>
