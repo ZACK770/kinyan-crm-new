@@ -309,6 +309,128 @@ async def advanced_dashboard(
     }
 
 
+@router.get("/daily-closures")
+async def daily_closures(
+    user = Depends(require_permission("viewer")),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Track salespeople who made 2+ closures today and in the last week.
+    Returns: today's performers, weekly performers, daily breakdown.
+    """
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=7)
+    
+    # Get all salespeople
+    salespeople = (await db.execute(
+        select(Salesperson).where(Salesperson.is_active == True)  # noqa: E712
+    )).scalars().all()
+    
+    # Define closure statuses
+    closure_statuses = ["נסלק", "תלמיד פעיל", "converted"]
+    
+    # Today's closures per salesperson
+    today_performers = []
+    for sp in salespeople:
+        closures_today = (await db.execute(
+            select(func.count(Lead.id))
+            .where(Lead.salesperson_id == sp.id)
+            .where(Lead.status.in_(closure_statuses))
+            .where(Lead.updated_at >= today_start)
+            .where(Lead.updated_at <= now)
+        )).scalar() or 0
+        
+        if closures_today >= 2:
+            today_performers.append({
+                "id": sp.id,
+                "name": sp.name,
+                "closures": closures_today,
+            })
+    
+    # Sort by closures descending
+    today_performers.sort(key=lambda x: x["closures"], reverse=True)
+    
+    # Weekly breakdown - who had 2+ closures on each day
+    weekly_data = []
+    for day_offset in range(7):
+        day_start = today_start - timedelta(days=day_offset)
+        day_end = day_start + timedelta(days=1)
+        
+        day_performers = []
+        for sp in salespeople:
+            closures = (await db.execute(
+                select(func.count(Lead.id))
+                .where(Lead.salesperson_id == sp.id)
+                .where(Lead.status.in_(closure_statuses))
+                .where(Lead.updated_at >= day_start)
+                .where(Lead.updated_at < day_end)
+            )).scalar() or 0
+            
+            if closures >= 2:
+                day_performers.append({
+                    "id": sp.id,
+                    "name": sp.name,
+                    "closures": closures,
+                })
+        
+        weekly_data.append({
+            "date": str(day_start.date()),
+            "performers": day_performers,
+            "total_performers": len(day_performers),
+        })
+    
+    # Weekly summary - who had 2+ closures on at least one day
+    weekly_summary = {}
+    for sp in salespeople:
+        days_with_2plus = 0
+        total_closures = 0
+        
+        for day_offset in range(7):
+            day_start = today_start - timedelta(days=day_offset)
+            day_end = day_start + timedelta(days=1)
+            
+            closures = (await db.execute(
+                select(func.count(Lead.id))
+                .where(Lead.salesperson_id == sp.id)
+                .where(Lead.status.in_(closure_statuses))
+                .where(Lead.updated_at >= day_start)
+                .where(Lead.updated_at < day_end)
+            )).scalar() or 0
+            
+            total_closures += closures
+            if closures >= 2:
+                days_with_2plus += 1
+        
+        if days_with_2plus > 0:
+            weekly_summary[sp.id] = {
+                "id": sp.id,
+                "name": sp.name,
+                "days_with_2plus_closures": days_with_2plus,
+                "total_closures_week": total_closures,
+            }
+    
+    weekly_performers = sorted(
+        weekly_summary.values(),
+        key=lambda x: (x["days_with_2plus_closures"], x["total_closures_week"]),
+        reverse=True
+    )
+    
+    return {
+        "today": {
+            "date": str(today_start.date()),
+            "performers": today_performers,
+            "total_performers": len(today_performers),
+        },
+        "weekly": {
+            "from": str(week_start.date()),
+            "to": str(now.date()),
+            "performers": weekly_performers,
+            "daily_breakdown": weekly_data,
+        }
+    }
+
+
 @router.get("/metrics")
 async def dashboard_metrics(
     from_date: str | None = Query(None, description="Start date YYYY-MM-DD"),

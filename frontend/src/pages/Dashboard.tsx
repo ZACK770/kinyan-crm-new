@@ -13,6 +13,7 @@ import {
 } from 'recharts'
 import { DashboardFilters, type FilterState } from '@/components/dashboard/DashboardFilters'
 import { MetricsWidgets } from '@/components/dashboard/MetricsWidgets'
+import { DailyClosuresWidget } from '@/components/dashboard/DailyClosuresWidget'
 import s from './Dashboard.module.css'
 
 /* ── Color palette ── */
@@ -61,6 +62,10 @@ export const Dashboard: FC = () => {
   const [metricsLoading, setMetricsLoading] = useState(false)
   const [salespeople, setSalespeople] = useState<Array<{ id: number; name: string }>>([])
   const [filters, setFilters] = useState<FilterState | null>(null)
+  
+  // Daily closures state
+  const [closuresData, setClosuresData] = useState<any>(null)
+  const [closuresLoading, setClosuresLoading] = useState(false)
 
   const loadData = useCallback(async () => {
     try {
@@ -119,6 +124,29 @@ export const Dashboard: FC = () => {
       loadMetrics(filters)
     }
   }, [showAdvancedMetrics, filters, loadMetrics])
+
+  // Load daily closures data
+  const loadClosures = useCallback(async () => {
+    try {
+      setClosuresLoading(true)
+      const result = await api.get('/api/dashboard/daily-closures')
+      setClosuresData(result)
+    } catch (err: unknown) {
+      const message = err && typeof err === 'object' && 'message' in err
+        ? String((err as { message: string }).message)
+        : 'שגיאה בטעינת נתוני סגירות'
+      toast.error(message)
+    } finally {
+      setClosuresLoading(false)
+    }
+  }, [])
+
+  // Load closures when entering advanced metrics
+  useEffect(() => {
+    if (showAdvancedMetrics) {
+      loadClosures()
+    }
+  }, [showAdvancedMetrics, loadClosures])
 
   const selectPreset = (d: DatePreset) => {
     setCustomRange(false)
@@ -195,6 +223,10 @@ export const Dashboard: FC = () => {
           <MetricsWidgets 
             data={metricsData}
             loading={metricsLoading}
+          />
+          <DailyClosuresWidget 
+            data={closuresData}
+            loading={closuresLoading}
           />
         </>
       ) : (
