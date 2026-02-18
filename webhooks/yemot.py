@@ -26,8 +26,8 @@ from services.leads import process_incoming_lead
 # Key is the extension number (after the /)
 FOLDER_TO_PRODUCT = {
     "1": "שבת",
-    "2": "איסור והיתר",
-    "3": "טהרה",
+    "2": "טהרה",
+    "3": "איסור והיתר",
     "4": "ממונות",
     "5": "נזיקין",
     "6": "סמיכה",
