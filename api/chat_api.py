@@ -24,12 +24,6 @@ from services import chat as chat_svc
 router = APIRouter()
 
 
-def _require_real_user(user: User):
-    """Raise 403 if user is the fake dev user (id=0) — can't write to DB with FK."""
-    if not user.id or user.id <= 0:
-        raise HTTPException(403, "צ'אט לא זמין במצב פיתוח ללא משתמש אמיתי")
-
-
 # ── Schemas ──────────────────────────────────────────
 class ThreadResponse(BaseModel):
     id: int
@@ -252,7 +246,6 @@ async def send_message(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_real_user(user)
     thread = await chat_svc.get_thread_for_user(db, user, thread_id)
     if not thread:
         raise HTTPException(404, "שרשור לא נמצא או אין לך גישה")
@@ -288,7 +281,6 @@ async def start_dm(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_real_user(user)
     if body.user_id == user.id:
         raise HTTPException(400, "לא ניתן לפתוח צ'אט עם עצמך")
     target = await get_user_by_id(db, body.user_id)
@@ -306,7 +298,6 @@ async def create_group(
     user: User = Depends(require_permission("manager")),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_real_user(user)
     if not body.title.strip():
         raise HTTPException(400, "נא להזין שם לקבוצה")
     thread = await chat_svc.create_group_thread(db, body.title.strip(), user.id, body.member_user_ids)
