@@ -92,14 +92,15 @@ async def get_or_create_dm_thread(db: AsyncSession, user_a_id: int, user_b_id: i
     db.add(thread)
     await db.flush()
 
-    db.add_all(
-        [
-            ChatThreadMember(thread_id=thread.id, user_id=user_a_id),
-            ChatThreadMember(thread_id=thread.id, user_id=user_b_id),
-        ]
-    )
+    safe_ids = [uid for uid in [user_a_id, user_b_id] if uid and uid > 0]
+    db.add_all([ChatThreadMember(thread_id=thread.id, user_id=uid) for uid in safe_ids])
     await db.flush()
     return thread
+
+
+def _safe_user_id(user_id: int) -> int | None:
+    """Convert fake dev user id (0) to None to avoid FK violations."""
+    return user_id if user_id and user_id > 0 else None
 
 
 async def create_group_thread(
@@ -112,15 +113,15 @@ async def create_group_thread(
         thread_type="group",
         title=title,
         is_sales_team=False,
-        created_by_user_id=created_by_user_id,
+        created_by_user_id=_safe_user_id(created_by_user_id),
         created_at=func.now(),
         updated_at=func.now(),
     )
     db.add(thread)
     await db.flush()
 
-    uniq = sorted(set([created_by_user_id, *member_user_ids]))
-    db.add_all([ChatThreadMember(thread_id=thread.id, user_id=uid) for uid in uniq])
+    safe_ids = [uid for uid in set([created_by_user_id, *member_user_ids]) if uid and uid > 0]
+    db.add_all([ChatThreadMember(thread_id=thread.id, user_id=uid) for uid in sorted(safe_ids)])
     await db.flush()
     return thread
 
@@ -196,7 +197,7 @@ async def pin_message(db: AsyncSession, thread_id: int, message_id: int, pinned_
     if not msg:
         return False
     msg.is_pinned = True
-    msg.pinned_by_user_id = pinned_by_user_id
+    msg.pinned_by_user_id = _safe_user_id(pinned_by_user_id)
     msg.pinned_at = func.now()
     await db.flush()
     return True
