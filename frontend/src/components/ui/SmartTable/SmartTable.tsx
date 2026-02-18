@@ -20,7 +20,6 @@ import { BulkActions } from './BulkActions'
 import { InlineEditCell } from './InlineEditCell'
 import { SmartSearch } from './SmartSearch'
 import { TablePagination } from './TablePagination'
-import { LoadingSpinner } from '../LoadingSpinner'
 import { 
   generateId, 
   applyFilters, 
@@ -281,13 +280,11 @@ export function SmartTable<T>({
     await onBulkUpdate(rows, field, value)
   }
 
-  // Loading state
-  if (loading) {
-    return <LoadingSpinner text="טוען נתונים..." />
-  }
+  // Skeleton row count for loading state
+  const skeletonRowCount = Math.min(pageSize, 15)
 
-  // Empty state
-  if (!data.length) {
+  // Empty state (only when NOT loading)
+  if (!loading && !data.length) {
     return (
       <div className={shared.empty}>
         <span className={shared['empty-icon']}>
@@ -300,7 +297,7 @@ export function SmartTable<T>({
 
   return (
     <div className={`${s.smartTable} ${className || ''}`}>
-      {/* Toolbar */}
+      {/* Toolbar — always visible */}
       <div className={s.toolbar}>
         <div className={s.toolbarLeft}>
           <SmartSearch
@@ -331,10 +328,14 @@ export function SmartTable<T>({
         </div>
         <div className={s.toolbarRight}>
           {toolbarExtra}
-          <span className={s.resultCount}>
-            {sortedData.length !== data.length && <>{sortedData.length} מתוך </>}
-            {data.length} תוצאות
-          </span>
+          {loading ? (
+            <span className={s.resultCount}>טוען...</span>
+          ) : (
+            <span className={s.resultCount}>
+              {sortedData.length !== data.length && <>{sortedData.length} מתוך </>}
+              {data.length} תוצאות
+            </span>
+          )}
         </div>
       </div>
 
@@ -390,47 +391,71 @@ export function SmartTable<T>({
             </tr>
           </thead>
           <tbody>
-            {paginatedData.map(row => {
-              const rowKey = keyExtractor(row)
-              const isSelected = selectedRows.has(rowKey)
-
-              return (
-                <tr
-                  key={rowKey}
-                  className={`${onRowClick ? shared.clickable : ''} ${isSelected ? s.selectedRow : ''} ${rowClassName ? rowClassName(row) : ''}`}
-                  onClick={() => onRowClick?.(row)}
-                >
-                  {/* Selection checkbox */}
+            {loading ? (
+              // Skeleton rows while loading
+              Array.from({ length: skeletonRowCount }).map((_, rowIdx) => (
+                <tr key={`skeleton-${rowIdx}`}>
                   {(onDelete || onBulkUpdate || bulkActions.length > 0) && (
-                    <td className={s.checkboxCell} onClick={e => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleRowSelection(rowKey)}
-                        className={s.checkbox}
-                      />
+                    <td className={s.checkboxCell}>
+                      <div className={s.skeletonBox} style={{ width: 16, height: 16, borderRadius: 3 }} />
                     </td>
                   )}
-                  {displayColumns.map(col => (
-                    <td 
-                      key={col.key} 
-                      className={col.className}
-                    >
-                      {renderCell(row, col, onUpdate ? (v) => handleCellUpdate(row, col.key, v) : undefined)}
+                  {displayColumns.map((col, colIdx) => (
+                    <td key={col.key}>
+                      <div
+                        className={s.skeleton}
+                        style={{
+                          width: col.type === 'select' ? '70%' : col.type === 'datetime' || col.type === 'date' ? '60%' : `${55 + ((rowIdx + colIdx) % 4) * 12}%`,
+                          animationDelay: `${(rowIdx * 0.05) + (colIdx * 0.03)}s`,
+                        }}
+                      />
                     </td>
                   ))}
                 </tr>
-              )
-            })}
+              ))
+            ) : (
+              paginatedData.map(row => {
+                const rowKey = keyExtractor(row)
+                const isSelected = selectedRows.has(rowKey)
+
+                return (
+                  <tr
+                    key={rowKey}
+                    className={`${onRowClick ? shared.clickable : ''} ${isSelected ? s.selectedRow : ''} ${rowClassName ? rowClassName(row) : ''}`}
+                    onClick={() => onRowClick?.(row)}
+                  >
+                    {/* Selection checkbox */}
+                    {(onDelete || onBulkUpdate || bulkActions.length > 0) && (
+                      <td className={s.checkboxCell} onClick={e => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleRowSelection(rowKey)}
+                          className={s.checkbox}
+                        />
+                      </td>
+                    )}
+                    {displayColumns.map(col => (
+                      <td 
+                        key={col.key} 
+                        className={col.className}
+                      >
+                        {renderCell(row, col, onUpdate ? (v) => handleCellUpdate(row, col.key, v) : undefined)}
+                      </td>
+                    ))}
+                  </tr>
+                )
+              })
+            )}
           </tbody>
         </table>
       </div>
 
-      {/* Pagination */}
-      {totalItems > 0 && (
+      {/* Pagination — always show during loading for consistent layout */}
+      {(totalItems > 0 || loading) && (
         <TablePagination
-          totalItems={totalItems}
-          currentPage={safePage}
+          totalItems={loading ? 0 : totalItems}
+          currentPage={loading ? 1 : safePage}
           pageSize={pageSize}
           pageSizeOptions={pgSizeOpts}
           onPageChange={setCurrentPage}

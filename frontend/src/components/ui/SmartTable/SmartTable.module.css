@@ -904,6 +904,40 @@
   }
 }
 
+/* --- Skeleton Loading --- */
+.skeleton {
+  height: 14px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--color-border-light, #e5e7eb) 0%,
+    var(--color-bg-hover, #f3f4f6) 40%,
+    var(--color-border-light, #e5e7eb) 80%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.skeletonBox {
+  background: linear-gradient(
+    90deg,
+    var(--color-border-light, #e5e7eb) 0%,
+    var(--color-bg-hover, #f3f4f6) 40%,
+    var(--color-border-light, #e5e7eb) 80%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
 /* --- Row-level status coloring (global classes from rowClassName) --- */
 :global(.row-closed-won) {
   background: #f0fdf4 !important;
