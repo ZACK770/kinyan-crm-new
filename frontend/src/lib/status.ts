@@ -12,6 +12,7 @@ const leadStatus: Record<string, StatusDef> = {
   'ליד חדש':                { label: 'ליד חדש', color: 'blue' },
   'ליד בתהליך':             { label: 'ליד בתהליך', color: 'purple' },
   'חיוג ראשון':             { label: 'חיוג ראשון', color: 'yellow' },
+  'ליד ישן':                { label: 'ליד ישן', color: 'gray' },
   'נסלק':                   { label: 'נסלק', color: 'green' },
   'תלמיד פעיל':             { label: 'תלמיד פעיל', color: 'teal' },
   'ליד סגור - לקוח':       { label: 'נסלק', color: 'green' },

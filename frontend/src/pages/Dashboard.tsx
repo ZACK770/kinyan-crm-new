@@ -11,6 +11,8 @@ import {
   PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend,
 } from 'recharts'
+import { DashboardFilters, type FilterState } from '@/components/dashboard/DashboardFilters'
+import { MetricsWidgets } from '@/components/dashboard/MetricsWidgets'
 import s from './Dashboard.module.css'
 
 /* ── Color palette ── */
@@ -52,6 +54,13 @@ export const Dashboard: FC = () => {
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [customRange, setCustomRange] = useState(false)
+  
+  // Advanced metrics state
+  const [showAdvancedMetrics, setShowAdvancedMetrics] = useState(false)
+  const [metricsData, setMetricsData] = useState<any>(null)
+  const [metricsLoading, setMetricsLoading] = useState(false)
+  const [salespeople, setSalespeople] = useState<Array<{ id: number; name: string }>>([])
+  const [filters, setFilters] = useState<FilterState | null>(null)
 
   const loadData = useCallback(async () => {
     try {
@@ -71,7 +80,45 @@ export const Dashboard: FC = () => {
     }
   }, [days, fromDate, toDate, customRange])
 
+  const loadMetrics = useCallback(async (filterState: FilterState) => {
+    try {
+      setMetricsLoading(true)
+      const params = new URLSearchParams()
+      if (filterState.fromDate) params.append('from_date', filterState.fromDate)
+      if (filterState.toDate) params.append('to_date', filterState.toDate)
+      if (filterState.cutoffDate) params.append('cutoff_date', filterState.cutoffDate)
+      if (filterState.statuses.length) params.append('statuses', filterState.statuses.join(','))
+      if (filterState.salespersonIds.length) params.append('salesperson_ids', filterState.salespersonIds.join(','))
+      if (filterState.sources.length) params.append('sources', filterState.sources.join(','))
+      params.append('days_to_first_call', String(filterState.daysToFirstCall))
+      
+      const result = await api.get(`/api/dashboard/metrics?${params.toString()}`)
+      setMetricsData(result)
+    } catch (err: unknown) {
+      const message = err && typeof err === 'object' && 'message' in err
+        ? String((err as { message: string }).message)
+        : 'שגיאה בטעינת מטריקות'
+      toast.error(message)
+    } finally {
+      setMetricsLoading(false)
+    }
+  }, [])
+
   useEffect(() => { loadData() }, [loadData])
+
+  // Load salespeople for filters
+  useEffect(() => {
+    api.get<Array<{ id: number; name: string }>>('/api/leads/salespersons')
+      .then(setSalespeople)
+      .catch(() => {})
+  }, [])
+
+  // Load metrics when filters change
+  useEffect(() => {
+    if (showAdvancedMetrics && filters) {
+      loadMetrics(filters)
+    }
+  }, [showAdvancedMetrics, filters, loadMetrics])
 
   const selectPreset = (d: DatePreset) => {
     setCustomRange(false)
@@ -94,9 +141,19 @@ export const Dashboard: FC = () => {
     <div className={s.dashboard}>
       {/* ── Header with date controls ── */}
       <div className={s.header}>
-        <h1>דשבורד מכירות</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <h1>דשבורד מכירות</h1>
+          <button
+            className={`${s['date-btn']} ${showAdvancedMetrics ? s['date-btn-active'] : ''}`}
+            onClick={() => setShowAdvancedMetrics(!showAdvancedMetrics)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <Filter size={14} />
+            {showAdvancedMetrics ? 'תצוגה רגילה' : 'מטריקות מתקדמות'}
+          </button>
+        </div>
         <div className={s['header-actions']}>
-          {([7, 14, 30, 90, 365] as DatePreset[]).map(d => (
+          {!showAdvancedMetrics && ([7, 14, 30, 90, 365] as DatePreset[]).map(d => (
             <button
               key={d}
               className={`${s['date-btn']} ${!customRange && days === d ? s['date-btn-active'] : ''}`}
@@ -105,27 +162,45 @@ export const Dashboard: FC = () => {
               {d === 7 ? 'שבוע' : d === 14 ? 'שבועיים' : d === 30 ? 'חודש' : d === 90 ? 'רבעון' : 'שנה'}
             </button>
           ))}
-          <input
-            type="date"
-            className={s['date-input']}
-            value={fromDate}
-            onChange={e => { setFromDate(e.target.value); setCustomRange(true) }}
-          />
-          <span style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>—</span>
-          <input
-            type="date"
-            className={s['date-input']}
+          {!showAdvancedMetrics && (
+            <>
+              <input
+                type="date"
+                className={s['date-input']}
+                value={fromDate}
+                onChange={e => { setFromDate(e.target.value); setCustomRange(true) }}
+              />
+              <span style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>—</span>
+              <input
+                type="date"
+                className={s['date-input']}
             value={toDate}
             onChange={e => { setToDate(e.target.value); setCustomRange(true) }}
           />
           <button className={s['date-btn']} onClick={loadData} title="רענן">
             <RefreshCw size={14} />
           </button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* ── KPI Cards ── */}
-      <div className={s.kpis}>
+      {/* ── Advanced Metrics View ── */}
+      {showAdvancedMetrics ? (
+        <>
+          <DashboardFilters 
+            onFilterChange={setFilters}
+            salespeople={salespeople}
+          />
+          <MetricsWidgets 
+            data={metricsData}
+            loading={metricsLoading}
+          />
+        </>
+      ) : (
+        <>
+          {/* ── KPI Cards ── */}
+          <div className={s.kpis}>
         <KpiCard
           icon={<Users size={18} />}
           label="סה״כ לידים במערכת"
@@ -393,6 +468,8 @@ export const Dashboard: FC = () => {
             </BarChart>
           </ResponsiveContainer>
         </Widget>
+      )}
+        </>
       )}
     </div>
   )

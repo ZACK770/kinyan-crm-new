@@ -307,3 +307,241 @@ async def advanced_dashboard(
         "salesperson_performance": salesperson_performance,
         "lead_responses": lead_responses,
     }
+
+
+@router.get("/metrics")
+async def dashboard_metrics(
+    from_date: str | None = Query(None, description="Start date YYYY-MM-DD"),
+    to_date: str | None = Query(None, description="End date YYYY-MM-DD"),
+    cutoff_date: str | None = Query(None, description="Cutoff date for old leads YYYY-MM-DD"),
+    statuses: str | None = Query(None, description="Comma-separated status filters"),
+    salesperson_ids: str | None = Query(None, description="Comma-separated salesperson IDs"),
+    sources: str | None = Query(None, description="Comma-separated source types"),
+    days_to_first_call: int = Query(3, description="Max days to first call before considered neglected"),
+    user = Depends(require_permission("viewer")),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Advanced metrics endpoint with dynamic filters.
+    Returns: lead treatment metrics, conversion metrics, monthly comparisons.
+    """
+    # Parse dates
+    if from_date and to_date:
+        start = datetime.strptime(from_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        end = datetime.strptime(to_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
+    else:
+        end = datetime.now(timezone.utc)
+        start = end - timedelta(days=30)
+    
+    cutoff = None
+    if cutoff_date:
+        cutoff = datetime.strptime(cutoff_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    
+    # Parse filters
+    status_list = statuses.split(",") if statuses else None
+    sp_ids = [int(x) for x in salesperson_ids.split(",") if x.strip()] if salesperson_ids else None
+    source_list = sources.split(",") if sources else None
+    
+    # Build base query
+    base_query = select(Lead).where(Lead.created_at >= start, Lead.created_at <= end)
+    
+    # Apply cutoff filter (exclude old leads if cutoff is set)
+    if cutoff:
+        base_query = base_query.where(Lead.created_at >= cutoff)
+    
+    # Apply status filter
+    if status_list:
+        base_query = base_query.where(Lead.status.in_(status_list))
+    
+    # Apply salesperson filter
+    if sp_ids:
+        base_query = base_query.where(Lead.salesperson_id.in_(sp_ids))
+    
+    # Apply source filter
+    if source_list:
+        base_query = base_query.where(Lead.source_type.in_(source_list))
+    
+    # ── Lead Treatment Metrics ──
+    all_leads = (await db.execute(select(func.count()).select_from(base_query.subquery()))).scalar() or 0
+    
+    # Leads that became "ליד בתהליך"
+    in_process_query = base_query.where(Lead.status == "ליד בתהליך")
+    leads_in_process = (await db.execute(select(func.count()).select_from(in_process_query.subquery()))).scalar() or 0
+    
+    # Neglected leads (no first call within X days)
+    neglected_leads = 0
+    if all_leads > 0:
+        # Get leads with their first interaction
+        leads_result = await db.execute(base_query)
+        leads_list = leads_result.scalars().all()
+        
+        for lead in leads_list:
+            # Get first interaction
+            first_interaction = (await db.execute(
+                select(LeadInteraction)
+                .where(LeadInteraction.lead_id == lead.id)
+                .where(LeadInteraction.interaction_type.in_(["call", "outbound_call"]))
+                .order_by(LeadInteraction.created_at)
+                .limit(1)
+            )).scalar_one_or_none()
+            
+            if not first_interaction:
+                # No call at all - check if enough time passed
+                days_since_created = (datetime.now(timezone.utc) - lead.created_at).days
+                if days_since_created > days_to_first_call:
+                    neglected_leads += 1
+            else:
+                # Check time to first call
+                time_to_first_call = (first_interaction.created_at - lead.created_at).days
+                if time_to_first_call > days_to_first_call:
+                    neglected_leads += 1
+    
+    # Average time to first call
+    avg_time_to_first_call = 0
+    if all_leads > 0:
+        total_days = 0
+        count_with_call = 0
+        leads_result = await db.execute(base_query)
+        leads_list = leads_result.scalars().all()
+        
+        for lead in leads_list:
+            first_interaction = (await db.execute(
+                select(LeadInteraction)
+                .where(LeadInteraction.lead_id == lead.id)
+                .where(LeadInteraction.interaction_type.in_(["call", "outbound_call"]))
+                .order_by(LeadInteraction.created_at)
+                .limit(1)
+            )).scalar_one_or_none()
+            
+            if first_interaction:
+                days_diff = (first_interaction.created_at - lead.created_at).days
+                total_days += days_diff
+                count_with_call += 1
+        
+        avg_time_to_first_call = round(total_days / count_with_call, 1) if count_with_call > 0 else 0
+    
+    # ── Conversion Metrics ──
+    converted_query = base_query.where(Lead.status.in_(["נסלק", "תלמיד פעיל", "converted"]))
+    converted_leads = (await db.execute(select(func.count()).select_from(converted_query.subquery()))).scalar() or 0
+    conversion_rate = round((converted_leads / all_leads * 100), 1) if all_leads > 0 else 0
+    
+    # Average time to conversion
+    avg_time_to_conversion = 0
+    if converted_leads > 0:
+        converted_result = await db.execute(converted_query)
+        converted_list = converted_result.scalars().all()
+        
+        total_days = 0
+        count = 0
+        for lead in converted_list:
+            # Find when they converted (first payment or status change)
+            first_payment = (await db.execute(
+                select(Payment)
+                .where(Payment.lead_id == lead.id)
+                .where(Payment.status == "שולם")
+                .order_by(Payment.created_at)
+                .limit(1)
+            )).scalar_one_or_none()
+            
+            if first_payment:
+                days_diff = (first_payment.created_at - lead.created_at).days
+                total_days += days_diff
+                count += 1
+        
+        avg_time_to_conversion = round(total_days / count, 1) if count > 0 else 0
+    
+    # ── Monthly Comparison ──
+    # Current month
+    now = datetime.now(timezone.utc)
+    current_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    current_month_end = now
+    
+    # Previous month
+    if current_month_start.month == 1:
+        prev_month_start = current_month_start.replace(year=current_month_start.year - 1, month=12)
+    else:
+        prev_month_start = current_month_start.replace(month=current_month_start.month - 1)
+    prev_month_end = current_month_start - timedelta(seconds=1)
+    
+    # Build queries for comparison
+    current_month_query = select(Lead).where(
+        Lead.created_at >= current_month_start,
+        Lead.created_at <= current_month_end
+    )
+    prev_month_query = select(Lead).where(
+        Lead.created_at >= prev_month_start,
+        Lead.created_at <= prev_month_end
+    )
+    
+    # Apply same filters
+    if cutoff:
+        current_month_query = current_month_query.where(Lead.created_at >= cutoff)
+        prev_month_query = prev_month_query.where(Lead.created_at >= cutoff)
+    if status_list:
+        current_month_query = current_month_query.where(Lead.status.in_(status_list))
+        prev_month_query = prev_month_query.where(Lead.status.in_(status_list))
+    if sp_ids:
+        current_month_query = current_month_query.where(Lead.salesperson_id.in_(sp_ids))
+        prev_month_query = prev_month_query.where(Lead.salesperson_id.in_(sp_ids))
+    if source_list:
+        current_month_query = current_month_query.where(Lead.source_type.in_(source_list))
+        prev_month_query = prev_month_query.where(Lead.source_type.in_(source_list))
+    
+    current_month_total = (await db.execute(select(func.count()).select_from(current_month_query.subquery()))).scalar() or 0
+    prev_month_total = (await db.execute(select(func.count()).select_from(prev_month_query.subquery()))).scalar() or 0
+    
+    current_month_converted = (await db.execute(
+        select(func.count()).select_from(
+            current_month_query.where(Lead.status.in_(["נסלק", "תלמיד פעיל", "converted"])).subquery()
+        )
+    )).scalar() or 0
+    prev_month_converted = (await db.execute(
+        select(func.count()).select_from(
+            prev_month_query.where(Lead.status.in_(["נסלק", "תלמיד פעיל", "converted"])).subquery()
+        )
+    )).scalar() or 0
+    
+    current_month_rate = round((current_month_converted / current_month_total * 100), 1) if current_month_total > 0 else 0
+    prev_month_rate = round((prev_month_converted / prev_month_total * 100), 1) if prev_month_total > 0 else 0
+    
+    return {
+        "period": {
+            "from": str(start.date()),
+            "to": str(end.date()),
+            "cutoff_date": str(cutoff.date()) if cutoff else None,
+        },
+        "filters": {
+            "statuses": status_list,
+            "salesperson_ids": sp_ids,
+            "sources": source_list,
+            "days_to_first_call": days_to_first_call,
+        },
+        "lead_treatment": {
+            "total_leads": all_leads,
+            "leads_in_process": leads_in_process,
+            "neglected_leads": neglected_leads,
+            "avg_time_to_first_call_days": avg_time_to_first_call,
+        },
+        "conversions": {
+            "converted_leads": converted_leads,
+            "conversion_rate": conversion_rate,
+            "avg_time_to_conversion_days": avg_time_to_conversion,
+        },
+        "monthly_comparison": {
+            "current_month": {
+                "total": current_month_total,
+                "converted": current_month_converted,
+                "conversion_rate": current_month_rate,
+            },
+            "previous_month": {
+                "total": prev_month_total,
+                "converted": prev_month_converted,
+                "conversion_rate": prev_month_rate,
+            },
+            "change": {
+                "total_diff": current_month_total - prev_month_total,
+                "converted_diff": current_month_converted - prev_month_converted,
+                "rate_diff": round(current_month_rate - prev_month_rate, 1),
+            }
+        }
+    }
