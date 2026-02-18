@@ -6,12 +6,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, or_
 
 from db import get_db
 from db.models import User, ChatThread, ChatThreadMember, ChatMessage
@@ -430,6 +431,77 @@ async def get_available_users(
         for u in result.scalars().all()
         if u.id != user.id
     ]
+
+
+# ── Notifications (for Header bell) ──────────────────
+
+@router.get("/notifications")
+async def get_chat_notifications(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get chat notifications for the current user:
+    - Messages that mention the user by name (e.g. @שם)
+    - Recent messages in threads the user belongs to
+    Returns last 20 notifications sorted by newest first.
+    """
+    # Get all thread IDs user belongs to
+    member_result = await db.execute(
+        select(ChatThreadMember.thread_id).where(ChatThreadMember.user_id == user.id)
+    )
+    thread_ids = [tid for (tid,) in member_result.all()]
+
+    if not thread_ids:
+        return {"notifications": [], "unread_count": 0}
+
+    # Find messages that mention this user (by name) — last 20
+    # Also include pinned messages as notifications
+    mention_pattern = f"@{user.full_name}"
+
+    stmt = (
+        select(ChatMessage, User)
+        .join(User, User.id == ChatMessage.sender_user_id)
+        .where(
+            ChatMessage.thread_id.in_(thread_ids),
+            ChatMessage.sender_user_id != user.id,
+            or_(
+                ChatMessage.content.contains(mention_pattern),
+                ChatMessage.is_pinned == True,  # noqa: E712
+            )
+        )
+        .order_by(ChatMessage.created_at.desc())
+        .limit(20)
+    )
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    notifications = []
+    for msg, sender in rows:
+        is_mention = mention_pattern in msg.content
+        notifications.append({
+            "id": msg.id,
+            "type": "mention" if is_mention else "pin",
+            "thread_id": msg.thread_id,
+            "sender_name": sender.full_name,
+            "sender_avatar": sender.avatar_url,
+            "content": msg.content[:100],
+            "created_at": str(msg.created_at) if msg.created_at else None,
+        })
+
+    # Also get count of recent messages (last 24h) in user's threads that aren't from the user
+    since = datetime.now(timezone.utc) - timedelta(hours=24)
+
+    count_result = await db.execute(
+        select(func.count(ChatMessage.id)).where(
+            ChatMessage.thread_id.in_(thread_ids),
+            ChatMessage.sender_user_id != user.id,
+            ChatMessage.created_at >= since,
+        )
+    )
+    unread_count = count_result.scalar() or 0
+
+    return {"notifications": notifications, "unread_count": unread_count}
 
 
 # ── WebSocket endpoint ───────────────────────────────

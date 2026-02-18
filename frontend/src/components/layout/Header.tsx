@@ -8,6 +8,9 @@ import {
   CheckSquare,
   LogOut,
   User,
+  AtSign,
+  Pin,
+  MessageCircle,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useModal } from '@/components/ui/Modal'
@@ -16,6 +19,122 @@ import { api } from '@/lib/api'
 import styles from './Header.module.css'
 import clsx from 'clsx'
 import s from '@/styles/shared.module.css'
+
+/* ── Notification types ── */
+interface ChatNotification {
+  id: number
+  type: 'mention' | 'pin'
+  thread_id: number
+  sender_name: string
+  sender_avatar?: string | null
+  content: string
+  created_at?: string | null
+}
+
+interface NotificationsResponse {
+  notifications: ChatNotification[]
+  unread_count: number
+}
+
+/* ── NotificationBell component ── */
+function NotificationBell() {
+  const [open, setOpen] = useState(false)
+  const [notifications, setNotifications] = useState<ChatNotification[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
+  const ref = useRef<HTMLDivElement>(null)
+
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const data = await api.get<NotificationsResponse>('/chat/notifications')
+      setNotifications(data.notifications)
+      setUnreadCount(data.unread_count)
+    } catch {}
+  }, [])
+
+  // Fetch on mount and every 30s
+  useEffect(() => {
+    fetchNotifications()
+    const interval = setInterval(fetchNotifications, 30000)
+    return () => clearInterval(interval)
+  }, [fetchNotifications])
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const formatTime = (dateStr?: string | null) => {
+    if (!dateStr) return ''
+    try {
+      const d = new Date(dateStr)
+      const now = new Date()
+      const diffMs = now.getTime() - d.getTime()
+      const diffMin = Math.floor(diffMs / 60000)
+      if (diffMin < 1) return 'עכשיו'
+      if (diffMin < 60) return `לפני ${diffMin} דק׳`
+      const diffH = Math.floor(diffMin / 60)
+      if (diffH < 24) return `לפני ${diffH} שע׳`
+      return d.toLocaleDateString('he-IL', { day: 'numeric', month: 'short' })
+    } catch { return '' }
+  }
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        className={styles['header__action-btn']}
+        aria-label="התראות"
+        onClick={() => { setOpen(v => !v); if (!open) fetchNotifications() }}
+      >
+        <Bell size={18} strokeWidth={1.5} />
+        {unreadCount > 0 && (
+          <span className={styles.header__badge}>
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className={styles['header__notif-dropdown']}>
+          <div className={styles['header__notif-header']}>
+            <span>התראות צ׳אט</span>
+            {unreadCount > 0 && (
+              <span className={styles['header__notif-count']}>{unreadCount} חדשות</span>
+            )}
+          </div>
+          <div className={styles['header__notif-list']}>
+            {notifications.length === 0 ? (
+              <div className={styles['header__notif-empty']}>
+                <MessageCircle size={24} strokeWidth={1} />
+                <span>אין התראות חדשות</span>
+              </div>
+            ) : notifications.map(n => (
+              <div key={n.id} className={styles['header__notif-item']} onClick={() => setOpen(false)}>
+                <div className={styles['header__notif-icon']}>
+                  {n.type === 'mention' ? <AtSign size={14} /> : <Pin size={14} />}
+                </div>
+                <div className={styles['header__notif-content']}>
+                  <div className={styles['header__notif-sender']}>
+                    {n.sender_name}
+                    <span className={styles['header__notif-type']}>
+                      {n.type === 'mention' ? 'הזכיר אותך' : 'הצמיד הודעה'}
+                    </span>
+                  </div>
+                  <div className={styles['header__notif-text']}>{n.content}</div>
+                  <div className={styles['header__notif-time']}>{formatTime(n.created_at)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 /* ── Quick forms for header actions ── */
 function QuickLeadForm({ onSubmit }: { onSubmit: (data: Record<string, unknown>) => void }) {
@@ -244,10 +363,7 @@ export const Header: FC<HeaderProps> = ({ onToggleSidebar }) => {
           </div>
 
           {/* Notifications */}
-          <button className={styles['header__action-btn']} aria-label="התראות">
-            <Bell size={18} strokeWidth={1.5} />
-            <span className={styles.header__badge}>3</span>
-          </button>
+          <NotificationBell />
 
           {/* User avatar and menu */}
           <div className={styles.header__user} ref={userMenuRef}>
