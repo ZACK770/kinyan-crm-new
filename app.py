@@ -22,7 +22,7 @@ from api import inquiries_api, exams_api, payments_api, expenses_api, attendance
 from api import auth_api, users_api, audit_logs_api, campaigns_api, files_api, sales_assignment_api
 from api import course_tracks_api, lecturers_api, messages_api, templates_api, lead_conversion_api
 from api import import_api, webhook_logs_api, webhook_queue_api, export_api, topics_api
-from api import inbound_emails_api
+from api import inbound_emails_api, chat_api
 from webhooks import inbound_email as inbound_email_webhook
 from webhooks import regulation_approval
 
@@ -87,6 +87,9 @@ app.include_router(topics_api.router, prefix="/api/topics", tags=["topics"])
 app.include_router(inbound_emails_api.router, prefix="/api/inbound-emails", tags=["inbound-emails"])
 app.include_router(inbound_email_webhook.router, prefix="/webhooks", tags=["webhooks"])
 app.include_router(regulation_approval.router, prefix="/webhooks", tags=["webhooks"])
+
+# --- Chat ---
+app.include_router(chat_api.router, prefix="/api/chat", tags=["chat"])
 
 
 # Health check endpoint (for Render and monitoring)

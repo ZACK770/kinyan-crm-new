@@ -1367,3 +1367,76 @@ class HistoryEntry(Base):
     )
 
     lead: Mapped["Lead"] = relationship()
+
+
+# ============================================================
+# ChatThread (שרשורי צ'אט) — DM / Group / Sales Team
+# ============================================================
+class ChatThread(Base):
+    __tablename__ = "chat_threads"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    thread_type: Mapped[str] = mapped_column(String(20), nullable=False, default="dm")  # dm / group
+    title: Mapped[Optional[str]] = mapped_column(String(300))  # NULL for DM
+    is_sales_team: Mapped[bool] = mapped_column(Boolean, default=False)  # special "all salespeople" thread
+    created_by_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_chat_threads_type", "thread_type"),
+        Index("idx_chat_threads_sales_team", "is_sales_team"),
+        Index("idx_chat_threads_updated", "updated_at"),
+    )
+
+    members: Mapped[List["ChatThreadMember"]] = relationship(back_populates="thread", cascade="all, delete-orphan")
+    messages: Mapped[List["ChatMessage"]] = relationship(back_populates="thread", cascade="all, delete-orphan")
+
+
+# ============================================================
+# ChatThreadMember (חברי שרשור צ'אט)
+# ============================================================
+class ChatThreadMember(Base):
+    __tablename__ = "chat_thread_members"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    thread_id: Mapped[int] = mapped_column(ForeignKey("chat_threads.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("thread_id", "user_id", name="uq_chat_thread_member"),
+        Index("idx_chat_members_thread", "thread_id"),
+        Index("idx_chat_members_user", "user_id"),
+    )
+
+    thread: Mapped["ChatThread"] = relationship(back_populates="members")
+
+
+# ============================================================
+# ChatMessage (הודעות צ'אט)
+# ============================================================
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    thread_id: Mapped[int] = mapped_column(ForeignKey("chat_threads.id", ondelete="CASCADE"), nullable=False)
+    sender_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    reply_to_message_id: Mapped[Optional[int]] = mapped_column(ForeignKey("chat_messages.id", ondelete="SET NULL"))
+    is_pinned: Mapped[bool] = mapped_column(Boolean, default=False)
+    pinned_by_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    pinned_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_chat_msg_thread", "thread_id"),
+        Index("idx_chat_msg_sender", "sender_user_id"),
+        Index("idx_chat_msg_pinned", "is_pinned"),
+        Index("idx_chat_msg_reply", "reply_to_message_id"),
+        Index("idx_chat_msg_created", "created_at"),
+    )
+
+    thread: Mapped["ChatThread"] = relationship(back_populates="messages")
+    sender: Mapped["User"] = relationship(foreign_keys=[sender_user_id])
+    reply_to: Mapped[Optional["ChatMessage"]] = relationship(remote_side="ChatMessage.id", foreign_keys=[reply_to_message_id])
