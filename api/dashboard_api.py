@@ -321,104 +321,95 @@ async def daily_closures(
     now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     week_start = today_start - timedelta(days=7)
-    
-    # Get all salespeople
-    salespeople = (await db.execute(
-        select(Salesperson).where(Salesperson.is_active == True)  # noqa: E712
-    )).scalars().all()
-    
-    # Define closure statuses
-    closure_statuses = ["נסלק", "תלמיד פעיל", "converted"]
-    
-    # Today's closures per salesperson
-    today_performers = []
-    for sp in salespeople:
-        closures_today = (await db.execute(
-            select(func.count(Lead.id))
-            .where(Lead.salesperson_id == sp.id)
-            .where(Lead.status.in_(closure_statuses))
-            .where(Lead.updated_at >= today_start)
-            .where(Lead.updated_at <= now)
-        )).scalar() or 0
-        
-        if closures_today >= 2:
-            today_performers.append({
-                "id": sp.id,
-                "name": sp.name,
-                "closures": closures_today,
+
+    # Define "closure" as: first successful payment per lead.
+    # This avoids counting leads that were closed in the past but edited today.
+    first_paid_subq = (
+        select(
+            Payment.lead_id.label("lead_id"),
+            func.min(Payment.created_at).label("first_paid_at"),
+        )
+        .where(Payment.status == "שולם")
+        .where(Payment.lead_id.is_not(None))
+        .group_by(Payment.lead_id)
+        .subquery()
+    )
+
+    # Daily counts in last 7 days: count distinct leads whose first paid payment happened that day, grouped by salesperson.
+    daily_counts_rows = (await db.execute(
+        select(
+            cast(first_paid_subq.c.first_paid_at, Date).label("day"),
+            Salesperson.id.label("salesperson_id"),
+            Salesperson.name.label("salesperson_name"),
+            func.count(first_paid_subq.c.lead_id).label("closures"),
+        )
+        .select_from(first_paid_subq)
+        .join(Lead, Lead.id == first_paid_subq.c.lead_id)
+        .join(Salesperson, Salesperson.id == Lead.salesperson_id)
+        .where(Salesperson.is_active == True)  # noqa: E712
+        .where(first_paid_subq.c.first_paid_at >= week_start)
+        .where(first_paid_subq.c.first_paid_at <= now)
+        .group_by(
+            cast(first_paid_subq.c.first_paid_at, Date),
+            Salesperson.id,
+            Salesperson.name,
+        )
+        .order_by(cast(first_paid_subq.c.first_paid_at, Date))
+    )).all()
+
+    # Build a dict: day -> performers[] (only 2+)
+    daily_map: dict[str, list[dict]] = {}
+    for r in daily_counts_rows:
+        day_str = str(r.day)
+        if r.closures >= 2:
+            daily_map.setdefault(day_str, []).append({
+                "id": r.salesperson_id,
+                "name": r.salesperson_name,
+                "closures": int(r.closures or 0),
             })
-    
-    # Sort by closures descending
-    today_performers.sort(key=lambda x: x["closures"], reverse=True)
-    
-    # Weekly breakdown - who had 2+ closures on each day
+
+    # Weekly breakdown (7 days, including days with 0 performers)
     weekly_data = []
     for day_offset in range(7):
         day_start = today_start - timedelta(days=day_offset)
-        day_end = day_start + timedelta(days=1)
-        
-        day_performers = []
-        for sp in salespeople:
-            closures = (await db.execute(
-                select(func.count(Lead.id))
-                .where(Lead.salesperson_id == sp.id)
-                .where(Lead.status.in_(closure_statuses))
-                .where(Lead.updated_at >= day_start)
-                .where(Lead.updated_at < day_end)
-            )).scalar() or 0
-            
-            if closures >= 2:
-                day_performers.append({
-                    "id": sp.id,
-                    "name": sp.name,
-                    "closures": closures,
-                })
-        
+        day_str = str(day_start.date())
+        performers = daily_map.get(day_str, [])
+        performers.sort(key=lambda x: x["closures"], reverse=True)
         weekly_data.append({
-            "date": str(day_start.date()),
-            "performers": day_performers,
-            "total_performers": len(day_performers),
+            "date": day_str,
+            "performers": performers,
+            "total_performers": len(performers),
         })
-    
-    # Weekly summary - who had 2+ closures on at least one day
-    weekly_summary = {}
-    for sp in salespeople:
-        days_with_2plus = 0
-        total_closures = 0
-        
-        for day_offset in range(7):
-            day_start = today_start - timedelta(days=day_offset)
-            day_end = day_start + timedelta(days=1)
-            
-            closures = (await db.execute(
-                select(func.count(Lead.id))
-                .where(Lead.salesperson_id == sp.id)
-                .where(Lead.status.in_(closure_statuses))
-                .where(Lead.updated_at >= day_start)
-                .where(Lead.updated_at < day_end)
-            )).scalar() or 0
-            
-            total_closures += closures
-            if closures >= 2:
-                days_with_2plus += 1
-        
-        if days_with_2plus > 0:
-            weekly_summary[sp.id] = {
-                "id": sp.id,
-                "name": sp.name,
-                "days_with_2plus_closures": days_with_2plus,
-                "total_closures_week": total_closures,
-            }
-    
-    weekly_performers = sorted(
-        weekly_summary.values(),
+
+    # Today's performers (2+)
+    today_str = str(today_start.date())
+    today_performers = daily_map.get(today_str, [])
+    today_performers.sort(key=lambda x: x["closures"], reverse=True)
+
+    # Weekly summary per salesperson
+    weekly_summary: dict[int, dict] = {}
+    for r in daily_counts_rows:
+        sp_id = int(r.salesperson_id)
+        closures = int(r.closures or 0)
+        weekly_summary.setdefault(sp_id, {
+            "id": sp_id,
+            "name": r.salesperson_name,
+            "days_with_2plus_closures": 0,
+            "total_closures_week": 0,
+        })
+        weekly_summary[sp_id]["total_closures_week"] += closures
+        if closures >= 2:
+            weekly_summary[sp_id]["days_with_2plus_closures"] += 1
+
+    weekly_performers = [v for v in weekly_summary.values() if v["days_with_2plus_closures"] > 0]
+    weekly_performers.sort(
         key=lambda x: (x["days_with_2plus_closures"], x["total_closures_week"]),
-        reverse=True
+        reverse=True,
     )
-    
+
     return {
         "today": {
-            "date": str(today_start.date()),
+            "date": today_str,
             "performers": today_performers,
             "total_performers": len(today_performers),
         },
