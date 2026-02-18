@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from datetime import datetime, timezone
 from typing import Optional
 import io
+from utils.phone import normalize_phone
 
 router = APIRouter()
 
@@ -62,19 +63,6 @@ RESPONSE_MAPPING = {
     "לא נענה (Timeout)": "לא זמין",
     "פניה כללית": None,
 }
-
-
-def normalize_phone(phone_raw) -> str | None:
-    """נירמול טלפון — מוסיף 0 בהתחלה אם חסר, מנקה תווים מיותרים"""
-    if not phone_raw:
-        return None
-    phone = str(phone_raw).strip().replace("-", "").replace(" ", "")
-    # אם הטלפון מתחיל ב-5 או בספרה ואורכו 9-10 ספרות — הוסף 0
-    if phone and phone[0] in "5" and len(phone) == 9:
-        phone = "0" + phone
-    elif phone and phone[0] not in "0+" and len(phone) <= 10:
-        phone = "0" + phone
-    return phone
 
 
 def _get_cell(row: dict, *keys):
@@ -156,7 +144,7 @@ async def import_leads_from_excel(
                     row[headers[i]] = ws.cell(row_idx, i + 1).value
 
             phone_raw = row.get("טלפון ראשי")
-            phone = normalize_phone(phone_raw)
+            phone = normalize_phone(str(phone_raw)) if phone_raw else ""
             if not phone:
                 stats["skipped_no_phone"] += 1
                 continue
@@ -189,7 +177,8 @@ async def import_leads_from_excel(
                 created_date = parse_date(_get_cell(row, "תאריך יצירה", "תאריך הגעה")) or datetime.now(timezone.utc)
                 last_contact = parse_date(_get_cell(row, "תאריך פניה אחרונה"))
                 # שדות נוספים
-                phone2 = normalize_phone(row.get("טלפון נוסף"))
+                phone2_raw = row.get("טלפון נוסף")
+                phone2 = normalize_phone(str(phone2_raw)) if phone2_raw else None
                 id_number = row.get("תעודת זהות")
                 if id_number:
                     id_number = str(id_number).strip()

@@ -148,4 +148,5 @@ export interface TableState {
   columnOrder: string[]
   sortBy: string | null
   sortDir: 'asc' | 'desc'
+  pageSize?: number
 }

@@ -20,6 +20,7 @@ import { BulkActions } from './BulkActions'
 import { InlineEditCell } from './InlineEditCell'
 import { SmartSearch } from './SmartSearch'
 import { TablePagination } from './TablePagination'
+import { LoadingSpinner } from '../LoadingSpinner'
 import { 
   generateId, 
   applyFilters, 
@@ -90,6 +91,7 @@ export function SmartTable<T>({
         setColumnOrder(savedState.columnOrder?.length ? savedState.columnOrder : defaultOrder)
         setSortBy(savedState.sortBy || null)
         setSortDir(savedState.sortDir || 'asc')
+        if (savedState.pageSize) setPageSize(savedState.pageSize)
       } else {
         setVisibleColumns(defaultVisible)
         setColumnOrder(defaultOrder)
@@ -102,7 +104,7 @@ export function SmartTable<T>({
       setVisibleColumns(defaultVisible)
       setColumnOrder(defaultOrder)
     }
-  }, [columns, storageKey])
+  }, [columns, storageKey, defaultPgSize])
 
   // Save state to storage
   useEffect(() => {
@@ -114,9 +116,10 @@ export function SmartTable<T>({
       columnOrder,
       sortBy,
       sortDir,
+      pageSize,
     }
     saveTableState(storageKey, state)
-  }, [filters, visibleColumns, columnOrder, sortBy, sortDir, storageKey])
+  }, [filters, visibleColumns, columnOrder, sortBy, sortDir, pageSize, storageKey])
 
   // Get ordered and visible columns
   const displayColumns = useMemo(() => {
@@ -280,7 +283,7 @@ export function SmartTable<T>({
 
   // Loading state
   if (loading) {
-    return <div className={shared.loading}>טוען נתונים...</div>
+    return <LoadingSpinner text="טוען נתונים..." />
   }
 
   // Empty state
@@ -412,12 +415,6 @@ export function SmartTable<T>({
                     <td 
                       key={col.key} 
                       className={col.className}
-                      onClick={e => {
-                        // Stop propagation for editable cells
-                        if (col.editable !== false && onUpdate) {
-                          e.stopPropagation()
-                        }
-                      }}
                     >
                       {renderCell(row, col, onUpdate ? (v) => handleCellUpdate(row, col.key, v) : undefined)}
                     </td>
@@ -483,13 +480,15 @@ function renderCell<T>(
   // Inline editable cell — use renderView as display if available
   const customDisplay = column.renderView ? column.renderView(row) : undefined
   return (
-    <InlineEditCell
-      value={value}
-      type={column.type}
-      options={column.options}
-      displayValue={customDisplay ?? formatDisplayValue(value, column)}
-      onSave={onUpdate}
-    />
+    <div onClick={e => e.stopPropagation()}>
+      <InlineEditCell
+        value={value}
+        type={column.type}
+        options={column.options}
+        displayValue={customDisplay ?? formatDisplayValue(value, column)}
+        onSave={onUpdate}
+      />
+    </div>
   )
 }
 

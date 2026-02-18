@@ -8,6 +8,7 @@ from db import SessionLocal
 from db.models import Lead, Salesperson, Course
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
+from utils.phone import normalize_phone
 
 # מיפוי אנשי מכירות (שם באקסל -> שם במערכת)
 SALESPERSON_MAPPING = {
@@ -145,14 +146,19 @@ async def import_leads(excel_path, limit=None, dry_run=False, quiet=False):
                     row_data[header] = ws.cell(row_idx, col_idx).value
             
             # טלפון הוא שדה חובה
-            phone = row_data.get("טלפון ראשי")
-            if not phone:
+            phone_raw = row_data.get("טלפון ראשי")
+            if not phone_raw:
                 if not quiet:
                     print(f"⏭️  שורה {row_num}: דילגתי - אין טלפון")
                 stats["skipped_no_phone"] += 1
                 continue
             
-            phone = str(phone).strip()
+            phone = normalize_phone(str(phone_raw))
+            if not phone:
+                if not quiet:
+                    print(f"⏭️  שורה {row_num}: דילגתי - טלפון לא תקין")
+                stats["skipped_no_phone"] += 1
+                continue
             
             # בדיקת כפילות
             existing = await session.execute(

@@ -466,14 +466,29 @@ export function LeadsPage() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
 
-  // Auto-open create form when ?create=true (from entity '+' button)
+  // Auto-open create form when ?create=true or load workspace when ?lead=ID
   useEffect(() => {
     if (searchParams.get('create') === 'true') {
       setViewMode('create')
       setSelectedLead(null)
       setSearchParams({}, { replace: true })
+    } else if (searchParams.get('lead')) {
+      const leadId = Number(searchParams.get('lead'))
+      if (leadId && !isNaN(leadId) && selectedLead?.id !== leadId) {
+        // Load the lead workspace
+        api.get<Lead>(`leads/${leadId}`)
+          .then(lead => {
+            setSelectedLead(lead)
+            setViewMode('list')
+          })
+          .catch(() => {
+            toast.error('ליד לא נמצא')
+            setSearchParams({}, { replace: true })
+          })
+      }
     }
-  }, [searchParams, setSearchParams])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   /* ── Fetch Reference Data ── */
   useEffect(() => {
@@ -571,6 +586,8 @@ export function LeadsPage() {
       const full = await api.get<Lead>(`leads/${lead.id}`)
       setSelectedLead(full)
       setViewMode('list')  // Not 'create' — we have a selected lead
+      // Update URL to include lead ID
+      setSearchParams({ lead: String(lead.id) }, { replace: true })
     } catch {
       toast.error('שגיאה בטעינת פרטי ליד')
     }
@@ -580,6 +597,8 @@ export function LeadsPage() {
   const backToList = () => {
     setSelectedLead(null)
     setViewMode('list')
+    // Clear URL params
+    setSearchParams({}, { replace: true })
   }
 
   const refreshSelectedLead = async () => {
@@ -708,11 +727,9 @@ export function LeadsPage() {
       type: 'text',
       sortable: true,
       filterable: true,
-      render: (r) => (
-        <span 
-          style={{ fontWeight: 600, color: 'var(--color-primary)', cursor: 'pointer' }}
-          onClick={() => openDetail(r)}
-        >
+      editable: false,
+      renderView: (r) => (
+        <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>
           {r.full_name} {r.family_name ?? ''}
         </span>
       )

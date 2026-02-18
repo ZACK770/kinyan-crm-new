@@ -19,10 +19,13 @@ from datetime import datetime
 from sqlalchemy import select, or_, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from db import get_db
 from db.models import (
     Lead, Payment, Student, Commitment, Collection,
     HistoryEntry, Course, Enrollment
 )
+from services.webhook_logger import log_webhook
+from utils.phone import normalize_phone
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +155,7 @@ async def handle_nedarim_keva_webhook(
         makor = data.get('Makor', '')
         shovar = data.get('Shovar', '')
         uid = data.get('UID', '')
-        phone = data.get('Phone', '').strip()
+        phone = normalize_phone(data.get('Phone', ''))
         email = data.get('Mail', '').strip()
         mosad_number = data.get('MosadNumber', '')
         credit_terms_str = data.get('CreditTerms', '1')
