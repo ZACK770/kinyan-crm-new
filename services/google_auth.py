@@ -3,9 +3,12 @@ Google OAuth service — handles the Google Sign-In flow.
 Uses httpx (already a project dependency) to call Google APIs directly.
 Available system-wide via: from services.google_auth import ...
 """
+import logging
 from typing import Optional
 import httpx
 from db import settings
+
+logger = logging.getLogger(__name__)
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -18,16 +21,18 @@ def _get_redirect_uri(request_origin: Optional[str] = None) -> str:
     RENDER_EXTERNAL_URL or request origin."""
     import os
     uri = settings.GOOGLE_REDIRECT_URI
-    # If it's still the default localhost and we're on Render, auto-fix
-    if "localhost" in uri:
-        render_url = os.environ.get("RENDER_EXTERNAL_URL", "")
-        if render_url:
-            # RENDER_EXTERNAL_URL is always https://
-            uri = f"{render_url}/auth/google/callback"
-        elif request_origin and "localhost" not in request_origin:
-            # Render SSL termination: request.base_url may be http://, force https://
-            origin = request_origin.replace("http://", "https://")
-            uri = f"{origin}/auth/google/callback"
+    # If it's explicitly set to a non-localhost value, use it as-is
+    if "localhost" not in uri:
+        logger.info(f"Google redirect URI (explicit): {uri}")
+        return uri
+    # Auto-detect from environment
+    render_url = os.environ.get("RENDER_EXTERNAL_URL", "")
+    if render_url:
+        uri = f"{render_url}/auth/google/callback"
+    elif request_origin and "localhost" not in request_origin:
+        origin = request_origin.replace("http://", "https://")
+        uri = f"{origin}/auth/google/callback"
+    logger.info(f"Google redirect URI (auto): {uri} (origin={request_origin}, RENDER_EXTERNAL_URL={render_url})")
     return uri
 
 
@@ -49,6 +54,8 @@ def get_google_login_url(state: Optional[str] = None, request_origin: Optional[s
 
 async def exchange_code_for_tokens(code: str, request_origin: Optional[str] = None) -> dict:
     """Exchange the authorization code for Google tokens."""
+    redirect_uri = _get_redirect_uri(request_origin)
+    logger.info(f"Exchanging code for tokens with redirect_uri={redirect_uri}")
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             GOOGLE_TOKEN_URL,
@@ -56,10 +63,12 @@ async def exchange_code_for_tokens(code: str, request_origin: Optional[str] = No
                 "code": code,
                 "client_id": settings.GOOGLE_CLIENT_ID,
                 "client_secret": settings.GOOGLE_CLIENT_SECRET,
-                "redirect_uri": _get_redirect_uri(request_origin),
+                "redirect_uri": redirect_uri,
                 "grant_type": "authorization_code",
             },
         )
+        if resp.status_code != 200:
+            logger.error(f"Google token exchange failed: {resp.status_code} {resp.text}")
         resp.raise_for_status()
         return resp.json()
 

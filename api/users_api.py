@@ -141,6 +141,63 @@ async def api_create_user(
     return _user_to_response(user)
 
 
+# ── Update user (general PATCH) ─────────────────────
+class UpdateUserRequest(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    role_name: Optional[str] = None
+    is_active: Optional[bool] = None
+    password: Optional[str] = None
+
+
+@router.patch("/{user_id}")
+async def api_update_user(
+    user_id: int,
+    body: UpdateUserRequest,
+    admin: User = Depends(require_permission("manager")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update a user's details. Requires manager+ role."""
+    user = await get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="משתמש לא נמצא")
+
+    # Update role if provided (admin only)
+    if body.role_name is not None:
+        if body.role_name not in ROLES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"תפקיד לא חוקי. האפשרויות: {', '.join(ROLES.keys())}",
+            )
+        if admin.permission_level < 40:
+            raise HTTPException(status_code=403, detail="רק מנהל מערכת יכול לשנות תפקידים")
+        user = await update_user_role(db, user_id, body.role_name)
+
+    # Update profile fields
+    if body.full_name is not None or body.email is not None:
+        user = await update_user_profile(db, user_id, full_name=body.full_name, email=body.email)
+
+    # Update active status
+    if body.is_active is not None and not body.is_active:
+        await deactivate_user(db, user_id)
+        user = await get_user_by_id(db, user_id)
+    elif body.is_active is not None and body.is_active and not user.is_active:
+        user.is_active = True
+        await db.commit()
+        await db.refresh(user)
+
+    # Update password
+    if body.password:
+        from services.auth import hash_password
+        user.hashed_password = hash_password(body.password)
+        await db.commit()
+        await db.refresh(user)
+
+    if not user:
+        raise HTTPException(status_code=404, detail="משתמש לא נמצא")
+    return _user_to_response(user)
+
+
 # ── Update user role ─────────────────────────────────
 @router.put("/{user_id}/role")
 async def api_update_role(
