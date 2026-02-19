@@ -309,15 +309,25 @@ async def start_dm(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if body.user_id == user.id:
+    # In dev mode, use a real user to avoid broken DM threads (id=0 gets filtered)
+    if _is_dev_user(user):
+        real_user_result = await db.execute(
+            select(User).where(User.is_active == True, User.permission_level >= 30).limit(1)  # noqa: E712
+        )
+        real_user = real_user_result.scalar_one_or_none()
+        effective_user_id = real_user.id if real_user else 1
+    else:
+        effective_user_id = user.id
+
+    if body.user_id == effective_user_id:
         raise HTTPException(400, "לא ניתן לפתוח צ'אט עם עצמך")
     target = await get_user_by_id(db, body.user_id)
     if not target:
         raise HTTPException(404, "משתמש לא נמצא")
 
-    thread = await chat_svc.get_or_create_dm_thread(db, user.id, body.user_id)
+    thread = await chat_svc.get_or_create_dm_thread(db, effective_user_id, body.user_id)
     await db.commit()
-    return await _thread_to_dict(db, thread, user.id)
+    return await _thread_to_dict(db, thread, effective_user_id)
 
 
 @router.post("/threads/group")
