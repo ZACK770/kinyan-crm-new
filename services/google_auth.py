@@ -22,9 +22,12 @@ def _get_redirect_uri(request_origin: Optional[str] = None) -> str:
     if "localhost" in uri:
         render_url = os.environ.get("RENDER_EXTERNAL_URL", "")
         if render_url:
+            # RENDER_EXTERNAL_URL is always https://
             uri = f"{render_url}/auth/google/callback"
         elif request_origin and "localhost" not in request_origin:
-            uri = f"{request_origin}/auth/google/callback"
+            # Render SSL termination: request.base_url may be http://, force https://
+            origin = request_origin.replace("http://", "https://")
+            uri = f"{origin}/auth/google/callback"
     return uri
 
 
