@@ -22,7 +22,7 @@ from api import inquiries_api, exams_api, payments_api, expenses_api, attendance
 from api import auth_api, users_api, audit_logs_api, campaigns_api, files_api, sales_assignment_api
 from api import course_tracks_api, lecturers_api, messages_api, templates_api, lead_conversion_api
 from api import import_api, webhook_logs_api, webhook_queue_api, export_api, topics_api
-from api import inbound_emails_api, chat_api, sales_simulator_api, popup_api
+from api import inbound_emails_api, chat_api, sales_simulator_api, popup_api, tasks_api
 from webhooks import inbound_email as inbound_email_webhook
 from webhooks import regulation_approval
 
@@ -67,6 +67,7 @@ app.include_router(expenses_api.router, prefix="/api/expenses", tags=["expenses"
 app.include_router(inquiries_api.router, prefix="/api/inquiries", tags=["inquiries"])
 app.include_router(dashboard_api.router, prefix="/api/dashboard", tags=["dashboard"])
 app.include_router(campaigns_api.router, prefix="/api/campaigns", tags=["campaigns"])
+app.include_router(tasks_api.router, prefix="/api/tasks", tags=["tasks"])
 app.include_router(webhooks_api.router, prefix="/webhooks", tags=["webhooks"])
 
 # --- Auth & User Management ---

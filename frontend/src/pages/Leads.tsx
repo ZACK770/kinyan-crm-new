@@ -793,6 +793,17 @@ export function LeadsPage() {
       ],
     },
     { 
+      key: 'notes', 
+      header: 'הערות', 
+      type: 'text',
+      sortable: false,
+      renderView: r => {
+        if (!r.notes) return <span style={{ color: 'var(--color-text-muted)' }}>—</span>
+        const short = r.notes.length > 40 ? r.notes.slice(0, 40) + '…' : r.notes
+        return <span title={r.notes} style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{short}</span>
+      },
+    },
+    { 
       key: 'created_at', 
       header: 'תאריך יצירה', 
       type: 'datetime',
@@ -946,17 +957,7 @@ export function LeadsPage() {
             if (row.status === 'לא רלוונטי' || row.status === 'ליד סגור - לא רלוונטי') return 'row-closed-lost'
             return ''
           }}
-          bulkActions={[
-            {
-              id: 'assign_sp',
-              label: 'שיוך לאיש מכירות',
-              icon: <UserCheck size={14} />,
-              action: (selected) => {
-                // TODO: Open modal to select SP
-                toast.success(`נבחרו ${selected.length} לידים לשיוך`)
-              }
-            }
-          ]}
+          bulkActions={[]}
         />
       </div>
     </div>

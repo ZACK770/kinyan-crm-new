@@ -72,6 +72,12 @@ const paymentStatus: Record<string, StatusDef> = {
 }
 
 const taskStatus: Record<string, StatusDef> = {
+  // Hebrew keys (as stored in DB)
+  'חדש':     { label: 'חדש', color: 'blue' },
+  'בטיפול':  { label: 'בטיפול', color: 'yellow' },
+  'הושלם':   { label: 'הושלם', color: 'green' },
+  'בוטל':    { label: 'בוטל', color: 'gray' },
+  // Legacy English keys
   new:         { label: 'חדש', color: 'blue' },
   in_progress: { label: 'בביצוע', color: 'yellow' },
   completed:   { label: 'הושלם', color: 'green' },

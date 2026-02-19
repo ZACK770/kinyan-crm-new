@@ -179,17 +179,26 @@ async def download_file(
     For R2: Redirects to presigned URL
     For DB: Returns file directly
     """
-    result = await db.execute(select(File).where(File.id == file_id))
+    # Explicitly load file_data column (LargeBinary fails with lazy load in async)
+    from sqlalchemy.orm import undefer
+    result = await db.execute(
+        select(File).where(File.id == file_id).options(undefer(File.file_data))
+    )
     file = result.scalar_one_or_none()
     
     if not file:
         raise HTTPException(404, "File not found")
     
     # Check if file is stored in DB
-    if file.file_data:
+    try:
+        file_data = file.file_data
+    except Exception:
+        file_data = None
+    
+    if file_data:
         # Return file directly from DB
         return Response(
-            content=file.file_data,
+            content=file_data,
             media_type=file.content_type or "application/octet-stream",
             headers={
                 "Content-Disposition": f'attachment; filename="{file.filename}"'

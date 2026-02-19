@@ -18,13 +18,16 @@ import {
   FileText,
   X,
   Paperclip,
+  Plus,
+  AlertTriangle,
 } from 'lucide-react'
 import { BackButton } from '@/components/ui/BackButton'
 import { api } from '@/lib/api'
 import { getStatus, formatDateTime } from '@/lib/status'
 import { EditableField, type SelectOption } from '@/components/ui/EditableField'
 import { useModal } from '@/components/ui/Modal'
-import type { Lead, LeadInteraction, Salesperson, Course, Campaign } from '@/types'
+import { useToast } from '@/components/ui/Toast'
+import type { Lead, LeadInteraction, Salesperson, Course, Campaign, SalesTask } from '@/types'
 import { LeadPaymentTab } from './LeadPaymentTab'
 // @ts-ignore - used in conversion tab
 import LeadConversionChecklist from './LeadConversionChecklist'
@@ -746,13 +749,192 @@ function InteractionsTab({
   )
 }
 
-// Tasks Tab (placeholder - to be expanded)
-function TasksTab({ leadId: _leadId }: { leadId: number }) {
+// Tasks Tab — shows tasks linked to this lead
+function TasksTab({ leadId }: { leadId: number }) {
+  const toast = useToast()
+  const [tasks, setTasks] = useState<SalesTask[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [newTitle, setNewTitle] = useState('')
+  const [newDue, setNewDue] = useState('')
+  const [newPriority, setNewPriority] = useState(0)
+  const [creating, setCreating] = useState(false)
+
+  const fetchTasks = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await api.get<SalesTask[]>(`tasks?lead_id=${leadId}`)
+      setTasks(data)
+    } catch {
+      setTasks([])
+    } finally {
+      setLoading(false)
+    }
+  }, [leadId])
+
+  useEffect(() => { fetchTasks() }, [fetchTasks])
+
+  const handleCreate = async () => {
+    if (!newTitle.trim()) return
+    setCreating(true)
+    try {
+      await api.post('tasks', {
+        title: newTitle,
+        lead_id: leadId,
+        priority: newPriority,
+        due_date: newDue || undefined,
+      })
+      toast.success('משימה נוצרה')
+      setNewTitle('')
+      setNewDue('')
+      setNewPriority(0)
+      setShowForm(false)
+      fetchTasks()
+    } catch {
+      toast.error('שגיאה ביצירת משימה')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const handleStatusChange = async (taskId: number, newStatus: string) => {
+    try {
+      await api.patch(`tasks/${taskId}`, { status: newStatus })
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t))
+    } catch {
+      toast.error('שגיאה בעדכון')
+    }
+  }
+
+  if (loading) {
+    return <div style={{ textAlign: 'center', padding: 20, color: 'var(--color-text-muted)' }}>טוען...</div>
+  }
+
   return (
-    <div className={s['empty-state']}>
-      <ListTodo size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
-      <div>אין משימות מקושרות</div>
-      <div style={{ fontSize: 12, marginTop: 4 }}>משימות מכירות קשורות לליד יופיעו כאן</div>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <span style={{ fontSize: 13, fontWeight: 600 }}>משימות ({tasks.length})</span>
+        <button
+          className={`${s.btn} ${s['btn-primary']} ${s['btn-xs']}`}
+          onClick={() => setShowForm(!showForm)}
+        >
+          <Plus size={12} /> משימה חדשה
+        </button>
+      </div>
+
+      {showForm && (
+        <div style={{ padding: 12, background: 'var(--color-bg-accent)', borderRadius: 8, marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <input
+            className={s.input}
+            placeholder="כותרת המשימה..."
+            value={newTitle}
+            onChange={e => setNewTitle(e.target.value)}
+            style={{ fontSize: 13 }}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              className={s.input}
+              type="date"
+              value={newDue}
+              onChange={e => setNewDue(e.target.value)}
+              dir="ltr"
+              style={{ flex: 1, fontSize: 12 }}
+            />
+            <select
+              className={s.select}
+              value={newPriority}
+              onChange={e => setNewPriority(Number(e.target.value))}
+              style={{ flex: 1, fontSize: 12 }}
+            >
+              <option value={0}>ללא עדיפות</option>
+              <option value={1}>נמוך</option>
+              <option value={2}>רגיל</option>
+              <option value={3}>גבוה</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              className={`${s.btn} ${s['btn-primary']} ${s['btn-xs']}`}
+              onClick={handleCreate}
+              disabled={creating || !newTitle.trim()}
+            >
+              {creating ? '...' : 'צור'}
+            </button>
+            <button
+              className={`${s.btn} ${s['btn-ghost']} ${s['btn-xs']}`}
+              onClick={() => setShowForm(false)}
+            >
+              ביטול
+            </button>
+          </div>
+        </div>
+      )}
+
+      {tasks.length === 0 ? (
+        <div className={s['empty-state']}>
+          <ListTodo size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
+          <div>אין משימות מקושרות</div>
+          <div style={{ fontSize: 12, marginTop: 4 }}>צור משימה חדשה לליד זה</div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {tasks.map(t => {
+            const isOverdue = t.due_date && new Date(t.due_date) < new Date() && t.status !== 'הושלם' && t.status !== 'בוטל'
+            return (
+              <div
+                key={t.id}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '8px 10px', borderRadius: 6,
+                  background: t.status === 'הושלם' ? 'var(--color-bg-accent)' : 'var(--color-surface)',
+                  border: '1px solid var(--color-border)',
+                  opacity: t.status === 'הושלם' || t.status === 'בוטל' ? 0.6 : 1,
+                }}
+              >
+                <select
+                  className={s.select}
+                  value={t.status}
+                  onChange={e => handleStatusChange(t.id, e.target.value)}
+                  style={{ width: 80, fontSize: 11, padding: '2px 4px' }}
+                >
+                  <option value="חדש">חדש</option>
+                  <option value="בטיפול">בטיפול</option>
+                  <option value="הושלם">הושלם</option>
+                  <option value="בוטל">בוטל</option>
+                </select>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 13, fontWeight: 500,
+                    textDecoration: t.status === 'הושלם' ? 'line-through' : 'none',
+                  }}>
+                    {isOverdue && <AlertTriangle size={11} style={{ color: 'var(--color-danger)', marginLeft: 4, display: 'inline' }} />}
+                    {t.title}
+                  </div>
+                  {t.description && (
+                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {t.description}
+                    </div>
+                  )}
+                </div>
+                {t.due_date && (
+                  <span style={{
+                    fontSize: 11, whiteSpace: 'nowrap',
+                    color: isOverdue ? 'var(--color-danger)' : 'var(--color-text-muted)',
+                    fontWeight: isOverdue ? 600 : 400,
+                  }}>
+                    {new Date(t.due_date).toLocaleDateString('he-IL')}
+                  </span>
+                )}
+                {t.priority > 0 && (
+                  <span className={`${s.badge} ${s[`badge-${t.priority >= 3 ? 'orange' : t.priority >= 2 ? 'blue' : 'gray'}`]}`} style={{ fontSize: 10 }}>
+                    {t.priority >= 3 ? 'גבוה' : t.priority >= 2 ? 'רגיל' : 'נמוך'}
+                  </span>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

@@ -59,6 +59,7 @@ async def list_leads(
             "status": l.status,
             "source_type": l.source_type,
             "salesperson_id": l.salesperson_id,
+            "notes": l.notes,
             "created_at": str(l.created_at),
             "updated_at": str(l.updated_at) if l.updated_at else None,
             "last_edited_at": str(l.last_edited_at) if l.last_edited_at else None,

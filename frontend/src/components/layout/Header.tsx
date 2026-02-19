@@ -11,6 +11,8 @@ import {
   AtSign,
   Pin,
   MessageCircle,
+  AlertTriangle,
+  ListTodo,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useModal } from '@/components/ui/Modal'
@@ -36,20 +38,34 @@ interface NotificationsResponse {
   unread_count: number
 }
 
+/* ── Task notification types ── */
+interface TaskNotifSummary {
+  overdue_count: number
+  new_today_count: number
+  total_open: number
+}
+
 /* ── NotificationBell component ── */
 function NotificationBell() {
   const [open, setOpen] = useState(false)
   const [notifications, setNotifications] = useState<ChatNotification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
+  const [taskNotif, setTaskNotif] = useState<TaskNotifSummary>({ overdue_count: 0, new_today_count: 0, total_open: 0 })
   const ref = useRef<HTMLDivElement>(null)
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const data = await api.get<NotificationsResponse>('/chat/notifications')
-      setNotifications(data.notifications)
-      setUnreadCount(data.unread_count)
+      const [chatData, taskData] = await Promise.all([
+        api.get<NotificationsResponse>('/chat/notifications').catch(() => ({ notifications: [], unread_count: 0 })),
+        api.get<TaskNotifSummary>('/tasks/notifications/summary').catch(() => ({ overdue_count: 0, new_today_count: 0, total_open: 0 })),
+      ])
+      setNotifications(chatData.notifications)
+      setUnreadCount(chatData.unread_count)
+      setTaskNotif(taskData)
     } catch {}
   }, [])
+
+  const totalBadge = unreadCount + taskNotif.overdue_count + taskNotif.new_today_count
 
   // Fetch on mount and every 30s
   useEffect(() => {
@@ -91,15 +107,53 @@ function NotificationBell() {
         onClick={() => { setOpen(v => !v); if (!open) fetchNotifications() }}
       >
         <Bell size={18} strokeWidth={1.5} />
-        {unreadCount > 0 && (
+        {totalBadge > 0 && (
           <span className={styles.header__badge}>
-            {unreadCount > 99 ? '99+' : unreadCount}
+            {totalBadge > 99 ? '99+' : totalBadge}
           </span>
         )}
       </button>
 
       {open && (
         <div className={styles['header__notif-dropdown']}>
+          {/* Task notifications section */}
+          {(taskNotif.overdue_count > 0 || taskNotif.new_today_count > 0) && (
+            <>
+              <div className={styles['header__notif-header']}>
+                <span>משימות</span>
+              </div>
+              <div className={styles['header__notif-list']}>
+                {taskNotif.overdue_count > 0 && (
+                  <a href="/tasks?status=overdue" className={styles['header__notif-item']} onClick={() => setOpen(false)} style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <div className={styles['header__notif-icon']} style={{ color: 'var(--color-danger)' }}>
+                      <AlertTriangle size={14} />
+                    </div>
+                    <div className={styles['header__notif-content']}>
+                      <div className={styles['header__notif-sender']} style={{ color: 'var(--color-danger)' }}>
+                        {taskNotif.overdue_count} משימות באיחור
+                      </div>
+                      <div className={styles['header__notif-text']}>יש משימות שעבר תאריך היעד שלהן</div>
+                    </div>
+                  </a>
+                )}
+                {taskNotif.new_today_count > 0 && (
+                  <a href="/tasks?status=חדש" className={styles['header__notif-item']} onClick={() => setOpen(false)} style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <div className={styles['header__notif-icon']} style={{ color: 'var(--color-primary)' }}>
+                      <ListTodo size={14} />
+                    </div>
+                    <div className={styles['header__notif-content']}>
+                      <div className={styles['header__notif-sender']}>
+                        {taskNotif.new_today_count} משימות חדשות היום
+                      </div>
+                      <div className={styles['header__notif-text']}>משימות שנוצרו היום</div>
+                    </div>
+                  </a>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Chat notifications section */}
           <div className={styles['header__notif-header']}>
             <span>התראות צ׳אט</span>
             {unreadCount > 0 && (
