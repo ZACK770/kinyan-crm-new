@@ -31,6 +31,7 @@ import { CourseTopicsPage } from '@/pages/CourseTopics'
 import { TopicLessonsPage } from '@/pages/TopicLessons'
 import { LessonWorkspacePage } from '@/pages/LessonWorkspace'
 import { StudentPortalPage } from '@/pages/StudentPortal'
+import { PopupManagePage } from '@/pages/PopupManage'
 
 export function App() {
   return (
@@ -75,6 +76,7 @@ export function App() {
                 <Route path="/admin/audit-logs" element={<ManagerRoute><AuditLogsPage /></ManagerRoute>} />
                 <Route path="/admin/webhook-logs" element={<ManagerRoute><WebhookLogsPage /></ManagerRoute>} />
                 <Route path="/admin/webhook-queue" element={<AdminRoute><WebhookQueue /></AdminRoute>} />
+                <Route path="/admin/popups" element={<ManagerRoute><PopupManagePage /></ManagerRoute>} />
                 <Route path="/admin/sales-assignment" element={<ManagerRoute><SalesAssignmentRulesPage /></ManagerRoute>} />
                 <Route path="/admin/import-leads" element={<AdminRoute><ImportLeadsPage /></AdminRoute>} />
                 <Route path="*" element={<PlaceholderPage title="הדף לא נמצא" />} />

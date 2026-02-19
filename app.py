@@ -22,7 +22,7 @@ from api import inquiries_api, exams_api, payments_api, expenses_api, attendance
 from api import auth_api, users_api, audit_logs_api, campaigns_api, files_api, sales_assignment_api
 from api import course_tracks_api, lecturers_api, messages_api, templates_api, lead_conversion_api
 from api import import_api, webhook_logs_api, webhook_queue_api, export_api, topics_api
-from api import inbound_emails_api, chat_api, sales_simulator_api
+from api import inbound_emails_api, chat_api, sales_simulator_api, popup_api
 from webhooks import inbound_email as inbound_email_webhook
 from webhooks import regulation_approval
 
@@ -93,6 +93,9 @@ app.include_router(chat_api.router, prefix="/api/chat", tags=["chat"])
 
 # --- Sales Simulator (AI Training) ---
 app.include_router(sales_simulator_api.router, prefix="/api/sales-simulator", tags=["sales-simulator"])
+
+# --- Popup Announcements ---
+app.include_router(popup_api.router, prefix="/api/popups", tags=["popups"])
 
 
 # Health check endpoint (for Render and monitoring)

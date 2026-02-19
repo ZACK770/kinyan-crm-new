@@ -6,6 +6,7 @@ import { App } from './App'
 import { ToastProvider } from './components/ui/Toast'
 import { ModalProvider } from './components/ui/Modal'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
+import { PopupAnnouncementProvider } from './components/ui/PopupAnnouncement'
 import './styles/globals.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -15,7 +16,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <AuthProvider>
           <ToastProvider>
             <ModalProvider>
-              <App />
+              <PopupAnnouncementProvider>
+                <App />
+              </PopupAnnouncementProvider>
             </ModalProvider>
           </ToastProvider>
         </AuthProvider>

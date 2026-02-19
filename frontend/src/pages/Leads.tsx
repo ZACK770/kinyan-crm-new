@@ -202,9 +202,14 @@ function LeadForm({
             <option value="ליד חדש">ליד חדש</option>
             <option value="ליד בתהליך">ליד בתהליך</option>
             <option value="חיוג ראשון">חיוג ראשון</option>
+            <option value="ליד ישן">ליד ישן</option>
+            <option value="במעקב">במעקב</option>
+            <option value="מתעניין">מתעניין</option>
             <option value="נסלק">נסלק</option>
             <option value="תלמיד פעיל">תלמיד פעיל</option>
             <option value="לא רלוונטי">לא רלוונטי</option>
+            <option value="ליד סגור - לקוח">ליד סגור - לקוח</option>
+            <option value="ליד סגור - לא רלוונטי">ליד סגור - לא רלוונטי</option>
           </select>
         </div>
       </div>
@@ -543,11 +548,14 @@ export function LeadsPage() {
     try {
       const payload: Record<string, unknown> = { [field]: value }
       // Handle special fields conversions if needed
-      await api.patch(`leads/${lead.id}`, payload)
+      const result = await api.patch<{ id: number; status: string; last_edited_at?: string; updated_at?: string }>(`leads/${lead.id}`, payload)
       toast.success('עודכן בהצלחה')
       
-      // Update local state to avoid full reload
-      setLeads(prev => prev.map(p => p.id === lead.id ? { ...p, ...payload } : p))
+      // Update local state with changed field + timestamps from server
+      const serverUpdates: Record<string, unknown> = { ...payload }
+      if (result?.last_edited_at) serverUpdates.last_edited_at = result.last_edited_at
+      if (result?.updated_at) serverUpdates.updated_at = result.updated_at
+      setLeads(prev => prev.map(p => p.id === lead.id ? { ...p, ...serverUpdates } : p))
     } catch (err) {
       toast.error('שגיאה בעדכון')
       throw err // SmartTable will catch this to revert/show error
@@ -753,10 +761,15 @@ export function LeadsPage() {
         { value: 'ליד חדש', label: 'ליד חדש' },
         { value: 'ליד בתהליך', label: 'ליד בתהליך' },
         { value: 'חיוג ראשון', label: 'חיוג ראשון' },
+        { value: 'ליד ישן', label: 'ליד ישן' },
+        { value: 'במעקב', label: 'במעקב' },
+        { value: 'מתעניין', label: 'מתעניין' },
         { value: 'נסלק', label: 'נסלק' },
         { value: 'converted', label: 'הומר לתלמיד' },
         { value: 'תלמיד פעיל', label: 'תלמיד פעיל' },
         { value: 'לא רלוונטי', label: 'לא רלוונטי' },
+        { value: 'ליד סגור - לקוח', label: 'ליד סגור - לקוח' },
+        { value: 'ליד סגור - לא רלוונטי', label: 'ליד סגור - לא רלוונטי' },
       ],
       renderView: (r) => <Badge entity="lead" value={r.status} />,
     },

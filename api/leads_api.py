@@ -242,7 +242,12 @@ async def update_lead(
         request=request,
     )
     
-    return {"id": lead.id, "status": lead.status}
+    return {
+        "id": lead.id,
+        "status": lead.status,
+        "last_edited_at": str(lead.last_edited_at) if lead.last_edited_at else None,
+        "updated_at": str(lead.updated_at) if lead.updated_at else None,
+    }
 
 
 # ── Convert Lead to Student ────────────────────────────────

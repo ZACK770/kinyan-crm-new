@@ -54,9 +54,15 @@ const STATUS_OPTIONS: SelectOption[] = [
   { value: 'ליד חדש', label: 'ליד חדש' },
   { value: 'ליד בתהליך', label: 'ליד בתהליך' },
   { value: 'חיוג ראשון', label: 'חיוג ראשון' },
+  { value: 'ליד ישן', label: 'ליד ישן' },
+  { value: 'במעקב', label: 'במעקב' },
+  { value: 'מתעניין', label: 'מתעניין' },
   { value: 'נסלק', label: 'נסלק' },
+  { value: 'converted', label: 'הומר לתלמיד' },
   { value: 'תלמיד פעיל', label: 'תלמיד פעיל' },
   { value: 'לא רלוונטי', label: 'לא רלוונטי' },
+  { value: 'ליד סגור - לקוח', label: 'ליד סגור - לקוח' },
+  { value: 'ליד סגור - לא רלוונטי', label: 'ליד סגור - לא רלוונטי' },
 ]
 
 const SOURCE_OPTIONS: SelectOption[] = [

@@ -14,7 +14,7 @@ Expected payload:
 }
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import select
@@ -96,7 +96,7 @@ async def handle_kinyan_approval_webhook(data: dict) -> dict:
             
             # Mark kinyan as signed
             lead.kinyan_signed = True
-            lead.kinyan_signed_date = datetime.now()
+            lead.kinyan_signed_date = datetime.now(timezone.utc)
             lead.kinyan_method = parsed["method"]
             
             if parsed["file_url"]:
@@ -107,7 +107,7 @@ async def handle_kinyan_approval_webhook(data: dict) -> dict:
             # Also update the legacy approved_terms field
             lead.approved_terms = True
             lead.approval_method = parsed["method"]
-            lead.approval_date = datetime.now()
+            lead.approval_date = datetime.now(timezone.utc)
             
             await db.flush()
             await db.commit()

@@ -2,7 +2,7 @@
 Lead Conversion Service - מעקב המרת לידים לתלמידים
 מנהל את תהליך ה-5 שלבים להמרת ליד לתלמיד
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func
@@ -44,11 +44,11 @@ async def update_payment_status(
     
     lead.payment_completed = True
     lead.payment_completed_amount = amount
-    lead.payment_completed_date = datetime.now()
+    lead.payment_completed_date = datetime.now(timezone.utc)
     lead.payment_completed_method = method
     lead.payment_reference = reference
     lead.payment_verified = verified
-    lead.updated_at = datetime.now()
+    lead.updated_at = datetime.now(timezone.utc)
     
     await session.commit()
     
@@ -90,11 +90,11 @@ async def update_kinyan_status(
         return {"success": False, "error": "Lead not found"}
     
     lead.kinyan_signed = True
-    lead.kinyan_signed_date = datetime.now()
+    lead.kinyan_signed_date = datetime.now(timezone.utc)
     lead.kinyan_method = method
     lead.kinyan_file_url = file_url
     lead.kinyan_notes = notes
-    lead.updated_at = datetime.now()
+    lead.updated_at = datetime.now(timezone.utc)
     
     await session.commit()
     
@@ -142,7 +142,7 @@ async def update_shipping_details(
     lead.shipping_postal_code = postal_code
     lead.shipping_phone = phone
     lead.shipping_notes = notes
-    lead.updated_at = datetime.now()
+    lead.updated_at = datetime.now(timezone.utc)
     
     await session.commit()
     
@@ -184,8 +184,8 @@ async def update_student_chat(
     lead.student_chat_added = True
     lead.student_chat_link = chat_link
     lead.student_chat_platform = platform
-    lead.student_chat_added_date = datetime.now()
-    lead.updated_at = datetime.now()
+    lead.student_chat_added_date = datetime.now(timezone.utc)
+    lead.updated_at = datetime.now(timezone.utc)
     
     await session.commit()
     
@@ -232,9 +232,9 @@ async def handoff_to_class_manager(
         return {"success": False, "error": "Manager not found"}
     
     lead.handoff_to_manager = True
-    lead.handoff_date = datetime.now()
+    lead.handoff_date = datetime.now(timezone.utc)
     lead.handoff_manager_id = manager_id
-    lead.updated_at = datetime.now()
+    lead.updated_at = datetime.now(timezone.utc)
     
     # יצירת משימה 1: אישור קבלת משלוח
     task1 = SalesTask(
@@ -303,7 +303,7 @@ async def complete_manager_task(
         return {"success": False, "error": "Task not found"}
     
     task.status = "הושלם"
-    task.completed_at = datetime.now()
+    task.completed_at = datetime.now(timezone.utc)
     
     await session.commit()
     
@@ -327,7 +327,7 @@ async def complete_manager_task(
             
             if not pending_tasks:
                 lead.handoff_completed = True
-                lead.handoff_completed_date = datetime.now()
+                lead.handoff_completed_date = datetime.now(timezone.utc)
                 await session.commit()
                 
                 await log_action(
@@ -356,7 +356,7 @@ async def check_and_complete_conversion(
     if await check_conversion_complete(lead):
         if not lead.conversion_checklist_complete:
             lead.conversion_checklist_complete = True
-            lead.conversion_completed_at = datetime.now()
+            lead.conversion_completed_at = datetime.now(timezone.utc)
             lead.conversion_completed_by_id = user_id
             lead.status = "נסלק"
             

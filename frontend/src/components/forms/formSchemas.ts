@@ -52,11 +52,18 @@ export interface EntityFormSchema {
 // Status Options (reused across entities)
 // ============================================================
 const leadStatusOptions: FieldOption[] = [
-  { value: 'new', label: 'חדש' },
-  { value: 'contacted', label: 'נוצר קשר' },
-  { value: 'interested', label: 'מעוניין' },
-  { value: 'converted', label: 'הומר' },
-  { value: 'irrelevant', label: 'לא רלוונטי' },
+  { value: 'ליד חדש', label: 'ליד חדש' },
+  { value: 'ליד בתהליך', label: 'ליד בתהליך' },
+  { value: 'חיוג ראשון', label: 'חיוג ראשון' },
+  { value: 'ליד ישן', label: 'ליד ישן' },
+  { value: 'במעקב', label: 'במעקב' },
+  { value: 'מתעניין', label: 'מתעניין' },
+  { value: 'נסלק', label: 'נסלק' },
+  { value: 'converted', label: 'הומר לתלמיד' },
+  { value: 'תלמיד פעיל', label: 'תלמיד פעיל' },
+  { value: 'לא רלוונטי', label: 'לא רלוונטי' },
+  { value: 'ליד סגור - לקוח', label: 'ליד סגור - לקוח' },
+  { value: 'ליד סגור - לא רלוונטי', label: 'ליד סגור - לא רלוונטי' },
 ]
 
 const sourceTypeOptions: FieldOption[] = [
