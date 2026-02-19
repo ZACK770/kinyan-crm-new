@@ -2,8 +2,9 @@
 Popup Announcements API — הודעות פופ-אפ מתפרצות לצוות
 Prefix: /api/popups
 """
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -55,13 +56,30 @@ class PopupUpdate(BaseModel):
     priority: Optional[int] = None
 
 
+IL_TZ = ZoneInfo("Asia/Jerusalem")
+
+
 def _parse_dt(val: Optional[str]) -> Optional[datetime]:
+    """Parse datetime string from frontend (datetime-local = Israel time) → UTC-aware."""
     if not val:
         return None
     try:
-        return datetime.fromisoformat(val)
+        dt = datetime.fromisoformat(val)
+        if dt.tzinfo is None:
+            # datetime-local input has no timezone — treat as Israel time
+            dt = dt.replace(tzinfo=IL_TZ)
+        return dt.astimezone(timezone.utc)
     except Exception:
         return None
+
+
+def _dt_to_il(dt: Optional[datetime]) -> Optional[str]:
+    """Convert a DB datetime to Israel-time ISO string for the frontend."""
+    if not dt:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(IL_TZ).isoformat()
 
 
 def _serialize(ann: PopupAnnouncement, dismiss_count: int = 0) -> dict:
@@ -77,8 +95,8 @@ def _serialize(ann: PopupAnnouncement, dismiss_count: int = 0) -> dict:
         "target_audience": ann.target_audience,
         "min_permission_level": ann.min_permission_level,
         "is_active": ann.is_active,
-        "start_at": str(ann.start_at) if ann.start_at else None,
-        "end_at": str(ann.end_at) if ann.end_at else None,
+        "start_at": _dt_to_il(ann.start_at),
+        "end_at": _dt_to_il(ann.end_at),
         "show_count": ann.show_count,
         "is_template": ann.is_template,
         "priority": ann.priority,
@@ -236,6 +254,15 @@ async def duplicate_announcement(
 
 # ── User-facing endpoints ────────────────────────────
 
+def _ensure_aware(dt: Optional[datetime]) -> Optional[datetime]:
+    """Make sure a datetime is timezone-aware (assume UTC if naive)."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 @router.get("/active")
 async def get_active_popups(
     user: User = Depends(get_current_user),
@@ -247,14 +274,13 @@ async def get_active_popups(
     """
     now = datetime.now(timezone.utc)
 
-    # Base query: active, within schedule window
+    # Fetch all active non-template popups; time filtering done in Python
+    # to safely handle naive/aware datetime mismatches in existing DB data
     stmt = (
         select(PopupAnnouncement)
         .where(
             PopupAnnouncement.is_active == True,  # noqa: E712
             PopupAnnouncement.is_template == False,  # noqa: E712
-            or_(PopupAnnouncement.start_at == None, PopupAnnouncement.start_at <= now),  # noqa: E711
-            or_(PopupAnnouncement.end_at == None, PopupAnnouncement.end_at >= now),  # noqa: E711
         )
         .order_by(PopupAnnouncement.priority.desc(), PopupAnnouncement.created_at.desc())
     )
@@ -263,6 +289,14 @@ async def get_active_popups(
 
     visible = []
     for ann in announcements:
+        # Check schedule window (handle naive datetimes gracefully)
+        start = _ensure_aware(ann.start_at)
+        end = _ensure_aware(ann.end_at)
+        if start and start > now:
+            continue
+        if end and end < now:
+            continue
+
         # Check audience targeting
         if ann.min_permission_level > user.permission_level:
             continue
