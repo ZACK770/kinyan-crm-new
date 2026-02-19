@@ -1440,3 +1440,69 @@ class ChatMessage(Base):
     thread: Mapped["ChatThread"] = relationship(back_populates="messages")
     sender: Mapped["User"] = relationship(foreign_keys=[sender_user_id])
     reply_to: Mapped[Optional["ChatMessage"]] = relationship(remote_side="ChatMessage.id", foreign_keys=[reply_to_message_id])
+
+
+# ============================================================
+# PopupAnnouncement (הודעות פופ-אפ מתפרצות)
+# ============================================================
+class PopupAnnouncement(Base):
+    __tablename__ = "popup_announcements"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    body: Mapped[Optional[str]] = mapped_column(Text)
+    image_url: Mapped[Optional[str]] = mapped_column(Text)  # URL or base64 data URI
+    cta_text: Mapped[Optional[str]] = mapped_column(String(100))  # call-to-action button text
+    cta_link: Mapped[Optional[str]] = mapped_column(String(500))  # call-to-action URL
+
+    # Styling
+    theme: Mapped[str] = mapped_column(String(50), default="default")  # default/success/warning/fire/celebration
+    animation: Mapped[str] = mapped_column(String(50), default="slideUp")  # slideUp/fadeIn/bounceIn/zoomIn
+
+    # Targeting
+    target_audience: Mapped[str] = mapped_column(String(50), default="all")  # all / salesperson / manager / admin
+    min_permission_level: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Scheduling
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    start_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))  # NULL = immediately
+    end_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))  # NULL = no expiry
+    show_count: Mapped[int] = mapped_column(Integer, default=1)  # how many times to show per user (0 = unlimited)
+    is_template: Mapped[bool] = mapped_column(Boolean, default=False)  # saved as reusable template
+
+    # Priority & ordering
+    priority: Mapped[int] = mapped_column(Integer, default=0)  # higher = shown first
+
+    # Metadata
+    created_by_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_popup_active", "is_active"),
+        Index("idx_popup_schedule", "start_at", "end_at"),
+        Index("idx_popup_template", "is_template"),
+    )
+
+    dismissals: Mapped[List["PopupDismissal"]] = relationship(back_populates="announcement", cascade="all, delete-orphan")
+
+
+# ============================================================
+# PopupDismissal (סגירת פופ-אפ ע"י משתמש)
+# ============================================================
+class PopupDismissal(Base):
+    __tablename__ = "popup_dismissals"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    announcement_id: Mapped[int] = mapped_column(ForeignKey("popup_announcements.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    seen_count: Mapped[int] = mapped_column(Integer, default=1)  # how many times user has seen it
+    dismissed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("announcement_id", "user_id", name="uq_popup_dismissal"),
+        Index("idx_popup_dismiss_user", "user_id"),
+        Index("idx_popup_dismiss_ann", "announcement_id"),
+    )
+
+    announcement: Mapped["PopupAnnouncement"] = relationship(back_populates="dismissals")

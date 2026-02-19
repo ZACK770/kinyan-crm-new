@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, type FC } from 'react'
 import {
   MessageCircle, X, Send, ChevronLeft, Plus, Users, Pin,
-  Search, Reply, Lock, UserPlus, Trash2,
+  Search, Reply, Lock, UserPlus, Trash2, Paperclip, Download, Smile, FileText, Image as ImageIcon,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
@@ -54,6 +54,31 @@ interface Message {
   created_at?: string | null
 }
 
+interface FileAttachment {
+  id: number
+  filename: string
+  size_bytes: number
+  content_type?: string
+}
+
+const EMOJI_LIST = [
+  '😀','😂','😍','🤩','😎','🤔','😅','👍','👏','🙏',
+  '❤️','🔥','✅','⭐','💪','🎉','😊','🤝','💯','👋',
+  '😢','😡','🤷','🙄','😴','🤦','💡','📌','🚀','✨',
+]
+
+function parseFileFromContent(content: string): FileAttachment | null {
+  const match = content.match(/^\[file:(\d+)\|(.+?)\|(\d+)(?:\|(.+?))?\]$/)
+  if (!match) return null
+  return { id: parseInt(match[1]), filename: match[2], size_bytes: parseInt(match[3]), content_type: match[4] }
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 /* ── Notification sound ── */
 const DING_URL = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdH2LkZeYl5KMhX13cW1ub3V8g4mOkZKSkI2JhYF9eXZ1dXd6fYGFiIqLi4qJh4WCf3x6eHd3eHp8f4KFh4mKioqJiIaCf3x6eHd3eHp9gIOGiImKiomIhoN/fHp4d3d4en2Ag4aIiYqKiYiGg398enl3d3h6fYCDhoiJioqJiIaDf3x6eXd3eHp9gIOGiImKiomIhoN/fHp5d3d4en2Ag4aIiYqKiYiGg398enl3d3h6fYCDhoiJioqJiIaDgHx6eXd3eHp9gIOGiImKiomIhoOAfHp5eHd4en2Ag4aIiYqKiYiGg4B8enl4d3h6fYCDhoiJioqJiIaDgHx6eXh4eHp9gIOGiImKiomIhoOAfHp5eHh5en2Ag4aIiYqKiYiGg4B8e3l4eHl6fYCDhoiJioqJiIaDgHx7eXh4eXp9gIOGiImKiomIhoOAfHt5eHh5en2Ag4aIiYqKiYiGg4B8e3l4eHl6fYCDhoeJioqJiIaDgHx7eXh4eXp9gIOGh4mKiomIhoOAfHt5eHl5en2Ag4aHiYqKiYiGg4B8e3l4eXl7fYCDhoeJioqJiIaDgH17eXh5eXt9gIOGh4mKiomIhoOAfXt5eHl5e32Ag4aHiYqKiYiGg4B9e3l5eXl7fYCDhoeJioqJiIaDgH17eXl5eXt9gIOGh4mKiomIhoSAfXt5eXl6e32Ag4aHiYqKiYiGhIB9e3l5eXp7fYCDhoeJioqJiIaEgH17enl5ent9gIOGh4mKiomIhoSAfXt6eXl6e32Ag4aHiYqKiYiGhIB9e3p5enp7fYCDhoeJioqJiIaEgH17enl6ent9gIOGh4mKiomJhoSAfXt6enp6e32Ag4aHiYqKiYmGhIB9e3p6enp7fYCDhoeJioqJiYaEgH17enp6ent+gIOGh4mKiomJhoSBfXt6enp6e36Ag4aHiYqKiYmGhIF9fHp6enp7foCDhoeJioqJiYaEgX18enp6e3t+gIOGh4mKiomJhoSBfXx6enp7e36Ag4aHiYqKiYmHhIF9fHp6e3t7foCDhoeJioqJiYeEgX18enp7e3t+gIOGh4mKiomJh4SBfXx6e3t7e36Ag4aHiYqKiYmHhIF9fHt7e3t7foCDhoeJioqJiYeEgX18e3t7e3x+gIOGh4mKiomJh4WBfXx7e3t7fH6Ag4aHiYqKiYmHhYF+fHt7e3x8foCDhoeJioqKiYeFgX58e3t7fHx+gIOGh4mKioqJh4WBfnx7e3x8fH6Bg4aHiYqKiomHhYF+fHt7fHx8foCDhoeJioqKiYeF'
 const playDing = () => {
@@ -84,10 +109,14 @@ export const ChatWidget: FC = () => {
   const [searchUsers, setSearchUsers] = useState('')
   const [unreadCount] = useState(0)
   const [contextMenu, setContextMenu] = useState<{ msg: Message; x: number; y: number } | null>(null)
+  const [showEmoji, setShowEmoji] = useState(false)
+  const [uploading, setUploading] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const seenMsgIds = useRef<Set<number>>(new Set())
 
   const isManager = (user?.permission_level ?? 0) >= 30
 
@@ -109,6 +138,8 @@ export const ChatWidget: FC = () => {
       setLoading(true)
       const data = await api.get<Message[]>(`/chat/threads/${threadId}/messages`)
       setMessages(data)
+      // Track all loaded message IDs for dedup
+      seenMsgIds.current = new Set(data.map(m => m.id))
     } catch {} finally { setLoading(false) }
   }, [])
 
@@ -132,11 +163,17 @@ export const ChatWidget: FC = () => {
         const data = JSON.parse(evt.data)
         if (data.type === 'new_message') {
           const msg: Message = data.message
+          // Deduplicate: skip if we already have this message (optimistic add)
+          if (seenMsgIds.current.has(msg.id)) return
+          seenMsgIds.current.add(msg.id)
           if (msg.sender_user_id !== user?.id) {
             playDing()
           }
-          setMessages(prev => [...prev, msg])
-          // Scroll to bottom
+          setMessages(prev => {
+            // Extra safety: check if already in array
+            if (prev.some(m => m.id === msg.id)) return prev
+            return [...prev, msg]
+          })
           setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
         } else if (data.type === 'message_pinned') {
           setMessages(prev => prev.map(m =>
@@ -181,15 +218,59 @@ export const ChatWidget: FC = () => {
   const sendMessage = useCallback(async () => {
     if (!input.trim() || !activeThread) return
     try {
-      await api.post(`/chat/threads/${activeThread.id}/messages`, {
+      const res = await api.post<Message>(`/chat/threads/${activeThread.id}/messages`, {
         content: input.trim(),
         reply_to_message_id: replyTo?.id || null,
       })
+      // Optimistic: add message immediately and track its ID for dedup
+      if (res?.id) {
+        seenMsgIds.current.add(res.id)
+        setMessages(prev => prev.some(m => m.id === res.id) ? prev : [...prev, res])
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+      }
       setInput('')
       setReplyTo(null)
+      setShowEmoji(false)
       inputRef.current?.focus()
     } catch {}
   }, [input, activeThread, replyTo])
+
+  // ── Upload file ──
+  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !activeThread) return
+    if (file.size > 10 * 1024 * 1024) {
+      alert('הקובץ גדול מדי. מקסימום 10MB')
+      return
+    }
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const uploadRes = await fetch(`/api/files/upload?entity_type=chat&entity_id=${activeThread.id}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('kinyan_auth_token')}` },
+        body: formData,
+      })
+      if (!uploadRes.ok) throw new Error('Upload failed')
+      const uploadData = await uploadRes.json()
+      // Send file message
+      const fileContent = `[file:${uploadData.id}|${file.name}|${file.size}|${file.type}]`
+      const res = await api.post<Message>(`/chat/threads/${activeThread.id}/messages`, {
+        content: fileContent,
+        reply_to_message_id: null,
+      })
+      if (res?.id) {
+        seenMsgIds.current.add(res.id)
+        setMessages(prev => prev.some(m => m.id === res.id) ? prev : [...prev, res])
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+      }
+    } catch { alert('שגיאה בהעלאת הקובץ') }
+    finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }, [activeThread])
 
   // ── Start DM ──
   const startDM = useCallback(async (targetUserId: number) => {
@@ -563,7 +644,33 @@ export const ChatWidget: FC = () => {
                     {m.sender_user_id !== user?.id && (
                       <div className={styles.msgSender}>{m.sender_name}</div>
                     )}
-                    <div className={styles.msgContent}>{m.content}</div>
+                    {(() => {
+                      const fileInfo = parseFileFromContent(m.content)
+                      if (fileInfo) {
+                        const isImage = fileInfo.content_type?.startsWith('image/')
+                        return (
+                          <div className={styles.fileAttachment}>
+                            <div className={styles.fileIcon}>
+                              {isImage ? <ImageIcon size={18} /> : <FileText size={18} />}
+                            </div>
+                            <div className={styles.fileInfo}>
+                              <span className={styles.fileName}>{fileInfo.filename}</span>
+                              <span className={styles.fileSize}>{formatFileSize(fileInfo.size_bytes)}</span>
+                            </div>
+                            <a
+                              href={`/api/files/${fileInfo.id}/download`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className={styles.fileDownload}
+                              onClick={e => e.stopPropagation()}
+                            >
+                              <Download size={14} />
+                            </a>
+                          </div>
+                        )
+                      }
+                      return <div className={styles.msgContent}>{m.content}</div>
+                    })()}
                     <div className={styles.msgTime}>{formatTime(m.created_at)}</div>
                   </div>
                 </div>
@@ -580,6 +687,17 @@ export const ChatWidget: FC = () => {
               </div>
             )}
 
+            {/* Emoji Picker */}
+            {showEmoji && (
+              <div className={styles.emojiPicker}>
+                {EMOJI_LIST.map(em => (
+                  <button key={em} className={styles.emojiBtn} onClick={() => { setInput(prev => prev + em); inputRef.current?.focus() }}>
+                    {em}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Input */}
             <div className={styles.inputBar}>
               <input
@@ -590,6 +708,13 @@ export const ChatWidget: FC = () => {
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
               />
+              <button className={styles.emojiToggle} onClick={() => setShowEmoji(v => !v)} title="אימוג'י">
+                <Smile size={18} />
+              </button>
+              <input ref={fileInputRef} type="file" hidden onChange={handleFileUpload} />
+              <button className={styles.attachBtn} onClick={() => fileInputRef.current?.click()} disabled={uploading} title="צרף קובץ">
+                <Paperclip size={18} />
+              </button>
               <button className={styles.sendBtn} onClick={sendMessage} disabled={!input.trim()}>
                 <Send size={16} />
               </button>

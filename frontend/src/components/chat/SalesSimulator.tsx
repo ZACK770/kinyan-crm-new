@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, type FC } from 'react'
-import { Bot, X, Send, RotateCcw } from 'lucide-react'
+import { Bot, X, Send, RotateCcw, Lightbulb, CheckCircle, AlertTriangle, Trophy } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
 import styles from './SalesSimulator.module.css'
@@ -10,6 +10,13 @@ interface SimMessage {
   content: string
 }
 
+interface SimResponse {
+  customer_reply: string
+  mentor_feedback: string
+  sentiment: 'positive' | 'neutral' | 'negative'
+  is_closed: boolean
+}
+
 export const SalesSimulator: FC = () => {
   const { user } = useAuth()
   const [open, setOpen] = useState(false)
@@ -17,6 +24,9 @@ export const SalesSimulator: FC = () => {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [mentorText, setMentorText] = useState('היי! המטרה שלך: לבשר לדוד על הזכייה בהטבה, לייצר חיבור אישי, ולסגור הרשמה. בהצלחה!')
+  const [mentorTitle, setMentorTitle] = useState('מנטור המכירות:')
+  const [sentiment, setSentiment] = useState<'positive' | 'neutral' | 'negative' | 'victory'>('neutral')
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -40,10 +50,29 @@ export const SalesSimulator: FC = () => {
     setLoading(true)
 
     try {
-      const res = await api.post<{ response: string }>('/sales-simulator/chat', {
+      const res = await api.post<SimResponse>('/sales-simulator/chat', {
         messages: updatedMessages,
       })
-      setMessages(prev => [...prev, { role: 'customer', content: res.response }])
+      // Add customer reply
+      setMessages(prev => [...prev, { role: 'customer', content: res.customer_reply }])
+      // Update mentor feedback
+      if (res.is_closed) {
+        setSentiment('victory')
+        setMentorTitle('מכירה מוצלחת! 🏆')
+        setMentorText(res.mentor_feedback || 'כל הכבוד! סגרת את העסקה בהצלחה.')
+      } else if (res.sentiment === 'positive') {
+        setSentiment('positive')
+        setMentorTitle('מעולה! המשך כך')
+        setMentorText(res.mentor_feedback)
+      } else if (res.sentiment === 'negative') {
+        setSentiment('negative')
+        setMentorTitle('שים לב...')
+        setMentorText(res.mentor_feedback)
+      } else {
+        setSentiment('neutral')
+        setMentorTitle('מנטור המכירות:')
+        setMentorText(res.mentor_feedback)
+      }
     } catch (err: any) {
       setError(err?.message || 'שגיאה בתקשורת עם השרת')
     } finally {
@@ -56,6 +85,9 @@ export const SalesSimulator: FC = () => {
     setMessages([])
     setError(null)
     setInput('')
+    setSentiment('neutral')
+    setMentorTitle('מנטור המכירות:')
+    setMentorText('היי! המטרה שלך: לבשר לדוד על הזכייה בהטבה, לייצר חיבור אישי, ולסגור הרשמה. בהצלחה!')
   }, [])
 
   if (!user || user.permission_level < 10) return null
@@ -78,7 +110,7 @@ export const SalesSimulator: FC = () => {
         <div className={styles.drawerHeader}>
           <div className={styles.headerTitle}>
             <Bot size={16} />
-            <span>שיחה עם לקוח (סימולטור)</span>
+            <span>דוד כהן (AI)</span>
           </div>
           <div className={styles.headerActions}>
             <button className={styles.resetBtn} onClick={resetChat} title="התחל מחדש">
@@ -90,11 +122,30 @@ export const SalesSimulator: FC = () => {
           </button>
         </div>
 
+        {/* Mentor Feedback Area */}
+        <div className={clsx(
+          styles.mentorBox,
+          sentiment === 'positive' && styles.mentorPositive,
+          sentiment === 'negative' && styles.mentorNegative,
+          sentiment === 'victory' && styles.mentorVictory,
+        )}>
+          <div className={styles.mentorIcon}>
+            {sentiment === 'victory' ? <Trophy size={16} /> :
+             sentiment === 'positive' ? <CheckCircle size={16} /> :
+             sentiment === 'negative' ? <AlertTriangle size={16} /> :
+             <Lightbulb size={16} />}
+          </div>
+          <div className={styles.mentorContent}>
+            <div className={styles.mentorTitle}>{mentorTitle}</div>
+            <div className={styles.mentorFeedback}>{mentorText}</div>
+          </div>
+        </div>
+
         {/* Messages */}
         <div className={styles.messageList}>
           {messages.length === 0 && (
             <div className={styles.welcomeMessage}>
-              <h3>סימולטור לקוח — "דוד כהן"</h3>
+              <h3>סימולטור מכירות AI</h3>
               <p>
                 אתה איש מכירות של קניין הוראה.<br />
                 דוד כהן עשה חידון באינטרנט וקיבל ציון בינוני.<br />
@@ -131,6 +182,10 @@ export const SalesSimulator: FC = () => {
 
           {error && <div className={styles.errorMsg}>{error}</div>}
 
+          {sentiment === 'victory' && messages.length > 0 && (
+            <div className={styles.victoryBanner}>🎊 יש מכירה! כל הכבוד! 🎊</div>
+          )}
+
           <div ref={messagesEndRef} />
         </div>
 
@@ -139,7 +194,7 @@ export const SalesSimulator: FC = () => {
           <input
             ref={inputRef}
             className={styles.chatInput}
-            placeholder="הקלד את המשפט שלך..."
+            placeholder="הקלד הודעה..."
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => {
@@ -148,12 +203,12 @@ export const SalesSimulator: FC = () => {
                 sendMessage()
               }
             }}
-            disabled={loading}
+            disabled={loading || sentiment === 'victory'}
           />
           <button
             className={styles.sendBtn}
             onClick={sendMessage}
-            disabled={!input.trim() || loading}
+            disabled={!input.trim() || loading || sentiment === 'victory'}
           >
             <Send size={16} />
           </button>

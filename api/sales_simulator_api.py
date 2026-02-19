@@ -25,7 +25,10 @@ class SimulatorChatRequest(BaseModel):
 
 
 class SimulatorChatResponse(BaseModel):
-    response: str
+    customer_reply: str
+    mentor_feedback: str
+    sentiment: str  # "positive" | "neutral" | "negative"
+    is_closed: bool
 
 
 @router.post("/chat", response_model=SimulatorChatResponse)
@@ -33,7 +36,7 @@ async def simulator_chat(
     body: SimulatorChatRequest,
     user: User = Depends(get_current_user),
 ):
-    """Send conversation history and get AI customer response."""
+    """Send conversation history and get AI customer response + mentor feedback."""
     from services.sales_simulator import chat_with_simulator
 
     if not body.messages:
@@ -42,8 +45,8 @@ async def simulator_chat(
     messages_dicts = [{"role": m.role, "content": m.content} for m in body.messages]
 
     try:
-        response_text = await chat_with_simulator(messages_dicts)
-        return {"response": response_text}
+        result = await chat_with_simulator(messages_dicts)
+        return result
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:

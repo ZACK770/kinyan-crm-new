@@ -58,6 +58,57 @@
 }
 .headerActions button:hover, .closeBtn:hover, .resetBtn:hover { background: rgba(255,255,255,0.25); }
 
+/* Mentor Feedback Box */
+.mentorBox {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 10px 14px; flex-shrink: 0;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border-bottom: 2px solid #f59e0b;
+  transition: all 0.3s ease; direction: rtl;
+}
+.mentorIcon {
+  width: 28px; height: 28px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; color: #d97706; margin-top: 1px;
+}
+.mentorContent { flex: 1; min-width: 0; }
+.mentorTitle { font-size: 12px; font-weight: 700; color: #92400e; margin-bottom: 2px; }
+.mentorFeedback { font-size: 12px; color: #78350f; line-height: 1.5; }
+
+.mentorPositive {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border-bottom-color: #22c55e;
+}
+.mentorPositive .mentorIcon { color: #16a34a; }
+.mentorPositive .mentorTitle { color: #166534; }
+.mentorPositive .mentorFeedback { color: #14532d; }
+
+.mentorNegative {
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border-bottom-color: #ef4444;
+}
+.mentorNegative .mentorIcon { color: #dc2626; }
+.mentorNegative .mentorTitle { color: #991b1b; }
+.mentorNegative .mentorFeedback { color: #7f1d1d; }
+
+.mentorVictory {
+  background: linear-gradient(135deg, #f0fdf4 0%, #bbf7d0 100%);
+  border-bottom-color: #16a34a;
+}
+.mentorVictory .mentorIcon { color: #16a34a; }
+.mentorVictory .mentorTitle { color: #166534; font-size: 14px; }
+.mentorVictory .mentorFeedback { color: #14532d; }
+
+.victoryBanner {
+  text-align: center; padding: 12px; margin: 8px 0;
+  font-size: 16px; font-weight: 700; color: #16a34a;
+  animation: victoryBounce 0.6s ease;
+}
+@keyframes victoryBounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
 .messageList {
   flex: 1; overflow-y: auto; padding: 12px 10px;
   display: flex; flex-direction: column; gap: 6px; direction: rtl;
