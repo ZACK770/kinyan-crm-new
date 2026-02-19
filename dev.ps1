@@ -34,6 +34,9 @@ $env:SECRET_KEY = "dev-secret"
 $env:JWT_SECRET_KEY = "dev-jwt"
 $env:DEV_SKIP_AUTH = "true"
 
+# Gemini AI (Sales Simulator)
+$env:GEMINI_API_KEY = "AIzaSyAtZyVxJU534tmjuJ4E0o4mkGf8nyMJe-4"
+
 # Nedarim Plus API
 $env:NEDARIM_API_URL = "https://matara.pro/api"
 $env:NEDARIM_API_KEY = "ou946"
