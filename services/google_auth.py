@@ -12,11 +12,27 @@ GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
 
 
-def get_google_login_url(state: Optional[str] = None) -> str:
+def _get_redirect_uri(request_origin: Optional[str] = None) -> str:
+    """Get the correct redirect URI. If GOOGLE_REDIRECT_URI is explicitly set
+    (not the default localhost), use it. Otherwise try to auto-detect from
+    RENDER_EXTERNAL_URL or request origin."""
+    import os
+    uri = settings.GOOGLE_REDIRECT_URI
+    # If it's still the default localhost and we're on Render, auto-fix
+    if "localhost" in uri:
+        render_url = os.environ.get("RENDER_EXTERNAL_URL", "")
+        if render_url:
+            uri = f"{render_url}/auth/google/callback"
+        elif request_origin and "localhost" not in request_origin:
+            uri = f"{request_origin}/auth/google/callback"
+    return uri
+
+
+def get_google_login_url(state: Optional[str] = None, request_origin: Optional[str] = None) -> str:
     """Build the Google OAuth consent screen URL."""
     params = {
         "client_id": settings.GOOGLE_CLIENT_ID,
-        "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+        "redirect_uri": _get_redirect_uri(request_origin),
         "response_type": "code",
         "scope": "openid email profile",
         "access_type": "offline",
@@ -28,7 +44,7 @@ def get_google_login_url(state: Optional[str] = None) -> str:
     return f"{GOOGLE_AUTH_URL}?{qs}"
 
 
-async def exchange_code_for_tokens(code: str) -> dict:
+async def exchange_code_for_tokens(code: str, request_origin: Optional[str] = None) -> dict:
     """Exchange the authorization code for Google tokens."""
     async with httpx.AsyncClient() as client:
         resp = await client.post(
@@ -37,7 +53,7 @@ async def exchange_code_for_tokens(code: str) -> dict:
                 "code": code,
                 "client_id": settings.GOOGLE_CLIENT_ID,
                 "client_secret": settings.GOOGLE_CLIENT_SECRET,
-                "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+                "redirect_uri": _get_redirect_uri(request_origin),
                 "grant_type": "authorization_code",
             },
         )
