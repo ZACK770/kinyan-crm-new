@@ -52,8 +52,10 @@ async def chat_with_simulator(
     messages: list of {"role": "salesperson"|"customer", "content": "..."}
     Returns the customer's response text.
     """
-    api_key = gemini_api_key or os.environ.get("GEMINI_API_KEY", "")
+    api_key = (gemini_api_key or os.environ.get("GEMINI_API_KEY", "")).strip()
     if not api_key:
+        all_keys = [k for k in os.environ.keys() if "GEMINI" in k.upper()]
+        logger.error(f"GEMINI_API_KEY not found. Env vars with GEMINI: {all_keys}")
         raise ValueError("GEMINI_API_KEY לא מוגדר. הגדר את המפתח בהגדרות המערכת.")
 
     try:
