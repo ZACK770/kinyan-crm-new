@@ -26,6 +26,16 @@ class InteractionCreate(BaseModel):
     next_call_date: datetime | None = None
 
 
+class BulkUpdateRequest(BaseModel):
+    ids: list[int]
+    field: str
+    value: str | int | float | bool | None = None
+
+
+class BulkDeleteRequest(BaseModel):
+    ids: list[int]
+
+
 # ── Endpoints ────────────────────────────────────────
 @router.get("/")
 async def list_leads(
@@ -56,6 +66,45 @@ async def list_leads(
         }
         for l in items
     ]
+
+
+@router.post("/bulk-update")
+async def bulk_update_leads(
+    data: BulkUpdateRequest,
+    request: Request,
+    user = Depends(require_entity_access("leads", "edit")),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        count = await lead_svc.bulk_update_leads(db, data.ids, data.field, data.value)
+        await db.commit()
+        await audit_logs.log_update(
+            db=db, user=user, entity_type="leads", entity_id=0,
+            description=f"עדכון גורף: {data.field}={data.value} ל-{count} לידים",
+            changes={"ids": data.ids, "field": data.field, "value": data.value},
+            request=request,
+        )
+        return {"updated": count}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.post("/bulk-delete")
+async def bulk_delete_leads(
+    data: BulkDeleteRequest,
+    request: Request,
+    user = Depends(require_entity_access("leads", "edit")),
+    db: AsyncSession = Depends(get_db),
+):
+    count = await lead_svc.bulk_delete_leads(db, data.ids)
+    await db.commit()
+    await audit_logs.log_update(
+        db=db, user=user, entity_type="leads", entity_id=0,
+        description=f"מחיקה גורפת של {count} לידים",
+        changes={"deleted_ids": data.ids},
+        request=request,
+    )
+    return {"deleted": count}
 
 
 @router.get("/search")

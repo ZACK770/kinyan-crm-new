@@ -2,6 +2,7 @@ import { useState, type FC, type ReactNode } from 'react'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
 import { ChatWidget } from '../chat/ChatWidget'
+import { SalesSimulator } from '../chat/SalesSimulator'
 import styles from './AppLayout.module.css'
 import clsx from 'clsx'
 
@@ -36,6 +37,7 @@ export const AppLayout: FC<AppLayoutProps> = ({ children }) => {
       </main>
 
       <ChatWidget />
+      <SalesSimulator />
     </div>
   )
 }

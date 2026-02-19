@@ -16,12 +16,16 @@ from sqlalchemy import select, func, or_
 
 from db import get_db
 from db.models import User, ChatThread, ChatThreadMember, ChatMessage
-from api.dependencies import get_current_user, require_permission
+from api.dependencies import get_current_user, require_permission, DEV_SKIP_AUTH
 from services.auth import decode_access_token
 from services.users import get_user_by_id
 from services import chat as chat_svc
 
 router = APIRouter()
+
+def _is_dev_user(user: User) -> bool:
+    """Check if this is the fake dev user (id=0, DEV_SKIP_AUTH mode)."""
+    return DEV_SKIP_AUTH and (not user.id or user.id == 0)
 
 
 # ── Schemas ──────────────────────────────────────────
@@ -198,8 +202,15 @@ async def list_threads(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    threads = await chat_svc.list_threads_for_user(db, user)
-    return [await _thread_to_dict(db, t, user.id) for t in threads]
+    if _is_dev_user(user):
+        # Dev user: show all threads
+        result = await db.execute(
+            select(ChatThread).order_by(ChatThread.updated_at.desc().nullslast(), ChatThread.created_at.desc())
+        )
+        threads = list(result.scalars().unique().all())
+    else:
+        threads = await chat_svc.list_threads_for_user(db, user)
+    return [await _thread_to_dict(db, t, user.id or 0) for t in threads]
 
 
 @router.get("/threads/{thread_id}/messages")
@@ -210,7 +221,11 @@ async def get_messages(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    thread = await chat_svc.get_thread_for_user(db, user, thread_id)
+    if _is_dev_user(user):
+        result = await db.execute(select(ChatThread).where(ChatThread.id == thread_id))
+        thread = result.scalar_one_or_none()
+    else:
+        thread = await chat_svc.get_thread_for_user(db, user, thread_id)
     if not thread:
         raise HTTPException(404, "שרשור לא נמצא או אין לך גישה")
 
@@ -246,12 +261,25 @@ async def send_message(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    thread = await chat_svc.get_thread_for_user(db, user, thread_id)
+    if _is_dev_user(user):
+        result = await db.execute(select(ChatThread).where(ChatThread.id == thread_id))
+        thread = result.scalar_one_or_none()
+        # Use first real admin user as sender to avoid FK violation
+        real_user_result = await db.execute(
+            select(User).where(User.is_active == True, User.permission_level >= 30).limit(1)  # noqa: E712
+        )
+        real_user = real_user_result.scalar_one_or_none()
+        sender_id = real_user.id if real_user else 1
+        sender_for_dict = real_user or user
+    else:
+        thread = await chat_svc.get_thread_for_user(db, user, thread_id)
+        sender_id = user.id
+        sender_for_dict = user
     if not thread:
         raise HTTPException(404, "שרשור לא נמצא או אין לך גישה")
 
     msg = await chat_svc.create_message(
-        db, thread_id, user.id, body.content, body.reply_to_message_id
+        db, thread_id, sender_id, body.content, body.reply_to_message_id
     )
     await db.commit()
     await db.refresh(msg)
@@ -263,7 +291,7 @@ async def send_message(
         if rm:
             reply_preview = rm.content[:60]
 
-    msg_dict = _msg_to_dict(msg, user, reply_preview)
+    msg_dict = _msg_to_dict(msg, sender_for_dict, reply_preview)
 
     # Broadcast via WebSocket
     await manager.broadcast_to_thread(thread_id, {

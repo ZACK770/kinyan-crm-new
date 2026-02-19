@@ -119,6 +119,39 @@ async def update_lead(db: AsyncSession, lead_id: int, manual_edit: bool = False,
 
 
 # ============================================================
+# Bulk Operations
+# ============================================================
+async def bulk_update_leads(db: AsyncSession, lead_ids: list[int], field: str, value) -> int:
+    """Update a single field on multiple leads. Returns count of updated leads."""
+    from datetime import datetime, timezone
+    if not lead_ids:
+        return 0
+    if field == "status" and value is not None and value not in ALLOWED_LEAD_STATUSES:
+        raise ValueError(f"סטטוס לא חוקי: {value}")
+    stmt = select(Lead).where(Lead.id.in_(lead_ids))
+    result = await db.execute(stmt)
+    leads = list(result.scalars().all())
+    for lead in leads:
+        if hasattr(lead, field):
+            setattr(lead, field, value)
+            lead.last_edited_at = datetime.now(timezone.utc)
+    await db.flush()
+    return len(leads)
+
+
+async def bulk_delete_leads(db: AsyncSession, lead_ids: list[int]) -> int:
+    """Delete multiple leads by ID. Returns count of deleted leads."""
+    from sqlalchemy import delete as sa_delete
+    if not lead_ids:
+        return 0
+    # Delete interactions first
+    await db.execute(sa_delete(LeadInteraction).where(LeadInteraction.lead_id.in_(lead_ids)))
+    result = await db.execute(sa_delete(Lead).where(Lead.id.in_(lead_ids)))
+    await db.flush()
+    return result.rowcount
+
+
+# ============================================================
 # Interactions
 # ============================================================
 async def add_interaction(db: AsyncSession, lead_id: int, **kwargs) -> LeadInteraction:
