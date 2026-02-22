@@ -78,13 +78,13 @@ async def bulk_update_leads(
 ):
     try:
         count = await lead_svc.bulk_update_leads(db, data.ids, data.field, data.value)
-        await db.commit()
         await audit_logs.log_update(
             db=db, user=user, entity_type="leads", entity_id=0,
             description=f"עדכון גורף: {data.field}={data.value} ל-{count} לידים",
             changes={"ids": data.ids, "field": data.field, "value": data.value},
             request=request,
         )
+        await db.commit()
         return {"updated": count}
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -98,13 +98,13 @@ async def bulk_delete_leads(
     db: AsyncSession = Depends(get_db),
 ):
     count = await lead_svc.bulk_delete_leads(db, data.ids)
-    await db.commit()
     await audit_logs.log_update(
         db=db, user=user, entity_type="leads", entity_id=0,
         description=f"מחיקה גורפת של {count} לידים",
         changes={"deleted_ids": data.ids},
         request=request,
     )
+    await db.commit()
     return {"deleted": count}
 
 

@@ -190,6 +190,33 @@ async def get_assignment_stats(
     return stats
 
 
+@router.get("/salespeople-without-rules", response_model=list[dict])
+async def get_salespeople_without_rules(
+    user = Depends(require_permission("viewer")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get list of active salespeople who don't have assignment rules yet."""
+    stmt = (
+        select(Salesperson)
+        .outerjoin(SalesAssignmentRules, Salesperson.id == SalesAssignmentRules.salesperson_id)
+        .where(Salesperson.is_active == True)  # noqa: E712
+        .where(SalesAssignmentRules.id.is_(None))
+        .order_by(Salesperson.name)
+    )
+    result = await db.execute(stmt)
+    salespeople = result.scalars().all()
+    
+    return [
+        {
+            "id": sp.id,
+            "name": sp.name,
+            "email": sp.email,
+            "phone": sp.phone,
+        }
+        for sp in salespeople
+    ]
+
+
 @router.get("/{salesperson_id}", response_model=AssignmentRulesResponse)
 async def get_assignment_rules(
     salesperson_id: int,
@@ -382,33 +409,6 @@ async def reset_daily_counts(
     await db.commit()
     
     return {"success": True, "count": count, "message": f"אופסו ספירות יומיות עבור {count} אנשי מכירות"}
-
-
-@router.get("/salespeople-without-rules", response_model=list[dict])
-async def get_salespeople_without_rules(
-    user = Depends(require_permission("viewer")),
-    db: AsyncSession = Depends(get_db),
-):
-    """Get list of active salespeople who don't have assignment rules yet."""
-    stmt = (
-        select(Salesperson)
-        .outerjoin(SalesAssignmentRules, Salesperson.id == SalesAssignmentRules.salesperson_id)
-        .where(Salesperson.is_active == True)  # noqa: E712
-        .where(SalesAssignmentRules.id.is_(None))
-        .order_by(Salesperson.name)
-    )
-    result = await db.execute(stmt)
-    salespeople = result.scalars().all()
-    
-    return [
-        {
-            "id": sp.id,
-            "name": sp.name,
-            "email": sp.email,
-            "phone": sp.phone,
-        }
-        for sp in salespeople
-    ]
 
 
 @router.delete("/{salesperson_id}")
