@@ -112,8 +112,7 @@
   flex-direction: column;
   gap: 8px;
   margin-bottom: 12px;
-  max-height: 300px;
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .filterRow {
@@ -121,6 +120,8 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  position: relative;
+  z-index: 1;
 }
 
 .filterAnd {
@@ -849,6 +850,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  position: relative;
+  z-index: 0;
 }
 
 .filterModeToggle {
