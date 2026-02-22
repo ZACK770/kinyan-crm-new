@@ -100,6 +100,8 @@ async def _process_regulation_approval(db: AsyncSession, parsed_data: dict) -> d
     lead.kinyan_signed_date = datetime.now(timezone.utc)
     lead.kinyan_method = "IVR"
     
+    lead.updated_at = datetime.now(timezone.utc)
+    
     # Add notes with IVR details
     if parsed_data.get("notes"):
         lead.kinyan_notes = parsed_data["notes"]

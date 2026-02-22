@@ -14,7 +14,7 @@ Key fields:
 """
 import logging
 from typing import Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import select, or_, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -216,6 +216,7 @@ async def handle_nedarim_debitcard_webhook(
             if lead_for_update.status not in ["תלמיד", "נסלק"]:
                 lead_for_update.status = "נסלק"
                 logger.info(f"Lead {lead_for_update.id} status updated to נסלק")
+            lead_for_update.updated_at = datetime.now(timezone.utc)
         
         # ── Create Collection record (actual charge) ─────────
         if student:

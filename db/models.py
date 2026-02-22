@@ -479,7 +479,7 @@ class Lead(Base):
 
     # Meta
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())  # עדכון אוטומטי בלבד (webhooks/scripts)
     last_edited_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))  # עריכה ידנית ע"י איש מכירות בלבד
     created_by: Mapped[Optional[str]] = mapped_column(String(200))
 

@@ -715,6 +715,29 @@ function SalespersonForm({ onSubmit }: { onSubmit: (data: Record<string, string>
 /* ══════════════════════════════════════════════════════════════
    Salesperson Workspace — Full detail view (like LeadWorkspace)
    ══════════════════════════════════════════════════════════════ */
+interface DetailedStats {
+  period: { from: string; to: string; days: number }
+  kpis: {
+    total_leads: number; new_leads: number; in_progress: number
+    converted: number; conversion_rate: number
+    interactions: number; open_tasks: number; revenue: number
+  }
+  status_distribution: { name: string; value: number }[]
+  lead_trends: { date: string; leads: number }[]
+}
+
+interface RulesData {
+  has_rules: boolean
+  rules: {
+    id: number; daily_lead_limit: number | null; daily_leads_assigned: number
+    last_reset_date: string | null; priority_weight: number
+    max_open_leads: number | null; status_filters: string[] | null
+    is_active: boolean; current_open_leads: number
+  } | null
+}
+
+type DatePreset = 7 | 14 | 30 | 90 | 365
+
 function SalespersonWorkspace({
   sp,
   onClose,
@@ -725,6 +748,19 @@ function SalespersonWorkspace({
   onUpdate: () => Promise<void>
 }) {
   const toast = useToast()
+  const [wsTab, setWsTab] = useState<'details' | 'stats' | 'rules'>('details')
+  const [statsDays, setStatsDays] = useState<DatePreset>(30)
+  const [detailedStats, setDetailedStats] = useState<DetailedStats | null>(null)
+  const [statsLoading, setStatsLoading] = useState(false)
+  const [rulesData, setRulesData] = useState<RulesData | null>(null)
+  const [rulesLoading, setRulesLoading] = useState(false)
+  const [rulesForm, setRulesForm] = useState({
+    daily_lead_limit: null as number | null,
+    priority_weight: 5,
+    max_open_leads: null as number | null,
+    is_active: true,
+  })
+  const [rulesSaving, setRulesSaving] = useState(false)
 
   const handleSave = async (field: string, value: string | boolean) => {
     try {
@@ -736,6 +772,66 @@ function SalespersonWorkspace({
     }
   }
 
+  // Load detailed stats
+  const loadStats = async (days: number) => {
+    try {
+      setStatsLoading(true)
+      const data = await api.get<DetailedStats>(`/salespeople/${sp.id}/detailed-stats?days=${days}`)
+      setDetailedStats(data)
+    } catch {
+      toast.error('שגיאה בטעינת סטטיסטיקות')
+    } finally {
+      setStatsLoading(false)
+    }
+  }
+
+  // Load assignment rules
+  const loadRules = async () => {
+    try {
+      setRulesLoading(true)
+      const data = await api.get<RulesData>(`/salespeople/${sp.id}/rules`)
+      setRulesData(data)
+      if (data.rules) {
+        setRulesForm({
+          daily_lead_limit: data.rules.daily_lead_limit,
+          priority_weight: data.rules.priority_weight,
+          max_open_leads: data.rules.max_open_leads,
+          is_active: data.rules.is_active,
+        })
+      }
+    } catch {
+      toast.error('שגיאה בטעינת כללי שיוך')
+    } finally {
+      setRulesLoading(false)
+    }
+  }
+
+  // Save assignment rules
+  const saveRules = async () => {
+    try {
+      setRulesSaving(true)
+      await api.put(`/salespeople/${sp.id}/rules`, rulesForm)
+      toast.success('כללי שיוך נשמרו')
+      await loadRules()
+    } catch {
+      toast.error('שגיאה בשמירת כללי שיוך')
+    } finally {
+      setRulesSaving(false)
+    }
+  }
+
+  useEffect(() => {
+    if (wsTab === 'stats') loadStats(statsDays)
+    if (wsTab === 'rules') loadRules()
+  }, [wsTab, statsDays])
+
+  const STATUS_COLORS: Record<string, string> = {
+    'ליד חדש': '#3b82f6', 'ליד בתהליך': '#8b5cf6', 'חיוג ראשון': '#f59e0b',
+    'ליד ישן': '#94a3b8', 'במעקב': '#f97316', 'מתעניין': '#06b6d4',
+    'נסלק': '#22c55e', 'תלמיד פעיל': '#14b8a6', 'converted': '#10b981',
+    'לא רלוונטי': '#ef4444', 'ליד סגור - לקוח': '#22c55e', 'ליד סגור - לא רלוונטי': '#ef4444',
+  }
+
   return (
     <div style={{
       position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -743,7 +839,7 @@ function SalespersonWorkspace({
       padding: '24px 32px',
     }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
         <button className={`${s.btn} ${s['btn-secondary']}`} onClick={onClose}>
           ← חזרה לרשימה
         </button>
@@ -756,71 +852,288 @@ function SalespersonWorkspace({
         </span>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, maxWidth: 900 }}>
-        {/* Left column — Details */}
-        <div className={s.card} style={{ padding: 20 }}>
-          <h3 style={{ marginTop: 0, marginBottom: 16 }}>פרטים</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <EditableRow label="שם" value={sp.name} onSave={(v) => handleSave('name', v)} />
-            <EditableRow label="טלפון" value={sp.phone || ''} onSave={(v) => handleSave('phone', v)} dir="ltr" />
-            <EditableRow label="אימייל" value={sp.email || ''} onSave={(v) => handleSave('email', v)} dir="ltr" />
-            <EditableRow label="קוד הפניה" value={sp.ref_code || ''} onSave={(v) => handleSave('ref_code', v)} />
-            <EditableRow label="Webhook URL" value={sp.notification_webhook_url || ''} onSave={(v) => handleSave('notification_webhook_url', v)} dir="ltr" />
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>התראות על ליד חדש</span>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={sp.notify_on_new_lead ?? true}
-                  onChange={(e) => handleSave('notify_on_new_lead', e.target.checked)}
-                />
-                {sp.notify_on_new_lead ? 'כן' : 'לא'}
-              </label>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>פעיל</span>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={sp.is_active}
-                  onChange={(e) => handleSave('is_active', e.target.checked)}
-                />
-                {sp.is_active ? 'כן' : 'לא'}
-              </label>
-            </div>
-          </div>
-        </div>
-
-        {/* Right column — Stats + Notes */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div className={s.card} style={{ padding: 20 }}>
-            <h3 style={{ marginTop: 0, marginBottom: 16 }}>סטטיסטיקות</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, textAlign: 'center' }}>
-              <div>
-                <div style={{ fontSize: 28, fontWeight: 700 }}>{sp.total_leads ?? 0}</div>
-                <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>סה"כ לידים</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--warning)' }}>{sp.open_leads ?? 0}</div>
-                <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>פתוחים</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--success)' }}>{sp.converted_leads ?? 0}</div>
-                <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>המרות</div>
-              </div>
-            </div>
-          </div>
-
-          <div className={s.card} style={{ padding: 20 }}>
-            <h3 style={{ marginTop: 0, marginBottom: 12 }}>הערות</h3>
-            <EditableTextarea value={sp.notes || ''} onSave={(v) => handleSave('notes', v)} />
-          </div>
-
-          <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-            <div>נוצר: {sp.created_at ? formatDate(sp.created_at) : '—'}</div>
-          </div>
-        </div>
+      {/* Workspace tabs */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        {([
+          { key: 'details' as const, label: 'פרטים' },
+          { key: 'stats' as const, label: 'סטטיסטיקות' },
+          { key: 'rules' as const, label: 'כללי שיוך' },
+        ]).map(tab => (
+          <button
+            key={tab.key}
+            className={`${s.btn} ${wsTab === tab.key ? s['btn-primary'] : s['btn-secondary']}`}
+            onClick={() => setWsTab(tab.key)}
+            style={{ fontSize: 13 }}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
+
+      {/* ── Details Tab ── */}
+      {wsTab === 'details' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, maxWidth: 900 }}>
+          <div className={s.card} style={{ padding: 20 }}>
+            <h3 style={{ marginTop: 0, marginBottom: 16 }}>פרטים</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <EditableRow label="שם" value={sp.name} onSave={(v) => handleSave('name', v)} />
+              <EditableRow label="טלפון" value={sp.phone || ''} onSave={(v) => handleSave('phone', v)} dir="ltr" />
+              <EditableRow label="אימייל" value={sp.email || ''} onSave={(v) => handleSave('email', v)} dir="ltr" />
+              <EditableRow label="קוד הפניה" value={sp.ref_code || ''} onSave={(v) => handleSave('ref_code', v)} />
+              <EditableRow label="Webhook URL" value={sp.notification_webhook_url || ''} onSave={(v) => handleSave('notification_webhook_url', v)} dir="ltr" />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>התראות על ליד חדש</span>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={sp.notify_on_new_lead ?? true} onChange={(e) => handleSave('notify_on_new_lead', e.target.checked)} />
+                  {sp.notify_on_new_lead ? 'כן' : 'לא'}
+                </label>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>פעיל</span>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={sp.is_active} onChange={(e) => handleSave('is_active', e.target.checked)} />
+                  {sp.is_active ? 'כן' : 'לא'}
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div className={s.card} style={{ padding: 20 }}>
+              <h3 style={{ marginTop: 0, marginBottom: 16 }}>סיכום מהיר</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, textAlign: 'center' }}>
+                <div>
+                  <div style={{ fontSize: 28, fontWeight: 700 }}>{sp.total_leads ?? 0}</div>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>סה"כ לידים</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--warning)' }}>{sp.open_leads ?? 0}</div>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>פתוחים</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--success)' }}>{sp.converted_leads ?? 0}</div>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>המרות</div>
+                </div>
+              </div>
+            </div>
+
+            <div className={s.card} style={{ padding: 20 }}>
+              <h3 style={{ marginTop: 0, marginBottom: 12 }}>הערות</h3>
+              <EditableTextarea value={sp.notes || ''} onSave={(v) => handleSave('notes', v)} />
+            </div>
+
+            <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+              נוצר: {sp.created_at ? formatDate(sp.created_at) : '—'}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Stats Tab ── */}
+      {wsTab === 'stats' && (
+        <div style={{ maxWidth: 1000 }}>
+          {/* Date preset buttons */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+            {([7, 14, 30, 90, 365] as DatePreset[]).map(d => (
+              <button
+                key={d}
+                className={`${s.btn} ${statsDays === d ? s['btn-primary'] : s['btn-secondary']}`}
+                onClick={() => setStatsDays(d)}
+                style={{ fontSize: 12, padding: '4px 12px' }}
+              >
+                {d === 7 ? 'שבוע' : d === 14 ? 'שבועיים' : d === 30 ? 'חודש' : d === 90 ? 'רבעון' : 'שנה'}
+              </button>
+            ))}
+          </div>
+
+          {statsLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
+              <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', color: 'var(--color-text-muted)' }} />
+            </div>
+          ) : detailedStats ? (
+            <>
+              {/* KPI Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 20 }}>
+                <KpiMini label="סה״כ לידים" value={detailedStats.kpis.total_leads} />
+                <KpiMini label="חדשים" value={detailedStats.kpis.new_leads} color="#3b82f6" />
+                <KpiMini label="בטיפול" value={detailedStats.kpis.in_progress} color="#8b5cf6" />
+                <KpiMini label="הומרו" value={detailedStats.kpis.converted} color="#22c55e" />
+                <KpiMini label="% המרה" value={`${detailedStats.kpis.conversion_rate}%`} color={detailedStats.kpis.conversion_rate >= 15 ? '#22c55e' : detailedStats.kpis.conversion_rate >= 8 ? '#f59e0b' : '#ef4444'} />
+                <KpiMini label="פניות" value={detailedStats.kpis.interactions} color="#06b6d4" />
+                <KpiMini label="משימות פתוחות" value={detailedStats.kpis.open_tasks} color="#f97316" />
+                <KpiMini label="הכנסות" value={`₪${detailedStats.kpis.revenue.toLocaleString()}`} color="#22c55e" />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                {/* Status Distribution */}
+                <div className={s.card} style={{ padding: 20 }}>
+                  <h4 style={{ marginTop: 0, marginBottom: 16, fontSize: 14, fontWeight: 600 }}>התפלגות סטטוסים</h4>
+                  {detailedStats.status_distribution.length === 0 ? (
+                    <div style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: 20 }}>אין נתונים</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {detailedStats.status_distribution.map(st => {
+                        const total = detailedStats.status_distribution.reduce((s, x) => s + x.value, 0)
+                        const pct = total > 0 ? Math.round(st.value / total * 100) : 0
+                        return (
+                          <div key={st.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 12, minWidth: 100, color: 'var(--color-text-secondary)' }}>{st.name}</span>
+                            <div style={{ flex: 1, height: 18, background: 'var(--color-bg-subtle, #f1f5f9)', borderRadius: 4, overflow: 'hidden' }}>
+                              <div style={{
+                                width: `${Math.max(pct, 2)}%`, height: '100%',
+                                background: STATUS_COLORS[st.name] || '#94a3b8',
+                                borderRadius: 4, transition: 'width 0.3s',
+                              }} />
+                            </div>
+                            <span style={{ fontSize: 12, fontWeight: 600, minWidth: 40, textAlign: 'left' }}>{st.value} ({pct}%)</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Lead Trends */}
+                <div className={s.card} style={{ padding: 20 }}>
+                  <h4 style={{ marginTop: 0, marginBottom: 16, fontSize: 14, fontWeight: 600 }}>מגמת לידים</h4>
+                  {detailedStats.lead_trends.length === 0 ? (
+                    <div style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: 20 }}>אין נתונים</div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 120 }}>
+                      {detailedStats.lead_trends.slice(-30).map((t, i) => {
+                        const max = Math.max(...detailedStats.lead_trends.slice(-30).map(x => x.leads), 1)
+                        const h = Math.max((t.leads / max) * 100, 3)
+                        return (
+                          <div
+                            key={i}
+                            title={`${t.date}: ${t.leads} לידים`}
+                            style={{
+                              flex: 1, height: `${h}%`, minWidth: 3,
+                              background: '#3b82f6', borderRadius: '2px 2px 0 0',
+                              opacity: 0.7 + (i / detailedStats.lead_trends.slice(-30).length) * 0.3,
+                            }}
+                          />
+                        )
+                      })}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 8, textAlign: 'center' }}>
+                    {detailedStats.period.from} — {detailedStats.period.to}
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : null}
+        </div>
+      )}
+
+      {/* ── Rules Tab ── */}
+      {wsTab === 'rules' && (
+        <div style={{ maxWidth: 600 }}>
+          {rulesLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
+              <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', color: 'var(--color-text-muted)' }} />
+            </div>
+          ) : (
+            <>
+              {rulesData?.has_rules && rulesData.rules && (
+                <div className={s.card} style={{ padding: 20, marginBottom: 20 }}>
+                  <h4 style={{ marginTop: 0, marginBottom: 12, fontSize: 14, fontWeight: 600 }}>מצב נוכחי</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, textAlign: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 22, fontWeight: 700 }}>{rulesData.rules.daily_leads_assigned}</div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                        לידים היום {rulesData.rules.daily_lead_limit != null ? `/ ${rulesData.rules.daily_lead_limit}` : ''}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 22, fontWeight: 700 }}>{rulesData.rules.current_open_leads}</div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                        לידים פתוחים {rulesData.rules.max_open_leads != null ? `/ ${rulesData.rules.max_open_leads}` : ''}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 22, fontWeight: 700 }}>×{rulesData.rules.priority_weight}</div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>משקל העדפה</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className={s.card} style={{ padding: 20 }}>
+                <h4 style={{ marginTop: 0, marginBottom: 16, fontSize: 14, fontWeight: 600 }}>
+                  {rulesData?.has_rules ? 'עריכת כללי שיוך' : 'יצירת כללי שיוך'}
+                </h4>
+                <div style={{ display: 'grid', gap: 16 }}>
+                  <div className={s['form-group']}>
+                    <label className={s['form-label']}>מגבלת לידים יומית</label>
+                    <input
+                      className={s.input}
+                      type="number"
+                      min="0"
+                      value={rulesForm.daily_lead_limit ?? ''}
+                      onChange={(e) => setRulesForm(prev => ({ ...prev, daily_lead_limit: e.target.value ? Number(e.target.value) : null }))}
+                      placeholder="ללא הגבלה"
+                    />
+                    <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>כמה לידים חדשים ליום (ריק = ללא הגבלה)</span>
+                  </div>
+                  <div className={s['form-group']}>
+                    <label className={s['form-label']}>משקל העדפה (1-10)</label>
+                    <input
+                      className={s.input}
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={rulesForm.priority_weight}
+                      onChange={(e) => setRulesForm(prev => ({ ...prev, priority_weight: Number(e.target.value) || 1 }))}
+                    />
+                    <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>ערך גבוה יותר = יותר לידים מוקצים</span>
+                  </div>
+                  <div className={s['form-group']}>
+                    <label className={s['form-label']}>מקסימום לידים פתוחים</label>
+                    <input
+                      className={s.input}
+                      type="number"
+                      min="0"
+                      value={rulesForm.max_open_leads ?? ''}
+                      onChange={(e) => setRulesForm(prev => ({ ...prev, max_open_leads: e.target.value ? Number(e.target.value) : null }))}
+                      placeholder="ללא הגבלה"
+                    />
+                    <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>כשמגיע למקסימום — לא מקבל לידים חדשים</span>
+                  </div>
+                  <div className={s['form-group']} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input
+                      type="checkbox"
+                      checked={rulesForm.is_active}
+                      onChange={(e) => setRulesForm(prev => ({ ...prev, is_active: e.target.checked }))}
+                      id="rules-active"
+                    />
+                    <label htmlFor="rules-active" style={{ cursor: 'pointer', fontSize: 13 }}>כללים פעילים</label>
+                  </div>
+                  <button
+                    className={`${s.btn} ${s['btn-primary']}`}
+                    onClick={saveRules}
+                    disabled={rulesSaving}
+                  >
+                    {rulesSaving ? 'שומר...' : 'שמור כללי שיוך'}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+/* ── KPI Mini Card ── */
+function KpiMini({ label, value, color }: { label: string; value: string | number; color?: string }) {
+  return (
+    <div className={s.card} style={{ padding: 12, textAlign: 'center' }}>
+      <div style={{ fontSize: 22, fontWeight: 700, color: color || 'var(--color-text)' }}>{value}</div>
+      <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>{label}</div>
     </div>
   )
 }

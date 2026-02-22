@@ -359,6 +359,7 @@ async def check_and_complete_conversion(
             lead.conversion_completed_at = datetime.now(timezone.utc)
             lead.conversion_completed_by_id = user_id
             lead.status = "נסלק"
+            lead.updated_at = datetime.now(timezone.utc)
             
             # יצירת תלמיד מהליד
             await convert_lead_to_student(session, lead)
@@ -412,6 +413,7 @@ async def convert_lead_to_student(session: AsyncSession, lead: Lead) -> Student:
     await session.flush()
     
     lead.student_id = student.id
+    lead.updated_at = datetime.now(timezone.utc)
     
     return student
 

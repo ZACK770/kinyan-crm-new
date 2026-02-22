@@ -14,7 +14,7 @@ own recurring charge system and have different field semantics:
 import logging
 import re
 from typing import Dict, Any, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import select, or_, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -328,6 +328,7 @@ async def handle_nedarim_keva_webhook(
             if lead.status not in ["תלמיד", "נסלק"]:
                 lead.status = "נסלק"
                 logger.info(f"Lead {lead.id} status updated to נסלק")
+            lead.updated_at = datetime.now(timezone.utc)
 
         # ── Create/Update Commitment ────────────────────────────
         if student and keva_id:

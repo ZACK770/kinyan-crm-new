@@ -108,6 +108,7 @@ async def handle_kinyan_approval_webhook(data: dict) -> dict:
             lead.approved_terms = True
             lead.approval_method = parsed["method"]
             lead.approval_date = datetime.now(timezone.utc)
+            lead.updated_at = datetime.now(timezone.utc)
             
             await db.flush()
             await db.commit()
