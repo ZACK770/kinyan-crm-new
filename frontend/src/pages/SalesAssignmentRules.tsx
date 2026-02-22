@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react'
-import { Users, RefreshCw, Settings, BarChart3, CheckCircle, XCircle, Plus, Trash2, Power } from 'lucide-react'
+import {
+  Users, RefreshCw, Settings, BarChart3, CheckCircle, XCircle,
+  Plus, Trash2, Power,
+} from 'lucide-react'
 import { api } from '@/lib/api'
+import { formatDate } from '@/lib/status'
 import { useToast } from '@/components/ui/Toast'
+import { useModal } from '@/components/ui/Modal'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SmartTable, type SmartColumn } from '@/components/ui/SmartTable'
+import type { Salesperson } from '@/types'
 import s from '@/styles/shared.module.css'
 
 interface AssignmentRules {
@@ -41,12 +48,14 @@ interface SalespersonWithoutRules {
 export function SalesAssignmentRulesPage() {
   const [rules, setRules] = useState<AssignmentRules[]>([])
   const [stats, setStats] = useState<AssignmentStats[]>([])
+  const [salespeople, setSalespeople] = useState<Salesperson[]>([])
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editForm, setEditForm] = useState<Partial<AssignmentRules>>({})
-  const [activeTab, setActiveTab] = useState<'stats' | 'rules'>('stats')
+  const [activeTab, setActiveTab] = useState<'salespeople' | 'stats' | 'rules'>('salespeople')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [salesWithoutRules, setSalesWithoutRules] = useState<SalespersonWithoutRules[]>([])
+  const [selectedSp, setSelectedSp] = useState<Salesperson | null>(null)
   const [createForm, setCreateForm] = useState<{
     salesperson_id: number | null
     daily_lead_limit: number | null
@@ -61,6 +70,7 @@ export function SalesAssignmentRulesPage() {
     is_active: true
   })
   const toast = useToast()
+  const { openModal, closeModal } = useModal()
 
   useEffect(() => {
     loadData()
@@ -69,20 +79,145 @@ export function SalesAssignmentRulesPage() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [rulesData, statsData, withoutRulesData] = await Promise.all([
+      const [rulesData, statsData, withoutRulesData, spData] = await Promise.all([
         api.get<AssignmentRules[]>('/sales-assignment-rules/?include_stats=true'),
         api.get<AssignmentStats[]>('/sales-assignment-rules/stats'),
-        api.get<SalespersonWithoutRules[]>('/sales-assignment-rules/salespeople-without-rules')
+        api.get<SalespersonWithoutRules[]>('/sales-assignment-rules/salespeople-without-rules'),
+        api.get<Salesperson[]>('/salespeople'),
       ])
       setRules(rulesData)
       setStats(statsData)
       setSalesWithoutRules(withoutRulesData)
+      setSalespeople(spData)
     } catch (error) {
       toast.error('שגיאה', 'לא ניתן לטעון נתונים')
     } finally {
       setLoading(false)
     }
   }
+
+  /* ── Salespeople inline update ── */
+  const handleSpInlineUpdate = async (sp: Salesperson, field: string, value: unknown) => {
+    try {
+      const result = await api.patch<Salesperson>(`/salespeople/${sp.id}`, { [field]: value })
+      toast.success('עודכן בהצלחה')
+      setSalespeople(prev => prev.map(p => p.id === sp.id ? { ...p, ...result } : p))
+    } catch {
+      toast.error('שגיאה בעדכון')
+      throw new Error('update failed')
+    }
+  }
+
+  /* ── Create salesperson modal ── */
+  const openCreateSp = () => {
+    openModal({
+      title: 'איש מכירות חדש',
+      size: 'md',
+      content: (
+        <SalespersonForm onSubmit={async (data) => {
+          try {
+            await api.post('/salespeople', data)
+            toast.success('איש מכירות נוצר בהצלחה')
+            closeModal()
+            loadData()
+          } catch {
+            toast.error('שגיאה ביצירת איש מכירות')
+          }
+        }} />
+      ),
+    })
+  }
+
+  /* ── Salesperson workspace (detail view) ── */
+  const openSpWorkspace = async (sp: Salesperson) => {
+    try {
+      const full = await api.get<Salesperson>(`/salespeople/${sp.id}`)
+      setSelectedSp(full)
+    } catch {
+      toast.error('שגיאה בטעינת פרטים')
+    }
+  }
+
+  /* ── SmartTable columns for salespeople ── */
+  const spColumns: SmartColumn<Salesperson>[] = [
+    {
+      key: 'name',
+      header: 'שם',
+      type: 'text',
+      sortable: true,
+      renderView: (r) => (
+        <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>
+          {r.name}
+          {r.user_id && <span title="מקושר למשתמש" style={{ marginRight: 4, fontSize: 10, color: 'var(--color-text-muted)' }}>👤</span>}
+        </span>
+      ),
+    },
+    {
+      key: 'phone',
+      header: 'טלפון',
+      type: 'text',
+      className: s.mono,
+      renderView: r => r.phone ? <span dir="ltr">{r.phone}</span> : <span style={{ color: 'var(--color-text-muted)' }}>—</span>,
+    },
+    {
+      key: 'email',
+      header: 'אימייל',
+      type: 'text',
+      renderView: r => r.email ? <span dir="ltr" style={{ fontSize: 13 }}>{r.email}</span> : <span style={{ color: 'var(--color-text-muted)' }}>—</span>,
+    },
+    {
+      key: 'is_active',
+      header: 'סטטוס',
+      type: 'boolean',
+      renderView: r => (
+        <span className={`${s.badge} ${r.is_active ? s['badge-success'] : s['badge-gray']}`}>
+          {r.is_active ? 'פעיל' : 'לא פעיל'}
+        </span>
+      ),
+    },
+    {
+      key: 'total_leads',
+      header: 'סה"כ לידים',
+      type: 'number',
+      editable: false,
+      renderView: r => <strong>{r.total_leads ?? 0}</strong>,
+    },
+    {
+      key: 'open_leads',
+      header: 'לידים פתוחים',
+      type: 'number',
+      editable: false,
+      renderView: r => <span>{r.open_leads ?? 0}</span>,
+    },
+    {
+      key: 'converted_leads',
+      header: 'המרות',
+      type: 'number',
+      editable: false,
+      renderView: r => <span style={{ color: 'var(--success)' }}>{r.converted_leads ?? 0}</span>,
+    },
+    {
+      key: 'notes',
+      header: 'הערות',
+      type: 'text',
+      hiddenByDefault: true,
+      sortable: false,
+      renderView: r => {
+        if (!r.notes) return <span style={{ color: 'var(--color-text-muted)' }}>—</span>
+        const short = r.notes.length > 40 ? r.notes.slice(0, 40) + '…' : r.notes
+        return <span title={r.notes} style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{short}</span>
+      },
+    },
+    {
+      key: 'created_at',
+      header: 'תאריך יצירה',
+      type: 'datetime',
+      className: s.muted,
+      editable: false,
+      hiddenByDefault: true,
+      renderView: r => r.created_at ? formatDate(r.created_at) : '—',
+    },
+  ]
 
   const handleEdit = (rule: AssignmentRules) => {
     setEditingId(rule.id)
@@ -177,12 +312,19 @@ export function SalesAssignmentRulesPage() {
   return (
     <div className={s.page}>
       <PageHeader
-        title="ניהול שיוך לידים"
+        title="אנשי מכירות ושיוך"
         onRefresh={loadData}
         loading={loading}
       />
 
       <div style={{ marginBottom: 24, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button 
+          className={`${s.btn} ${activeTab === 'salespeople' ? s['btn-primary'] : s['btn-secondary']}`}
+          onClick={() => setActiveTab('salespeople')}
+        >
+          <Users size={16} />
+          אנשי מכירות
+        </button>
         <button 
           className={`${s.btn} ${activeTab === 'stats' ? s['btn-primary'] : s['btn-secondary']}`}
           onClick={() => setActiveTab('stats')}
@@ -195,20 +337,64 @@ export function SalesAssignmentRulesPage() {
           onClick={() => setActiveTab('rules')}
         >
           <Settings size={16} />
-          כללים
+          כללי שיוך
         </button>
         <div style={{ flex: 1 }} />
-        {salesWithoutRules.length > 0 && (
+        {activeTab === 'salespeople' && (
+          <button className={`${s.btn} ${s['btn-success']}`} onClick={openCreateSp}>
+            <Plus size={16} />
+            איש מכירות חדש
+          </button>
+        )}
+        {activeTab === 'rules' && salesWithoutRules.length > 0 && (
           <button className={`${s.btn} ${s['btn-success']}`} onClick={() => setShowCreateModal(true)}>
             <Plus size={16} />
             הוסף כללים ({salesWithoutRules.length})
           </button>
         )}
-        <button className={`${s.btn} ${s['btn-secondary']}`} onClick={handleResetDaily}>
-          <RefreshCw size={16} />
-          איפוס ספירות
-        </button>
+        {activeTab === 'rules' && (
+          <button className={`${s.btn} ${s['btn-secondary']}`} onClick={handleResetDaily}>
+            <RefreshCw size={16} />
+            איפוס ספירות
+          </button>
+        )}
       </div>
+
+      {/* ── Salespeople Tab ── */}
+      {activeTab === 'salespeople' && (
+        <div className={s.card}>
+          <SmartTable
+            columns={spColumns}
+            data={salespeople}
+            loading={loading}
+            emptyText="אין אנשי מכירות"
+            emptyIcon={<Users size={40} strokeWidth={1.5} />}
+            onRowClick={openSpWorkspace}
+            onUpdate={handleSpInlineUpdate}
+            keyExtractor={(row) => row.id}
+            storageKey="salespeople_table_v1"
+            searchPlaceholder="חיפוש לפי שם, טלפון, אימייל..."
+            searchFields={[
+              { key: 'name', label: 'שם', weight: 3 },
+              { key: 'phone', label: 'טלפון', weight: 2 },
+              { key: 'email', label: 'אימייל', weight: 1 },
+            ]}
+            defaultPageSize={50}
+          />
+        </div>
+      )}
+
+      {/* ── Salesperson Workspace (detail panel) ── */}
+      {selectedSp && (
+        <SalespersonWorkspace
+          sp={selectedSp}
+          onClose={() => { setSelectedSp(null); loadData() }}
+          onUpdate={async () => {
+            const fresh = await api.get<Salesperson>(`/salespeople/${selectedSp.id}`)
+            setSelectedSp(fresh)
+          }}
+        />
+      )}
 
       {activeTab === 'stats' && (
         <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
@@ -489,6 +675,233 @@ export function SalesAssignmentRulesPage() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   Salesperson Create Form (used in modal)
+   ══════════════════════════════════════════════════════════════ */
+function SalespersonForm({ onSubmit }: { onSubmit: (data: Record<string, string>) => void }) {
+  const [form, setForm] = useState({ name: '', phone: '', email: '', notes: '' })
+  const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setForm(prev => ({ ...prev, [key]: e.target.value }))
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); onSubmit(form) }} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className={s['form-group']}>
+        <label className={s['form-label']}>שם *</label>
+        <input className={s.input} value={form.name} onChange={set('name')} required />
+      </div>
+      <div className={s['form-group']}>
+        <label className={s['form-label']}>טלפון</label>
+        <input className={s.input} value={form.phone} onChange={set('phone')} dir="ltr" />
+      </div>
+      <div className={s['form-group']}>
+        <label className={s['form-label']}>אימייל</label>
+        <input className={s.input} type="email" value={form.email} onChange={set('email')} dir="ltr" />
+      </div>
+      <div className={s['form-group']}>
+        <label className={s['form-label']}>הערות</label>
+        <textarea className={s.input} value={form.notes} onChange={set('notes')} rows={3} />
+      </div>
+      <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>צור איש מכירות</button>
+    </form>
+  )
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   Salesperson Workspace — Full detail view (like LeadWorkspace)
+   ══════════════════════════════════════════════════════════════ */
+function SalespersonWorkspace({
+  sp,
+  onClose,
+  onUpdate,
+}: {
+  sp: Salesperson
+  onClose: () => void
+  onUpdate: () => Promise<void>
+}) {
+  const toast = useToast()
+
+  const handleSave = async (field: string, value: string | boolean) => {
+    try {
+      await api.patch(`/salespeople/${sp.id}`, { [field]: value })
+      toast.success('נשמר')
+      await onUpdate()
+    } catch {
+      toast.error('שגיאה בשמירה')
+    }
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      background: 'var(--color-bg)', zIndex: 100, overflow: 'auto',
+      padding: '24px 32px',
+    }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+        <button className={`${s.btn} ${s['btn-secondary']}`} onClick={onClose}>
+          ← חזרה לרשימה
+        </button>
+        <h2 style={{ margin: 0 }}>{sp.name}</h2>
+        {sp.user_id && (
+          <span className={`${s.badge} ${s['badge-blue']}`}>מקושר למשתמש</span>
+        )}
+        <span className={`${s.badge} ${sp.is_active ? s['badge-success'] : s['badge-gray']}`}>
+          {sp.is_active ? 'פעיל' : 'לא פעיל'}
+        </span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, maxWidth: 900 }}>
+        {/* Left column — Details */}
+        <div className={s.card} style={{ padding: 20 }}>
+          <h3 style={{ marginTop: 0, marginBottom: 16 }}>פרטים</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <EditableRow label="שם" value={sp.name} onSave={(v) => handleSave('name', v)} />
+            <EditableRow label="טלפון" value={sp.phone || ''} onSave={(v) => handleSave('phone', v)} dir="ltr" />
+            <EditableRow label="אימייל" value={sp.email || ''} onSave={(v) => handleSave('email', v)} dir="ltr" />
+            <EditableRow label="קוד הפניה" value={sp.ref_code || ''} onSave={(v) => handleSave('ref_code', v)} />
+            <EditableRow label="Webhook URL" value={sp.notification_webhook_url || ''} onSave={(v) => handleSave('notification_webhook_url', v)} dir="ltr" />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>התראות על ליד חדש</span>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={sp.notify_on_new_lead ?? true}
+                  onChange={(e) => handleSave('notify_on_new_lead', e.target.checked)}
+                />
+                {sp.notify_on_new_lead ? 'כן' : 'לא'}
+              </label>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>פעיל</span>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={sp.is_active}
+                  onChange={(e) => handleSave('is_active', e.target.checked)}
+                />
+                {sp.is_active ? 'כן' : 'לא'}
+              </label>
+            </div>
+          </div>
+        </div>
+
+        {/* Right column — Stats + Notes */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className={s.card} style={{ padding: 20 }}>
+            <h3 style={{ marginTop: 0, marginBottom: 16 }}>סטטיסטיקות</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, textAlign: 'center' }}>
+              <div>
+                <div style={{ fontSize: 28, fontWeight: 700 }}>{sp.total_leads ?? 0}</div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>סה"כ לידים</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--warning)' }}>{sp.open_leads ?? 0}</div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>פתוחים</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--success)' }}>{sp.converted_leads ?? 0}</div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>המרות</div>
+              </div>
+            </div>
+          </div>
+
+          <div className={s.card} style={{ padding: 20 }}>
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>הערות</h3>
+            <EditableTextarea value={sp.notes || ''} onSave={(v) => handleSave('notes', v)} />
+          </div>
+
+          <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+            <div>נוצר: {sp.created_at ? formatDate(sp.created_at) : '—'}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
+/* ── Inline editable row helper ── */
+function EditableRow({
+  label, value, onSave, dir,
+}: {
+  label: string; value: string; onSave: (v: string) => void; dir?: string
+}) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState(value)
+
+  useEffect(() => { setVal(value) }, [value])
+
+  const save = () => {
+    if (val !== value) onSave(val)
+    setEditing(false)
+  }
+
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 32 }}>
+      <span style={{ color: 'var(--color-text-muted)', fontSize: 13, minWidth: 100 }}>{label}</span>
+      {editing ? (
+        <input
+          autoFocus
+          className={s.input}
+          style={{ flex: 1, marginRight: 8, padding: '4px 8px', fontSize: 13 }}
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          onBlur={save}
+          onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setVal(value); setEditing(false) } }}
+          dir={dir}
+        />
+      ) : (
+        <span
+          onClick={() => setEditing(true)}
+          style={{ cursor: 'pointer', flex: 1, textAlign: 'left', marginRight: 8, fontSize: 13, direction: dir as 'ltr' | 'rtl' | undefined }}
+          title="לחץ לעריכה"
+        >
+          {value || <span style={{ color: 'var(--color-text-muted)' }}>—</span>}
+        </span>
+      )}
+    </div>
+  )
+}
+
+
+/* ── Editable textarea helper ── */
+function EditableTextarea({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState(value)
+
+  useEffect(() => { setVal(value) }, [value])
+
+  const save = () => {
+    if (val !== value) onSave(val)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <textarea
+        autoFocus
+        className={s.input}
+        style={{ width: '100%', minHeight: 80, fontSize: 13 }}
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={save}
+      />
+    )
+  }
+
+  return (
+    <div
+      onClick={() => setEditing(true)}
+      style={{ cursor: 'pointer', fontSize: 13, minHeight: 40, whiteSpace: 'pre-wrap', color: value ? undefined : 'var(--color-text-muted)' }}
+      title="לחץ לעריכה"
+    >
+      {value || 'אין הערות — לחץ להוספה'}
     </div>
   )
 }

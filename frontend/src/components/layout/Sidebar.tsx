@@ -91,7 +91,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
 // Manager+ navigation items
 const MANAGER_NAV_ITEMS: NavItem[] = [
   { to: '/admin/popups', label: 'הודעות פופ-אפ', icon: Zap },
-  { to: '/admin/sales-assignment', label: 'שיוך לידים', icon: UserCog },
+  { to: '/admin/sales-assignment', label: 'אנשי מכירות ושיוך', icon: UserCog },
   { to: '/admin/webhook-logs', label: 'לוגים Webhooks', icon: Activity },
   { to: '/admin/audit-logs', label: 'יומן פעילות', icon: ScrollText },
 ]

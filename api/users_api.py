@@ -138,6 +138,11 @@ async def api_create_user(
         permission_level=role_to_level(body.role_name),
         role_name=body.role_name,
     )
+
+    # Auto-create salesperson record if role is salesperson
+    from services.sales import ensure_salesperson_for_user
+    await ensure_salesperson_for_user(db, user)
+
     return _user_to_response(user)
 
 
@@ -195,6 +200,11 @@ async def api_update_user(
 
     if not user:
         raise HTTPException(status_code=404, detail="משתמש לא נמצא")
+
+    # Sync salesperson record when role changes
+    from services.sales import ensure_salesperson_for_user
+    await ensure_salesperson_for_user(db, user)
+
     return _user_to_response(user)
 
 
@@ -220,6 +230,11 @@ async def api_update_role(
     user = await update_user_role(db, user_id, body.role_name)
     if not user:
         raise HTTPException(status_code=404, detail="משתמש לא נמצא")
+
+    # Sync salesperson record when role changes
+    from services.sales import ensure_salesperson_for_user
+    await ensure_salesperson_for_user(db, user)
+
     return _user_to_response(user)
 
 

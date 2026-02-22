@@ -23,6 +23,7 @@ from api import auth_api, users_api, audit_logs_api, campaigns_api, files_api, s
 from api import course_tracks_api, lecturers_api, messages_api, templates_api, lead_conversion_api
 from api import import_api, webhook_logs_api, webhook_queue_api, export_api, topics_api
 from api import inbound_emails_api, chat_api, sales_simulator_api, popup_api, tasks_api
+from api import salespeople_api
 from webhooks import inbound_email as inbound_email_webhook
 from webhooks import regulation_approval
 
@@ -78,6 +79,7 @@ app.include_router(users_api.router, prefix="/api/users", tags=["users"])
 app.include_router(audit_logs_api.router, prefix="/api/audit-logs", tags=["audit-logs"])
 app.include_router(files_api.router, prefix="/api/files", tags=["files"])
 app.include_router(sales_assignment_api.router, prefix="/api/sales-assignment-rules", tags=["sales-assignment"])
+app.include_router(salespeople_api.router, prefix="/api/salespeople", tags=["salespeople"])
 app.include_router(webhook_logs_api.router, prefix="/api/webhook-logs", tags=["webhook-logs"])
 app.include_router(webhook_queue_api.router, tags=["webhook-queue"])
 app.include_router(messages_api.router, prefix="/api/messages", tags=["messages"])

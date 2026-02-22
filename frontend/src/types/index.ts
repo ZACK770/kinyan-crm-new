@@ -129,11 +129,20 @@ export interface Enrollment {
 
 export interface Salesperson {
   id: number
+  user_id?: number
   name: string
   email?: string
   phone?: string
   ref_code?: string
+  notes?: string
   is_active: boolean
+  notification_webhook_url?: string
+  notify_on_new_lead?: boolean
+  created_at?: string
+  // Stats (from /api/salespeople)
+  total_leads?: number
+  open_leads?: number
+  converted_leads?: number
 }
 
 export interface SalesTask {

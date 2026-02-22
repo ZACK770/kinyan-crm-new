@@ -9,7 +9,6 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-lg);
-  overflow: hidden;
 }
 
 /* --- Toolbar --- */
@@ -21,6 +20,8 @@
   border-bottom: 1px solid var(--color-border-light);
   gap: 12px;
   flex-wrap: wrap;
+  position: relative;
+  z-index: 10;
 }
 
 .toolbarLeft {
