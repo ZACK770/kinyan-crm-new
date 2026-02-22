@@ -842,6 +842,136 @@
   font-size: 14px;
 }
 
+/* --- Filter Footer (AND/OR toggle + add button) --- */
+.filterFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.filterModeToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  user-select: none;
+}
+
+.filterModeCheckbox {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
+
+.filterModeLabel {
+  font-weight: 500;
+}
+
+/* --- Multi Value Select (chips) --- */
+.multiValueSelect {
+  position: relative;
+  min-width: 160px;
+}
+
+.multiValueDisplay {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 3px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+  font-size: 13px;
+}
+
+.multiValueDisplay:hover {
+  border-color: var(--color-primary);
+}
+
+.multiValuePlaceholder {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.multiValueChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  background: var(--color-primary);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.multiValueChipRemove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  transition: background var(--transition-fast);
+}
+
+.multiValueChipRemove:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.multiValueDropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 200;
+}
+
+.multiValueOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: var(--font-sans);
+  text-align: right;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  color: var(--color-text);
+}
+
+.multiValueOption:hover {
+  background: var(--color-bg-hover);
+}
+
+.multiValueOptionSelected {
+  background: var(--color-primary-light, #eff6ff);
+  font-weight: 500;
+}
+
 /* --- Responsive --- */
 @media (max-width: 768px) {
   .filterPanelContent {

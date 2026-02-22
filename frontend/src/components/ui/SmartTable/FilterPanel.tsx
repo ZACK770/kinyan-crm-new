@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { Filter as FilterIcon, X, Plus, Save, Trash2, ChevronDown, Calendar } from 'lucide-react'
-import type { Filter, SmartColumn, SavedFilter, FilterOperator, FieldType } from './types'
+import type { Filter, FilterMode, SmartColumn, SavedFilter, FilterOperator, FieldType } from './types'
 import { 
   generateId, 
   getOperatorsForType, 
@@ -18,9 +18,11 @@ import shared from '@/styles/shared.module.css'
 interface Props<T> {
   columns: SmartColumn<T>[]
   filters: Filter[]
+  filterMode: FilterMode
   savedFilters: SavedFilter[]
   activeSavedFilterId: string | null
   onFiltersChange: (filters: Filter[]) => void
+  onFilterModeChange: (mode: FilterMode) => void
   onSaveFilter: (name: string, filters: Filter[]) => void
   onLoadFilter: (savedFilter: SavedFilter) => void
   onDeleteSavedFilter: (id: string) => void
@@ -29,9 +31,11 @@ interface Props<T> {
 export function FilterPanel<T>({
   columns,
   filters,
+  filterMode,
   savedFilters,
   activeSavedFilterId,
   onFiltersChange,
+  onFilterModeChange,
   onSaveFilter,
   onLoadFilter,
   onDeleteSavedFilter,
@@ -239,7 +243,11 @@ export function FilterPanel<T>({
 
               return (
                 <div key={filter.id} className={s.filterRow}>
-                  {index > 0 && <span className={s.filterAnd}>וגם</span>}
+                  {index > 0 && (
+                    <span className={s.filterAnd}>
+                      {filterMode === 'and' ? 'וגם' : 'או'}
+                    </span>
+                  )}
                   
                   {/* Field selector */}
                   <select 
@@ -268,12 +276,23 @@ export function FilterPanel<T>({
 
                   {/* Value input */}
                   {needsValue && (
-                    <FilterValueInput
-                      type={fieldType}
-                      value={filter.value}
-                      options={options}
-                      onChange={v => updateFilter(filter.id, { value: v })}
-                    />
+                    (fieldType === 'select' && (filter.operator === 'equals' || filter.operator === 'notEquals') && options.length > 0) ? (
+                      <MultiValueSelect
+                        options={options}
+                        values={filter.values || (filter.value != null ? [filter.value as string | number] : [])}
+                        onChange={(vals) => updateFilter(filter.id, { 
+                          values: vals,
+                          value: vals.length === 1 ? vals[0] : vals[0] ?? null 
+                        })}
+                      />
+                    ) : (
+                      <FilterValueInput
+                        type={fieldType}
+                        value={filter.value}
+                        options={options}
+                        onChange={v => updateFilter(filter.id, { value: v })}
+                      />
+                    )
                   )}
 
                   {/* Second value for "between" */}
@@ -301,13 +320,28 @@ export function FilterPanel<T>({
             })}
           </div>
 
-          {/* Add filter button */}
-          <button 
-            className={`${shared.btn} ${shared['btn-ghost']} ${shared['btn-sm']}`}
-            onClick={addFilter}
-          >
-            <Plus size={14} /> הוסף תנאי
-          </button>
+          {/* AND/OR toggle + Add filter button */}
+          <div className={s.filterFooter}>
+            <button 
+              className={`${shared.btn} ${shared['btn-ghost']} ${shared['btn-sm']}`}
+              onClick={addFilter}
+            >
+              <Plus size={14} /> הוסף תנאי
+            </button>
+            {filters.length > 1 && (
+              <label className={s.filterModeToggle}>
+                <input
+                  type="checkbox"
+                  checked={filterMode === 'or'}
+                  onChange={e => onFilterModeChange(e.target.checked ? 'or' : 'and')}
+                  className={s.filterModeCheckbox}
+                />
+                <span className={s.filterModeLabel}>
+                  {filterMode === 'and' ? 'AND — כל התנאים' : 'OR — לפחות תנאי אחד'}
+                </span>
+              </label>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -375,5 +409,92 @@ function FilterValueInput({ type, value, options, onChange }: FilterValueInputPr
       placeholder="ערך..."
       style={{ minWidth: 120 }}
     />
+  )
+}
+
+/* ── Multi Value Select Component (chips) ── */
+interface MultiValueSelectProps {
+  options: { value: string | number; label: string }[]
+  values: (string | number)[]
+  onChange: (values: (string | number)[]) => void
+}
+
+function MultiValueSelect({ options, values, onChange }: MultiValueSelectProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const wrapperRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const toggleValue = (val: string | number) => {
+    const strVal = String(val)
+    const exists = values.some(v => String(v) === strVal)
+    if (exists) {
+      onChange(values.filter(v => String(v) !== strVal))
+    } else {
+      onChange([...values, val])
+    }
+  }
+
+  const removeValue = (val: string | number) => {
+    onChange(values.filter(v => String(v) !== String(val)))
+  }
+
+  const getLabel = (val: string | number) => {
+    const opt = options.find(o => String(o.value) === String(val))
+    return opt?.label ?? String(val)
+  }
+
+  return (
+    <div className={s.multiValueSelect} ref={wrapperRef}>
+      <div 
+        className={s.multiValueDisplay}
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        {values.length === 0 && (
+          <span className={s.multiValuePlaceholder}>— בחר —</span>
+        )}
+        {values.map(val => (
+          <span key={String(val)} className={s.multiValueChip}>
+            {getLabel(val)}
+            <button
+              className={s.multiValueChipRemove}
+              onClick={(e) => { e.stopPropagation(); removeValue(val) }}
+            >
+              <X size={10} />
+            </button>
+          </span>
+        ))}
+      </div>
+      {isOpen && (
+        <div className={s.multiValueDropdown}>
+          {options.map(opt => {
+            const isSelected = values.some(v => String(v) === String(opt.value))
+            return (
+              <button
+                key={String(opt.value)}
+                className={`${s.multiValueOption} ${isSelected ? s.multiValueOptionSelected : ''}`}
+                onClick={() => toggleValue(opt.value)}
+              >
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => {}}
+                  className={s.filterModeCheckbox}
+                />
+                {opt.label}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }

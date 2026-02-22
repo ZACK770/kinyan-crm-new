@@ -12,6 +12,7 @@ export type {
   SmartTableProps,
   SmartColumn,
   Filter,
+  FilterMode,
   SavedFilter,
   BulkAction,
   FieldType,

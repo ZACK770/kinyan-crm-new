@@ -2,7 +2,7 @@
    SmartTable Filter Utilities
    ============================================================ */
 
-import type { Filter, FilterOperator, FieldType, SavedFilter, TableState } from './types'
+import type { Filter, FilterOperator, FilterMode, FieldType, SavedFilter, TableState } from './types'
 
 // Generate unique ID
 export const generateId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -151,10 +151,18 @@ export function applyFilter<T>(row: T, filter: Filter, type: FieldType): boolean
   if (type === 'text') {
     const strValue = String(value ?? '').toLowerCase()
     const strFilter = String(filterValue ?? '').toLowerCase()
+    const multiValues = filter.values?.length ? filter.values.map(v => String(v).toLowerCase()) : null
     
     switch (filter.operator) {
       case 'contains': return strValue.includes(strFilter)
-      case 'equals': return strValue === strFilter
+      case 'equals': {
+        if (multiValues) return multiValues.includes(strValue)
+        return strValue === strFilter
+      }
+      case 'notEquals': {
+        if (multiValues) return !multiValues.includes(strValue)
+        return strValue !== strFilter
+      }
       case 'startsWith': return strValue.startsWith(strFilter)
       case 'endsWith': return strValue.endsWith(strFilter)
       default: return true
@@ -217,10 +225,20 @@ export function applyFilter<T>(row: T, filter: Filter, type: FieldType): boolean
     const strValue = String(value ?? '')
     const strFilter = String(filterValue ?? '')
     
+    // Multi-value support for equals/notEquals
+    const multiValues = filter.values?.length ? filter.values.map(v => String(v)) : null
+    
     switch (filter.operator) {
-      case 'equals': return strValue === strFilter
-      case 'notEquals': return strValue !== strFilter
+      case 'equals': {
+        if (multiValues) return multiValues.includes(strValue)
+        return strValue === strFilter
+      }
+      case 'notEquals': {
+        if (multiValues) return !multiValues.includes(strValue)
+        return strValue !== strFilter
+      }
       case 'in': {
+        if (multiValues) return multiValues.includes(strValue)
         const values = strFilter.split(',').map(v => v.trim())
         return values.includes(strValue)
       }
@@ -235,16 +253,18 @@ export function applyFilter<T>(row: T, filter: Filter, type: FieldType): boolean
 export function applyFilters<T>(
   data: T[],
   filters: Filter[],
-  columns: { key: string; type: FieldType }[]
+  columns: { key: string; type: FieldType }[],
+  filterMode: FilterMode = 'and'
 ): T[] {
   if (!filters.length) return data
   
   return data.filter(row => {
-    return filters.every(filter => {
+    const results = filters.map(filter => {
       const column = columns.find(c => c.key === filter.field)
       if (!column) return true
       return applyFilter(row, filter, column.type)
     })
+    return filterMode === 'and' ? results.every(Boolean) : results.some(Boolean)
   })
 }
 

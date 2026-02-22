@@ -11,9 +11,10 @@
    - Pagination (optional)
    ============================================================ */
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Inbox, ChevronUp, ChevronDown } from 'lucide-react'
-import type { SmartTableProps, SmartColumn, Filter, SavedFilter, TableState } from './types'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { Inbox, ChevronUp, ChevronDown, Download } from 'lucide-react'
+import * as XLSX from 'xlsx'
+import type { SmartTableProps, SmartColumn, Filter, FilterMode, SavedFilter, TableState } from './types'
 import { FilterPanel } from './FilterPanel'
 import { ColumnManager } from './ColumnManager'
 import { BulkActions } from './BulkActions'
@@ -59,8 +60,12 @@ export function SmartTable<T>({
   const defaultPgSize = defaultPageSize ?? 100
   const pgSizeOpts = pageSizeOptions ?? [50, 100, 200]
 
+  // Shift-click selection tracking
+  const lastSelectedIndexRef = useRef<number | null>(null)
+
   // State
   const [filters, setFilters] = useState<Filter[]>([])
+  const [filterMode, setFilterMode] = useState<FilterMode>('and')
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([])
   const [activeSavedFilterId, setActiveSavedFilterId] = useState<string | null>(null)
   const [visibleColumns, setVisibleColumns] = useState<string[]>([])
@@ -86,6 +91,7 @@ export function SmartTable<T>({
       const savedState = loadTableState(storageKey)
       if (savedState) {
         setFilters(savedState.filters || [])
+        setFilterMode(savedState.filterMode || 'and')
         setVisibleColumns(savedState.visibleColumns?.length ? savedState.visibleColumns : defaultVisible)
         setColumnOrder(savedState.columnOrder?.length ? savedState.columnOrder : defaultOrder)
         setSortBy(savedState.sortBy || null)
@@ -111,6 +117,7 @@ export function SmartTable<T>({
 
     const state: TableState = {
       filters,
+      filterMode,
       visibleColumns,
       columnOrder,
       sortBy,
@@ -118,7 +125,7 @@ export function SmartTable<T>({
       pageSize,
     }
     saveTableState(storageKey, state)
-  }, [filters, visibleColumns, columnOrder, sortBy, sortDir, pageSize, storageKey])
+  }, [filters, filterMode, visibleColumns, columnOrder, sortBy, sortDir, pageSize, storageKey])
 
   // Get ordered and visible columns
   const displayColumns = useMemo(() => {
@@ -137,8 +144,8 @@ export function SmartTable<T>({
   // Apply filters to data
   const filteredData = useMemo(() => {
     const columnsInfo = columns.map(c => ({ key: c.key, type: c.type }))
-    return applyFilters(data, filters, columnsInfo)
-  }, [data, filters, columns])
+    return applyFilters(data, filters, columnsInfo, filterMode)
+  }, [data, filters, filterMode, columns])
 
   // Apply sorting
   const sortedData = useMemo(() => {
@@ -236,16 +243,30 @@ export function SmartTable<T>({
     }
   }
 
-  // Handle row selection
-  const toggleRowSelection = (rowKey: string | number) => {
+  // Handle row selection (with shift-click range support)
+  const toggleRowSelection = (rowKey: string | number, event?: React.MouseEvent) => {
+    const currentIndex = paginatedData.findIndex(row => keyExtractor(row) === rowKey)
     const newSelected = new Set(selectedRows)
-    if (newSelected.has(rowKey)) {
-      newSelected.delete(rowKey)
+
+    if (event?.shiftKey && lastSelectedIndexRef.current !== null && currentIndex !== -1) {
+      // Shift-click: select range
+      const start = Math.min(lastSelectedIndexRef.current, currentIndex)
+      const end = Math.max(lastSelectedIndexRef.current, currentIndex)
+      for (let i = start; i <= end; i++) {
+        newSelected.add(keyExtractor(paginatedData[i]))
+      }
     } else {
-      newSelected.add(rowKey)
+      // Normal click: toggle single
+      if (newSelected.has(rowKey)) {
+        newSelected.delete(rowKey)
+      } else {
+        newSelected.add(rowKey)
+      }
     }
+
+    lastSelectedIndexRef.current = currentIndex
     setSelectedRows(newSelected)
-    setIsAllSelected(newSelected.size === sortedData.length && sortedData.length > 0)
+    setIsAllSelected(newSelected.size === paginatedData.length && paginatedData.length > 0)
   }
 
   const toggleSelectAll = () => {
@@ -311,9 +332,11 @@ export function SmartTable<T>({
           <FilterPanel
             columns={columns}
             filters={filters}
+            filterMode={filterMode}
             savedFilters={savedFilters}
             activeSavedFilterId={activeSavedFilterId}
             onFiltersChange={setFilters}
+            onFilterModeChange={setFilterMode}
             onSaveFilter={handleSaveFilter}
             onLoadFilter={handleLoadFilter}
             onDeleteSavedFilter={handleDeleteSavedFilter}
@@ -327,6 +350,15 @@ export function SmartTable<T>({
           />
         </div>
         <div className={s.toolbarRight}>
+          <button
+            className={`${shared.btn} ${shared['btn-secondary']} ${shared['btn-sm']}`}
+            onClick={() => exportToExcel(sortedData, displayColumns, storageKey)}
+            disabled={loading || sortedData.length === 0}
+            title="ייצוא לאקסל"
+          >
+            <Download size={14} />
+            <span>Excel</span>
+          </button>
           {toolbarExtra}
           {loading ? (
             <span className={s.resultCount}>טוען...</span>
@@ -430,7 +462,8 @@ export function SmartTable<T>({
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => toggleRowSelection(rowKey)}
+                          onChange={() => {}}
+                          onClick={(e) => toggleRowSelection(rowKey, e as unknown as React.MouseEvent)}
                           className={s.checkbox}
                         />
                       </td>
@@ -477,6 +510,39 @@ export function SmartTable<T>({
       )}
     </div>
   )
+}
+
+// Export data to Excel
+function exportToExcel<T>(data: T[], columns: SmartColumn<T>[], storageKey?: string) {
+  const rows = data.map(row => {
+    const obj: Record<string, unknown> = {}
+    for (const col of columns) {
+      if (col.key === '_actions') continue
+      const value = (row as Record<string, unknown>)[col.key]
+      if (col.type === 'select' && col.options?.length) {
+        const opt = col.options.find(o => String(o.value) === String(value))
+        obj[col.header] = opt?.label ?? (value ?? '')
+      } else if (col.type === 'boolean') {
+        obj[col.header] = value === true ? 'כן' : value === false ? 'לא' : ''
+      } else if (col.type === 'currency') {
+        obj[col.header] = value != null ? Number(value) : ''
+      } else if (col.type === 'date' && value) {
+        try { obj[col.header] = new Date(value as string).toLocaleDateString('he-IL') } catch { obj[col.header] = value }
+      } else if (col.type === 'datetime' && value) {
+        try { obj[col.header] = new Date(value as string).toLocaleString('he-IL') } catch { obj[col.header] = value }
+      } else {
+        obj[col.header] = value ?? ''
+      }
+    }
+    return obj
+  })
+
+  const ws = XLSX.utils.json_to_sheet(rows)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Data')
+
+  const filename = `${storageKey || 'export'}_${new Date().toISOString().slice(0, 10)}.xlsx`
+  XLSX.writeFile(wb, filename)
 }
 
 // Render a single cell
