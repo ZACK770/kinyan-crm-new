@@ -85,6 +85,8 @@ def parse_yemot_payload(data: dict) -> dict:
     # Determine if call was answered
     if answer_number or queue_status in ("CONTINUE", "ANSWERED"):
         parsed["call_status"] = "נענה"
+        if answer_number:
+            parsed["answered_by_phone"] = answer_number
     else:
         parsed["call_status"] = _map_hangup_cause(queue_status)
 

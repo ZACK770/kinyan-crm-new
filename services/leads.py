@@ -284,6 +284,31 @@ async def assign_salesperson(db: AsyncSession, lead_id: int, phone: str) -> Sale
     return chosen
 
 
+async def _find_salesperson_by_phone(db: AsyncSession, phone: str) -> Salesperson | None:
+    """Find a salesperson by their phone number (for answered-call attribution)."""
+    clean = normalize_phone(phone)
+    if not clean:
+        return None
+    
+    # Exact match
+    stmt = select(Salesperson).where(Salesperson.phone == clean, Salesperson.is_active == True)  # noqa: E712
+    result = await db.execute(stmt)
+    sp = result.scalar_one_or_none()
+    if sp:
+        return sp
+    
+    # Try without leading zero
+    if clean.startswith("0"):
+        short = clean[1:]
+        stmt = select(Salesperson).where(Salesperson.phone.contains(short), Salesperson.is_active == True)  # noqa: E712
+        result = await db.execute(stmt)
+        sp = result.scalar_one_or_none()
+        if sp:
+            return sp
+    
+    return None
+
+
 async def _assign_salesperson_simple(db: AsyncSession, lead_id: int, phone: str, salespeople: list) -> Salesperson | None:
     """Simple round-robin fallback (original algorithm)."""
     if not salespeople:
@@ -401,20 +426,35 @@ async def process_incoming_lead(db: AsyncSession, **kwargs) -> dict:
 
     phone = normalize_phone(phone)
     existing = await search_by_phone(db, phone)
+    
+    # If call was answered, try to find the answering salesperson
+    answered_by_phone = kwargs.get("answered_by_phone", "")
+    answered_sp = None
+    if answered_by_phone:
+        answered_sp = await _find_salesperson_by_phone(db, answered_by_phone)
 
     if existing:
-        # Existing lead → add interaction
+        # Existing lead → add interaction + attribute to answering agent if applicable
         await add_interaction(db, existing.id, **kwargs)
+        if answered_sp and existing.salesperson_id != answered_sp.id:
+            existing.salesperson_id = answered_sp.id
         await db.commit()
         return {
             "success": True,
             "action": "updated",
             "lead_id": existing.id,
+            "salesperson": answered_sp.name if answered_sp else None,
         }
     else:
         # New lead → create + assign + interaction + notify
         lead = await create_lead(db, **kwargs)
-        sp = await assign_salesperson(db, lead.id, phone)
+        # If answered by a known salesperson, assign to them; otherwise use smart assignment
+        if answered_sp:
+            lead.salesperson_id = answered_sp.id
+            await db.flush()
+            sp = answered_sp
+        else:
+            sp = await assign_salesperson(db, lead.id, phone)
         await add_interaction(db, lead.id, **kwargs)
         await db.commit()
         
