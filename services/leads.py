@@ -2,7 +2,7 @@
 Lead management service.
 Replaces unified_make_module.js (575 lines JS → ~150 lines Python)
 """
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
