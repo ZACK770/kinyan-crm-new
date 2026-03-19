@@ -38,6 +38,15 @@ export interface Lead {
   selected_payment_day?: number
   first_payment_id?: number
   nedarim_payment_link?: string
+  // Lead response and follow-up tracking
+  lead_response?: string  // תגובת הליד: מעוניין / צריך לחשוב / לא זמין / לא מעוניין
+  follow_up_count?: number  // מספר ניסיונות מעקב
+  last_contact_date?: string  // תאריך שיחה אחרונה
+  // Discount tracking
+  discount_notes?: string  // הערות על ההנחה שניתנה
+  // Terms approval tracking
+  approval_method?: string  // שיטת אישור: טלפון / מייל / חתימה דיגיטלית / SMS
+  approval_date?: string  // תאריך אישור תקנון
   created_at: string
   updated_at?: string
   last_edited_at?: string
