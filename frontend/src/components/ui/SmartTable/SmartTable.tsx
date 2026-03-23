@@ -31,6 +31,7 @@ import {
 } from './filterUtils'
 import s from './SmartTable.module.css'
 import shared from '@/styles/shared.module.css'
+import { api } from '@/lib/api'
 
 export function SmartTable<T>({
   data,
@@ -63,10 +64,15 @@ export function SmartTable<T>({
   // Shift-click selection tracking
   const lastSelectedIndexRef = useRef<number | null>(null)
 
+  const serverPersistTimeoutRef = useRef<number | null>(null)
+
+  const [canPublishGlobal, setCanPublishGlobal] = useState(false)
+
   // State
   const [filters, setFilters] = useState<Filter[]>([])
   const [filterMode, setFilterMode] = useState<FilterMode>('and')
-  const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([])
+  const [userSavedFilters, setUserSavedFilters] = useState<SavedFilter[]>([])
+  const [globalSavedFilters, setGlobalSavedFilters] = useState<SavedFilter[]>([])
   const [activeSavedFilterId, setActiveSavedFilterId] = useState<string | null>(null)
   const [visibleColumns, setVisibleColumns] = useState<string[]>([])
   const [columnOrder, setColumnOrder] = useState<string[]>([])
@@ -86,28 +92,106 @@ export function SmartTable<T>({
     
     const defaultOrder = columns.map(c => c.key)
 
-    if (storageKey) {
-      // Load saved state
-      const savedState = loadTableState(storageKey)
-      if (savedState) {
-        setFilters(savedState.filters || [])
-        setFilterMode(savedState.filterMode || 'and')
-        setVisibleColumns(savedState.visibleColumns?.length ? savedState.visibleColumns : defaultVisible)
-        setColumnOrder(savedState.columnOrder?.length ? savedState.columnOrder : defaultOrder)
-        setSortBy(savedState.sortBy || null)
-        setSortDir(savedState.sortDir || 'asc')
-        if (savedState.pageSize) setPageSize(savedState.pageSize)
-      } else {
-        setVisibleColumns(defaultVisible)
-        setColumnOrder(defaultOrder)
-      }
+    if (!storageKey) {
+      setVisibleColumns(defaultVisible)
+      setColumnOrder(defaultOrder)
+      return
+    }
 
-      // Load saved filters
-      const savedFiltersList = loadSavedFilters(storageKey)
-      setSavedFilters(savedFiltersList)
+    ;(async () => {
+      try {
+        const me = await api.get<{ permission_level: number }>('/auth/me')
+        setCanPublishGlobal(Number(me?.permission_level) >= 40)
+      } catch {
+        setCanPublishGlobal(false)
+      }
+    })()
+
+    // Load local cached state first (fast)
+    const savedState = loadTableState(storageKey)
+    if (savedState) {
+      setFilters(savedState.filters || [])
+      setFilterMode(savedState.filterMode || 'and')
+      setVisibleColumns(savedState.visibleColumns?.length ? savedState.visibleColumns : defaultVisible)
+      setColumnOrder(savedState.columnOrder?.length ? savedState.columnOrder : defaultOrder)
+      setSortBy(savedState.sortBy || null)
+      setSortDir(savedState.sortDir || 'asc')
+      if (savedState.pageSize) setPageSize(savedState.pageSize)
     } else {
       setVisibleColumns(defaultVisible)
       setColumnOrder(defaultOrder)
+    }
+
+    const savedFiltersList = loadSavedFilters(storageKey)
+    setUserSavedFilters(savedFiltersList)
+
+    // Then load from server (source-of-truth, sync between devices)
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await api.get<{ storage_key: string; data: any }>(
+          `/users/me/saved-table-prefs?storage_key=${encodeURIComponent(storageKey)}`
+        )
+        if (cancelled) return
+        const data = res?.data
+        if (!data) return
+
+        const serverTableState = data.tableState as TableState | undefined
+        const serverSavedFilters = data.savedFilters as SavedFilter[] | undefined
+
+        if (serverTableState) {
+          setFilters(serverTableState.filters || [])
+          setFilterMode(serverTableState.filterMode || 'and')
+          setVisibleColumns(serverTableState.visibleColumns?.length ? serverTableState.visibleColumns : defaultVisible)
+          setColumnOrder(serverTableState.columnOrder?.length ? serverTableState.columnOrder : defaultOrder)
+          setSortBy(serverTableState.sortBy || null)
+          setSortDir(serverTableState.sortDir || 'asc')
+          if (serverTableState.pageSize) setPageSize(serverTableState.pageSize)
+
+          // Refresh local cache
+          saveTableState(storageKey, serverTableState)
+        }
+
+        if (Array.isArray(serverSavedFilters)) {
+          setUserSavedFilters(serverSavedFilters)
+          saveSavedFilters(storageKey, serverSavedFilters)
+        }
+      } catch {
+        // Ignore server errors; local cache remains
+      }
+    })()
+
+    ;(async () => {
+      try {
+        const res = await api.get<{ storage_key: string; data: any }>(
+          `/table-prefs/global?storage_key=${encodeURIComponent(storageKey)}`
+        )
+        if (cancelled) return
+        const data = res?.data
+        if (!data) return
+
+        const serverGlobalSavedFilters = data.savedFilters as SavedFilter[] | undefined
+        if (Array.isArray(serverGlobalSavedFilters)) {
+          setGlobalSavedFilters(serverGlobalSavedFilters)
+        }
+
+        const serverGlobalTableState = data.tableState as TableState | undefined
+        if (serverGlobalTableState && !savedState) {
+          setFilters(serverGlobalTableState.filters || [])
+          setFilterMode(serverGlobalTableState.filterMode || 'and')
+          setVisibleColumns(serverGlobalTableState.visibleColumns?.length ? serverGlobalTableState.visibleColumns : defaultVisible)
+          setColumnOrder(serverGlobalTableState.columnOrder?.length ? serverGlobalTableState.columnOrder : defaultOrder)
+          setSortBy(serverGlobalTableState.sortBy || null)
+          setSortDir(serverGlobalTableState.sortDir || 'asc')
+          if (serverGlobalTableState.pageSize) setPageSize(serverGlobalTableState.pageSize)
+        }
+      } catch {
+        // Ignore server errors
+      }
+    })()
+
+    return () => {
+      cancelled = true
     }
   }, [columns, storageKey, defaultPgSize])
 
@@ -126,6 +210,79 @@ export function SmartTable<T>({
     }
     saveTableState(storageKey, state)
   }, [filters, filterMode, visibleColumns, columnOrder, sortBy, sortDir, pageSize, storageKey])
+
+  // Persist saved filters + table state to server (debounced)
+  useEffect(() => {
+    if (!storageKey || !visibleColumns.length) return
+
+    const state: TableState = {
+      filters,
+      filterMode,
+      visibleColumns,
+      columnOrder,
+      sortBy,
+      sortDir,
+      pageSize,
+    }
+
+    if (serverPersistTimeoutRef.current) {
+      window.clearTimeout(serverPersistTimeoutRef.current)
+    }
+
+    serverPersistTimeoutRef.current = window.setTimeout(async () => {
+      try {
+        await api.put(
+          `/users/me/saved-table-prefs?storage_key=${encodeURIComponent(storageKey)}`,
+          {
+            data: {
+              tableState: state,
+              savedFilters: userSavedFilters,
+              updatedAt: new Date().toISOString(),
+            },
+          }
+        )
+      } catch {
+        // Ignore server errors; local cache remains
+      }
+    }, 750)
+
+    return () => {
+      if (serverPersistTimeoutRef.current) {
+        window.clearTimeout(serverPersistTimeoutRef.current)
+      }
+    }
+  }, [filters, filterMode, visibleColumns, columnOrder, sortBy, sortDir, pageSize, userSavedFilters, storageKey])
+
+  const effectiveSavedFilters = useMemo(() => {
+    return [...globalSavedFilters, ...userSavedFilters]
+  }, [globalSavedFilters, userSavedFilters])
+
+  const handlePublishGlobal = useCallback(async () => {
+    if (!storageKey) return
+    const state: TableState = {
+      filters,
+      filterMode,
+      visibleColumns,
+      columnOrder,
+      sortBy,
+      sortDir,
+      pageSize,
+    }
+    try {
+      await api.put(
+        `/table-prefs/global?storage_key=${encodeURIComponent(storageKey)}`,
+        {
+          data: {
+            tableState: state,
+            savedFilters: globalSavedFilters,
+            updatedAt: new Date().toISOString(),
+          },
+        }
+      )
+    } catch {
+      // ignore
+    }
+  }, [storageKey, filters, filterMode, visibleColumns, columnOrder, sortBy, sortDir, pageSize, globalSavedFilters])
 
   // Get ordered and visible columns
   const displayColumns = useMemo(() => {
@@ -204,13 +361,13 @@ export function SmartTable<T>({
       columnOrder,
       createdAt: new Date().toISOString(),
     }
-    const updated = [...savedFilters, newFilter]
-    setSavedFilters(updated)
+    const updated = [...userSavedFilters, newFilter]
+    setUserSavedFilters(updated)
     setActiveSavedFilterId(newFilter.id)
     if (storageKey) {
       saveSavedFilters(storageKey, updated)
     }
-  }, [savedFilters, visibleColumns, columnOrder, storageKey])
+  }, [userSavedFilters, visibleColumns, columnOrder, storageKey])
 
   // Handle filter load
   const handleLoadFilter = useCallback((savedFilter: SavedFilter) => {
@@ -222,13 +379,13 @@ export function SmartTable<T>({
 
   // Handle filter delete
   const handleDeleteSavedFilter = useCallback((id: string) => {
-    const updated = savedFilters.filter(f => f.id !== id)
-    setSavedFilters(updated)
+    const updated = userSavedFilters.filter(f => f.id !== id)
+    setUserSavedFilters(updated)
     if (activeSavedFilterId === id) setActiveSavedFilterId(null)
     if (storageKey) {
       saveSavedFilters(storageKey, updated)
     }
-  }, [savedFilters, activeSavedFilterId, storageKey])
+  }, [userSavedFilters, activeSavedFilterId, storageKey])
 
   // Handle sorting
   const handleSort = (columnKey: string) => {
@@ -333,13 +490,15 @@ export function SmartTable<T>({
             columns={columns}
             filters={filters}
             filterMode={filterMode}
-            savedFilters={savedFilters}
+            savedFilters={effectiveSavedFilters}
             activeSavedFilterId={activeSavedFilterId}
             onFiltersChange={setFilters}
             onFilterModeChange={setFilterMode}
             onSaveFilter={handleSaveFilter}
             onLoadFilter={handleLoadFilter}
             onDeleteSavedFilter={handleDeleteSavedFilter}
+            canPublishGlobal={canPublishGlobal}
+            onPublishGlobal={handlePublishGlobal}
           />
           <ColumnManager
             columns={columns}

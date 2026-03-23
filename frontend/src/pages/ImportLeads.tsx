@@ -22,7 +22,16 @@ interface ImportResult {
   errors: Array<{ row: number; error: string }>
 }
 
+interface PreviewResponse {
+  headers: string[]
+  sample_rows: Array<Record<string, string | null>>
+  supported_fields: string[]
+  required_fields: string[]
+}
+
 type DuplicateMode = 'skip' | 'merge' | 'overwrite' | 'update_field'
+
+type WizardStep = 'upload' | 'mapping' | 'importing' | 'done'
 
 const DUPLICATE_OPTIONS: { value: DuplicateMode; label: string; desc: string }[] = [
   { value: 'skip', label: 'דילוג', desc: 'דילוג על לידים עם טלפון שכבר קיים במערכת' },
@@ -45,6 +54,29 @@ const FIELD_OPTIONS = [
   { value: 'arrival_date', label: 'תאריך הגעה' },
   { value: 'last_contact_date', label: 'תאריך שיחה אחרונה' },
 ]
+
+const LEAD_FIELD_LABELS: Record<string, string> = {
+  full_name: 'שם מלא',
+  family_name: 'משפחה',
+  phone: 'טלפון ראשי',
+  phone2: 'טלפון נוסף',
+  email: 'אימייל',
+  city: 'עיר',
+  address: 'כתובת',
+  id_number: 'תעודת זהות',
+  notes: 'הערות',
+  source_type: 'מקור הגעה כללי',
+  source_message: 'הודעה מהליד',
+  campaign_name: 'שם מפרסם/קמפיין',
+  requested_course: 'מוצר/קורס מתעניין',
+  status: 'סטטוס ליד',
+  lead_response: 'סטטוס מענה',
+  salesperson_name: 'איש מכירות (שם)',
+  course_name: 'קורס (שם)',
+  created_at: 'תאריך יצירה',
+  arrival_date: 'תאריך הגעה',
+  last_contact_date: 'תאריך פניה אחרונה',
+}
 
 const SUPPORTED_COLUMNS = [
   { name: 'שם מלא', required: true },
@@ -74,10 +106,14 @@ export function ImportLeadsPage() {
   const [duplicateMode, setDuplicateMode] = useState<DuplicateMode>('skip')
   const [updateFieldName, setUpdateFieldName] = useState<string>('status')
   const [loading, setLoading] = useState(false)
+  const [step, setStep] = useState<WizardStep>('upload')
   const [result, setResult] = useState<ImportResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const [preview, setPreview] = useState<PreviewResponse | null>(null)
+  const [mapping, setMapping] = useState<Record<string, string>>({})
 
   const handleFileSelect = useCallback((selectedFile: File) => {
     const validTypes = [
@@ -91,6 +127,9 @@ export function ImportLeadsPage() {
     setFile(selectedFile)
     setResult(null)
     setError(null)
+    setPreview(null)
+    setMapping({})
+    setStep('mapping')
   }, [])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -110,15 +149,42 @@ export function ImportLeadsPage() {
     setDragActive(false)
   }, [])
 
+  const loadPreview = useCallback(async (selectedFile: File) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', selectedFile)
+      const res = await api.upload<PreviewResponse>('/admin/import-leads/preview-file', formData)
+      setPreview(res)
+      const initial: Record<string, string> = {}
+      // naive auto-mapping by exact header matches
+      res.required_fields.forEach((f) => {
+        const label = LEAD_FIELD_LABELS[f] || f
+        const exact = res.headers.find((h) => h === label) || res.headers.find((h) => h === (f === 'phone' ? 'טלפון ראשי' : ''))
+        if (exact) initial[f] = exact
+      })
+      if (Object.keys(initial).length) setMapping((m) => ({ ...m, ...initial }))
+    } catch (err: unknown) {
+      const message = (err as any)?.message || 'שגיאה בקריאת הקובץ'
+      setError(message)
+      setStep('upload')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   const handleImport = async () => {
     if (!file) return
     setLoading(true)
     setError(null)
     setResult(null)
+    setStep('importing')
 
     try {
       const formData = new FormData()
       formData.append('file', file)
+      formData.append('mapping_json', JSON.stringify(mapping))
 
       let url = `/admin/import-leads?duplicate_mode=${duplicateMode}`
       if (duplicateMode === 'update_field') {
@@ -127,9 +193,11 @@ export function ImportLeadsPage() {
 
       const res = await api.upload<ImportResult>(url, formData)
       setResult(res)
+      setStep('done')
     } catch (err: unknown) {
       const message = (err as any)?.message || 'שגיאה בייבוא הלידים'
       setError(message)
+      setStep('mapping')
     } finally {
       setLoading(false)
     }
@@ -139,10 +207,22 @@ export function ImportLeadsPage() {
     setFile(null)
     setResult(null)
     setError(null)
+    setPreview(null)
+    setMapping({})
+    setStep('upload')
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const totalProcessed = result ? Object.values(result.stats).reduce((a, b) => a + b, 0) : 0
+
+  const canImport = (() => {
+    if (!preview) return false
+    for (const req of preview.required_fields) {
+      if (!mapping[req]) return false
+      if (!preview.headers.includes(mapping[req])) return false
+    }
+    return true
+  })()
 
   return (
     <div className={styles.container}>
@@ -154,7 +234,7 @@ export function ImportLeadsPage() {
       </div>
 
       {/* Upload area */}
-      {!file && !result && (
+      {step === 'upload' && !file && !result && (
         <div
           className={`${styles.uploadArea} ${dragActive ? styles.uploadAreaActive : ''}`}
           onClick={() => fileInputRef.current?.click()}
@@ -195,8 +275,120 @@ export function ImportLeadsPage() {
         </div>
       )}
 
+      {/* Preview + mapping */}
+      {file && step === 'mapping' && !result && (
+        <div className={styles.optionsSection}>
+          <h3 className={styles.optionsTitle}>
+            <Info size={18} />
+            מיפוי עמודות מהקובץ לשדות בליד
+          </h3>
+
+          {!preview && !loading && (
+            <button
+              className={`${s.btn} ${s['btn-primary']}`}
+              onClick={() => loadPreview(file)}
+            >
+              טען תצוגה מקדימה
+            </button>
+          )}
+
+          {preview && (
+            <>
+              <div style={{ marginBottom: '1rem', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                בחר לאיזו עמודה בקובץ מתאים כל שדה. חובה: {preview.required_fields.map((f) => LEAD_FIELD_LABELS[f] || f).join(', ')}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                {[
+                  ...preview.required_fields,
+                  'email',
+                  'city',
+                  'address',
+                  'notes',
+                  'status',
+                  'lead_response',
+                  'salesperson_name',
+                  'requested_course',
+                  'campaign_name',
+                  'created_at',
+                  'last_contact_date',
+                ]
+                  .filter((f, idx, arr) => preview.supported_fields.includes(f) && arr.indexOf(f) === idx)
+                  .map((field) => (
+                    <div key={field}>
+                      <label style={{ display: 'block', marginBottom: 6, fontWeight: 600, fontSize: '0.85rem' }}>
+                        {LEAD_FIELD_LABELS[field] || field}
+                        {preview.required_fields.includes(field) ? ' (חובה)' : ''}
+                      </label>
+                      <select
+                        value={mapping[field] || ''}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          setMapping((m) => {
+                            const next = { ...m }
+                            if (!v) {
+                              delete next[field]
+                            } else {
+                              next[field] = v
+                            }
+                            return next
+                          })
+                        }}
+                        className={s.input}
+                      >
+                        <option value="">(לא למפות)</option>
+                        {preview.headers.map((h) => (
+                          <option key={h} value={h}>
+                            {h}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+              </div>
+
+              <div style={{ marginTop: '1rem' }}>
+                <div style={{ fontWeight: 600, marginBottom: 6, fontSize: '0.85rem' }}>תצוגה מקדימה (עד 5 שורות)</div>
+                <div style={{ overflowX: 'auto', border: '1px solid var(--color-border-light)', borderRadius: 8 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                    <thead>
+                      <tr>
+                        {preview.headers.slice(0, 8).map((h) => (
+                          <th
+                            key={h}
+                            style={{
+                              textAlign: 'right',
+                              padding: '8px 10px',
+                              borderBottom: '1px solid var(--color-border-light)',
+                              background: '#f8fafc',
+                            }}
+                          >
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preview.sample_rows.map((r, i) => (
+                        <tr key={i}>
+                          {preview.headers.slice(0, 8).map((h) => (
+                            <td key={h} style={{ padding: '8px 10px', borderBottom: '1px solid var(--color-border-light)' }}>
+                              {r[h] || ''}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Duplicate handling options */}
-      {file && !result && !loading && (
+      {file && !result && !loading && step === 'mapping' && (
         <div className={styles.optionsSection}>
           <h3 className={styles.optionsTitle}>
             <Settings2 size={18} />
@@ -250,7 +442,7 @@ export function ImportLeadsPage() {
       {loading && (
         <div className={styles.progressSection}>
           <div className={styles.spinner} />
-          <div className={styles.progressText}>מייבא לידים...</div>
+          <div className={styles.progressText}>{step === 'importing' ? 'מייבא לידים...' : 'טוען נתונים...'}</div>
           <div className={styles.progressHint}>
             התהליך עשוי לקחת מספר שניות, אנא המתן
           </div>
@@ -365,7 +557,7 @@ export function ImportLeadsPage() {
             <button
               className={`${s.btn} ${s['btn-primary']}`}
               onClick={handleImport}
-              disabled={loading}
+              disabled={loading || step !== 'mapping' || !preview || !canImport}
             >
               <Upload size={16} />
               התחל ייבוא

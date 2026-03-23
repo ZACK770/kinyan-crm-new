@@ -26,6 +26,8 @@ class User(Base):
     google_id: Mapped[Optional[str]] = mapped_column(String(200), unique=True)
     avatar_url: Mapped[Optional[str]] = mapped_column(String(500))
 
+    saved_filters: Mapped[Optional[dict]] = mapped_column(JSON, default=dict)
+
     # Permission level: 0=pending, 10=viewer, 20=editor, 30=manager, 35=class_manager, 40=admin
     permission_level: Mapped[int] = mapped_column(Integer, default=0)
     role_name: Mapped[str] = mapped_column(String(50), default="pending")  # pending/viewer/editor/manager/class_manager/admin
@@ -1506,3 +1508,18 @@ class PopupDismissal(Base):
     )
 
     announcement: Mapped["PopupAnnouncement"] = relationship(back_populates="dismissals")
+
+
+# ============================================================
+# GlobalTablePref (העדפות/פילטרים גלובליים לטבלאות)
+# ============================================================
+class GlobalTablePref(Base):
+    __tablename__ = "global_table_prefs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    storage_key: Mapped[str] = mapped_column(String(200), nullable=False, unique=True, index=True)
+    data: Mapped[Optional[dict]] = mapped_column(JSON)
+    updated_by_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    updated_by_user: Mapped[Optional["User"]] = relationship(foreign_keys=[updated_by_user_id])

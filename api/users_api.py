@@ -28,6 +28,10 @@ from services.users import (
 router = APIRouter()
 
 
+class SavedTablePrefRequest(BaseModel):
+    data: dict
+
+
 # ── Schemas ──────────────────────────────────────────
 class UserResponse(BaseModel):
     id: int
@@ -348,3 +352,41 @@ def _role_label_he(role: str) -> str:
         "admin": "מנהל מערכת",
     }
     return labels.get(role, role)
+
+
+@router.get("/me/saved-table-prefs")
+async def api_get_my_saved_table_prefs(
+    storage_key: str = Query(..., min_length=1),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get saved SmartTable preferences for the current user by storage_key."""
+    if not user.id or user.id <= 0:
+        return {"storage_key": storage_key, "data": None}
+    db_user = await db.get(User, user.id)
+    if not db_user:
+        raise HTTPException(status_code=404, detail="משתמש לא נמצא")
+    saved = db_user.saved_filters or {}
+    data = saved.get(storage_key)
+    return {"storage_key": storage_key, "data": data}
+
+
+@router.put("/me/saved-table-prefs")
+async def api_set_my_saved_table_prefs(
+    body: SavedTablePrefRequest,
+    storage_key: str = Query(..., min_length=1),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Set saved SmartTable preferences for the current user by storage_key."""
+    if not user.id or user.id <= 0:
+        return {"storage_key": storage_key, "data": body.data}
+    db_user = await db.get(User, user.id)
+    if not db_user:
+        raise HTTPException(status_code=404, detail="משתמש לא נמצא")
+    saved = db_user.saved_filters or {}
+    saved[storage_key] = body.data
+    db_user.saved_filters = saved
+    await db.commit()
+    await db.refresh(db_user)
+    return {"storage_key": storage_key, "data": saved.get(storage_key)}

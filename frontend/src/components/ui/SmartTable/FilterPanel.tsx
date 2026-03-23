@@ -26,6 +26,8 @@ interface Props<T> {
   onSaveFilter: (name: string, filters: Filter[]) => void
   onLoadFilter: (savedFilter: SavedFilter) => void
   onDeleteSavedFilter: (id: string) => void
+  canPublishGlobal?: boolean
+  onPublishGlobal?: () => void
 }
 
 export function FilterPanel<T>({
@@ -39,6 +41,8 @@ export function FilterPanel<T>({
   onSaveFilter,
   onLoadFilter,
   onDeleteSavedFilter,
+  canPublishGlobal = false,
+  onPublishGlobal,
 }: Props<T>) {
   const [isOpen, setIsOpen] = useState(false)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
@@ -158,15 +162,17 @@ export function FilterPanel<T>({
                   >
                     {sf.name}
                   </button>
-                  <button 
-                    className={s.savedFilterDelete}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onDeleteSavedFilter(sf.id)
-                    }}
-                  >
-                    <Trash2 size={12} />
-                  </button>
+                  {!String(sf.id).startsWith('g_') && (
+                    <button 
+                      className={s.savedFilterDelete}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onDeleteSavedFilter(sf.id)
+                      }}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -182,6 +188,15 @@ export function FilterPanel<T>({
             <div className={s.filterPanelActions}>
               {filters.length > 0 && (
                 <>
+                  {canPublishGlobal && onPublishGlobal && (
+                    <button 
+                      className={`${shared.btn} ${shared['btn-ghost']} ${shared['btn-xs']}`}
+                      onClick={onPublishGlobal}
+                      title="פרסום גלובלי לכל המשתמשים"
+                    >
+                      <Save size={12} /> פרסם לכולם
+                    </button>
+                  )}
                   <button 
                     className={`${shared.btn} ${shared['btn-ghost']} ${shared['btn-xs']}`}
                     onClick={() => setShowSaveDialog(true)}
