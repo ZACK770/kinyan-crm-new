@@ -421,7 +421,9 @@ interface MultiValueSelectProps {
 
 function MultiValueSelect({ options, values, onChange }: MultiValueSelectProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
   const wrapperRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -432,6 +434,36 @@ function MultiValueSelect({ options, values, onChange }: MultiValueSelectProps) 
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
+
+  useEffect(() => {
+    if (isOpen && wrapperRef.current) {
+      const updatePosition = () => {
+        const rect = wrapperRef.current!.getBoundingClientRect()
+        const viewportHeight = window.innerHeight
+        const dropdownHeight = Math.min(200, options.length * 32) // Approximate height
+        
+        // Check if dropdown fits below, otherwise show above
+        const spaceBelow = viewportHeight - rect.bottom - 8
+        const showAbove = spaceBelow < dropdownHeight && rect.top > dropdownHeight
+        
+        setDropdownStyle({
+          top: showAbove ? rect.top - dropdownHeight - 4 : rect.bottom + 4,
+          left: rect.left,
+          width: rect.width,
+          minWidth: Math.max(200, rect.width),
+        })
+      }
+
+      updatePosition()
+      window.addEventListener('scroll', updatePosition, true)
+      window.addEventListener('resize', updatePosition)
+      
+      return () => {
+        window.removeEventListener('scroll', updatePosition, true)
+        window.removeEventListener('resize', updatePosition)
+      }
+    }
+  }, [isOpen, options.length])
 
   const toggleValue = (val: string | number) => {
     const strVal = String(val)
@@ -474,7 +506,7 @@ function MultiValueSelect({ options, values, onChange }: MultiValueSelectProps) 
         ))}
       </div>
       {isOpen && (
-        <div className={s.multiValueDropdown}>
+        <div className={s.multiValueDropdown} ref={dropdownRef} style={dropdownStyle}>
           {options.map(opt => {
             const isSelected = values.some(v => String(v) === String(opt.value))
             return (
