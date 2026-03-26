@@ -6,7 +6,7 @@ from sqlalchemy import select, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from db.models import Lead, LeadInteraction, Salesperson
+from db.models import Lead, LeadInteraction, LeadMessage, LeadProduct, SalesTask, Inquiry, HistoryEntry, Salesperson
 from utils.phone import normalize_phone, is_valid_phone
 
 # Allowed lead statuses — only these can be set via API/import
