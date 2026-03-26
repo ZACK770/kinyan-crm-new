@@ -3,7 +3,7 @@ Generic import API: dynamic entity discovery + field inference.
 Supports any importable table without hardcoding entity names/fields.
 """
 from fastapi import APIRouter, UploadFile, File, Query, Depends, Form, HTTPException
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from typing import Optional, Any, List, Dict
 import io
 import json
@@ -79,6 +79,29 @@ def _infer_duplicate_keys(table_obj) -> List[str]:
     return list(set(candidates))
 
 
+def _get_entity_hebrew_name(table_name: str) -> str:
+    """Return Hebrew name for common entities."""
+    hebrew_names = {
+        'leads': 'לידים',
+        'students': 'סטודנטים', 
+        'courses': 'קורסים',
+        'payments': 'תשלומים',
+        'commitments': 'התחייבויות',
+        'campaigns': 'קמפיינים',
+        'tasks': 'משימות',
+        'users': 'משתמשים',
+        'salespeople': 'נציגי מכירות',
+        'lecturers': 'מרצים',
+        'expenses': 'הוצאות',
+        'collections': 'גבייה',
+        'inquiries': 'פניות',
+        'messages': 'הודעות',
+        'audit_logs': 'יומן ביקורת',
+        'webhook_logs': 'יומן וובהוקים',
+    }
+    return hebrew_names.get(table_name, table_name)
+
+
 @router.get("/entities")
 async def list_importable_entities(
     user=Depends(require_permission("admin")),
@@ -87,7 +110,11 @@ async def list_importable_entities(
     entities = []
     for table_name, table_obj in Base.metadata.tables.items():
         if _is_importable_table(table_name, table_obj):
-            entities.append({"entity": table_name, "label": table_name})
+            hebrew_name = _get_entity_hebrew_name(table_name)
+            entities.append({
+                "entity": table_name, 
+                "label": f"{hebrew_name} ({table_name})"
+            })
     return entities
 
 
@@ -128,9 +155,42 @@ async def describe_entity_fields(
     }
 
 
+def _describe_entity_fields_sync(entity: str) -> dict:
+    """Synchronous version of describe_entity_fields for internal use."""
+    if entity not in Base.metadata.tables:
+        raise HTTPException(status_code=404, detail="Entity not found")
+    table = Base.metadata.tables[entity]
+    if not _is_importable_table(entity, table):
+        raise HTTPException(status_code=403, detail="Entity not importable")
+
+    fields = []
+    for col in table.columns:
+        fields.append({
+            "name": col.name,
+            "type": _field_type_from_sqlalchemy(col.type),
+            "nullable": col.nullable,
+            "primary_key": col.primary_key,
+            "unique": col.unique,
+            "foreign_key": bool(col.foreign_keys),
+            "writable": (
+                not col.primary_key
+                and col.autoincrement is False
+                and col.default is None
+                and col.server_default is None
+            ),
+        })
+
+    return {
+        "entity": entity,
+        "fields": fields,
+        "required_fields_suggested": _infer_required_fields(table),
+        "duplicate_keys_suggested": _infer_duplicate_keys(table),
+    }
+
+
 @router.post("/preview-file")
 async def preview_import_file(
-    entity: str,
+    entity: str = Form(...),
     file: UploadFile = File(...),
     user=Depends(require_permission("admin")),
 ):
@@ -158,7 +218,7 @@ async def preview_import_file(
         raise HTTPException(status_code=400, detail=f"Failed to read Excel file: {e}")
 
     # Include field schema from describe endpoint
-    fields_info = await describe_entity_fields(entity, user)
+    fields_info = _describe_entity_fields_sync(entity)
 
     return {
         "entity": entity,
@@ -208,10 +268,10 @@ async def _find_existing_generic(
 
 @router.post("/import")
 async def import_generic_entity(
-    entity: str,
-    duplicate_mode: str = Query("skip"),
-    duplicate_key_field: Optional[str] = Query(None),
-    required_fields_override: Optional[str] = Query(None),  # JSON string list
+    entity: str = Form(...),
+    duplicate_mode: str = Form("skip"),
+    duplicate_key_field: Optional[str] = Form(None),
+    required_fields_override: Optional[str] = Form(None),  # JSON string list
     file: UploadFile = File(...),
     mapping_json: str = Form(...),
     user=Depends(require_permission("admin")),
