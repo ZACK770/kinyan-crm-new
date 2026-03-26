@@ -256,16 +256,22 @@ export function applyFilters<T>(
   columns: { key: string; type: FieldType }[],
   filterMode: FilterMode = 'and'
 ): T[] {
-  // Filter out incomplete filters (null/empty values) before applying
+  // Filter out incomplete filters before applying.
+  // Important: some operators intentionally don't need a value (e.g. today/thisWeek/last7Days).
   const validFilters = filters.filter(filter => {
-    // Skip filters with null/undefined values unless they're empty/notEmpty operators
+    // Operators that don't require a value are always valid
+    if (!operatorNeedsValue(filter.operator)) return true
+
+    // Operators that require a value must have one
     if (filter.value === null || filter.value === undefined || filter.value === '') {
-      return filter.operator === 'isEmpty' || filter.operator === 'isNotEmpty'
-    }
-    // For 'between' operator, ensure both values are present
-    if (filter.operator === 'between' && (!filter.value2 || filter.value2 === '')) {
       return false
     }
+
+    // For 'between' operator, ensure second value is present
+    if (operatorNeedsSecondValue(filter.operator)) {
+      return !(filter.value2 === null || filter.value2 === undefined || filter.value2 === '')
+    }
+
     return true
   })
   

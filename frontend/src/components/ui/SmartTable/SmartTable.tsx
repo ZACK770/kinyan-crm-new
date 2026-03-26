@@ -26,6 +26,8 @@ import {
   applyFilters, 
   loadTableState, 
   saveTableState, 
+  operatorNeedsValue,
+  operatorNeedsSecondValue,
   loadSavedFilters, 
   saveSavedFilters 
 } from './filterUtils'
@@ -158,9 +160,17 @@ export function SmartTable<T>({
           // Only apply saved filters if they're valid (not empty/null values)
           const validFilters = (serverTableState.filters || []).filter((f: any) => {
             if (!f.field || !f.operator) return false
-            if (f.value === null || f.value === undefined || f.value === '') {
-              return f.operator === 'isEmpty' || f.operator === 'isNotEmpty'
+            // Operators that don't require a value are valid even with null/empty value
+            if (!operatorNeedsValue(f.operator)) return true
+
+            // Operators that require a value must have one
+            if (f.value === null || f.value === undefined || f.value === '') return false
+
+            // 'between' requires value2 as well
+            if (operatorNeedsSecondValue(f.operator)) {
+              return !(f.value2 === null || f.value2 === undefined || f.value2 === '')
             }
+
             return true
           })
           
@@ -207,9 +217,17 @@ export function SmartTable<T>({
           // Only apply global filters if they're valid (not empty/null values)
           const validFilters = (serverGlobalTableState.filters || []).filter((f: any) => {
             if (!f.field || !f.operator) return false
-            if (f.value === null || f.value === undefined || f.value === '') {
-              return f.operator === 'isEmpty' || f.operator === 'isNotEmpty'
+            // Operators that don't require a value are valid even with null/empty value
+            if (!operatorNeedsValue(f.operator)) return true
+
+            // Operators that require a value must have one
+            if (f.value === null || f.value === undefined || f.value === '') return false
+
+            // 'between' requires value2 as well
+            if (operatorNeedsSecondValue(f.operator)) {
+              return !(f.value2 === null || f.value2 === undefined || f.value2 === '')
             }
+
             return true
           })
           
