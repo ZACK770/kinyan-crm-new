@@ -205,12 +205,13 @@ export function ImportLeadsPage() {
       formData.append('entity', selectedEntity)
       formData.append('mapping_json', JSON.stringify(backendMapping))
 
-      let url = `/admin/import/import?duplicate_mode=${duplicateMode}`
+      // Backend expects these as Form fields (multipart), not query params
+      formData.append('duplicate_mode', duplicateMode)
       if (duplicateKeyField) {
-        url += `&duplicate_key_field=${duplicateKeyField}`
+        formData.append('duplicate_key_field', duplicateKeyField)
       }
 
-      const res = await api.upload<ImportResult>(url, formData)
+      const res = await api.upload<ImportResult>('/admin/import/import', formData)
       setResult(res)
       setStep('done')
     } catch (err: unknown) {
