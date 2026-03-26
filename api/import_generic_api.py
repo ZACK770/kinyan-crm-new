@@ -341,7 +341,7 @@ async def import_generic_entity(
             if val is not None and val != "":
                 # Basic type conversion (could be extended)
                 col = table.columns.get(field)
-                if col:
+                if col is not None:
                     py_type = _field_type_from_sqlalchemy(col.type)
                     try:
                         if py_type == "integer":
