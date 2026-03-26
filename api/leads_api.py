@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 from db import get_db
 from services import leads as lead_svc
 from services import audit_logs
-from .dependencies import require_entity_access
+from .dependencies import require_entity_access, require_permission
 from .schemas import LeadCreate, LeadUpdate, SalespersonResponse
 
 router = APIRouter(tags=["leads"])
