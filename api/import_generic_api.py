@@ -35,24 +35,32 @@ def _is_importable_table(table_name: str, table_obj) -> bool:
 
 def _field_type_from_sqlalchemy(col_type: TypeEngine) -> str:
     """Map SQLAlchemy type to simple string for frontend."""
-    if hasattr(col_type, "python_type"):
-        py_type = col_type.python_type
-    else:
-        # fallback for exotic types
-        return "string"
-    if issubclass(py_type, int):
-        return "integer"
-    if issubclass(py_type, float):
-        return "numeric"
-    if issubclass(py_type, bool):
-        return "boolean"
-    if issubclass(py_type, (datetime,)):
-        return "datetime"
-    if issubclass(py_type, (date,)):
-        return "date"
-    if issubclass(py_type, str):
-        return "string"
-    return "string"
+    try:
+        if hasattr(col_type, "python_type"):
+            py_type = col_type.python_type
+        else:
+            # fallback for exotic types
+            return "string"
+        
+        # Handle common types safely
+        if py_type is None:
+            return "string"
+        if issubclass(py_type, int):
+            return "integer"
+        if issubclass(py_type, float):
+            return "numeric"
+        if issubclass(py_type, bool):
+            return "boolean"
+        if issubclass(py_type, datetime):
+            return "datetime"
+        if issubclass(py_type, date):
+            return "date"
+        if issubclass(py_type, str):
+            return "string"
+        
+        return "string"  # fallback for unknown types
+    except Exception:
+        return "string"  # ultimate fallback
 
 
 def _infer_required_fields(table_obj) -> List[str]:
@@ -195,39 +203,46 @@ async def preview_import_file(
     user=Depends(require_permission("admin")),
 ):
     """Return headers + sample rows for mapping UI for a given entity."""
-    if entity not in Base.metadata.tables:
-        raise HTTPException(status_code=404, detail="Entity not found")
-    table = Base.metadata.tables[entity]
-    if not _is_importable_table(entity, table):
-        raise HTTPException(status_code=403, detail="Entity not importable")
-
-    import openpyxl
-    content = await file.read()
     try:
-        wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True)
-        sheet = wb.active
-        rows_iter = sheet.iter_rows(values_only=True)
-        headers_raw = next(rows_iter, [])
-        headers = [str(h) if h is not None else "" for h in headers_raw]
-        sample_rows = []
-        for i, row in enumerate(rows_iter):
-            if i >= 5:
-                break
-            sample_rows.append([str(cell) if cell is not None else "" for cell in row])
+        if entity not in Base.metadata.tables:
+            raise HTTPException(status_code=404, detail="Entity not found")
+        table = Base.metadata.tables[entity]
+        if not _is_importable_table(entity, table):
+            raise HTTPException(status_code=403, detail="Entity not importable")
+
+        import openpyxl
+        content = await file.read()
+        try:
+            wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True)
+            sheet = wb.active
+            rows_iter = sheet.iter_rows(values_only=True)
+            headers_raw = next(rows_iter, [])
+            headers = [str(h) if h is not None else "" for h in headers_raw]
+            sample_rows = []
+            for i, row in enumerate(rows_iter):
+                if i >= 5:
+                    break
+                sample_rows.append([str(cell) if cell is not None else "" for cell in row])
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to read Excel file: {e}")
+
+        # Include field schema from describe endpoint
+        fields_info = _describe_entity_fields_sync(entity)
+
+        return {
+            "entity": entity,
+            "headers": headers,
+            "sample_rows": sample_rows,
+            "fields": fields_info["fields"],
+            "required_fields_suggested": fields_info["required_fields_suggested"],
+            "duplicate_keys_suggested": fields_info["duplicate_keys_suggested"],
+        }
+    except HTTPException:
+        raise  # re-raise HTTP exceptions as-is
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to read Excel file: {e}")
-
-    # Include field schema from describe endpoint
-    fields_info = _describe_entity_fields_sync(entity)
-
-    return {
-        "entity": entity,
-        "headers": headers,
-        "sample_rows": sample_rows,
-        "fields": fields_info["fields"],
-        "required_fields_suggested": fields_info["required_fields_suggested"],
-        "duplicate_keys_suggested": fields_info["duplicate_keys_suggested"],
-    }
+        import logging
+        logging.error(f"Preview file error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 async def _find_existing_generic(
