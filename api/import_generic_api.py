@@ -140,6 +140,8 @@ async def describe_entity_fields(
 
     fields = []
     for col in table.columns:
+        is_identity = bool(getattr(col, "identity", None))
+        is_computed = bool(getattr(col, "computed", None))
         fields.append({
             "name": col.name,
             "type": _field_type_from_sqlalchemy(col.type),
@@ -149,9 +151,9 @@ async def describe_entity_fields(
             "foreign_key": bool(col.foreign_keys),
             "writable": (
                 not col.primary_key
-                and col.autoincrement is False
-                and col.default is None
-                and col.server_default is None
+                and col.autoincrement is not True
+                and not is_identity
+                and not is_computed
             ),
         })
 
@@ -173,6 +175,8 @@ def _describe_entity_fields_sync(entity: str) -> dict:
 
     fields = []
     for col in table.columns:
+        is_identity = bool(getattr(col, "identity", None))
+        is_computed = bool(getattr(col, "computed", None))
         fields.append({
             "name": col.name,
             "type": _field_type_from_sqlalchemy(col.type),
@@ -182,9 +186,9 @@ def _describe_entity_fields_sync(entity: str) -> dict:
             "foreign_key": bool(col.foreign_keys),
             "writable": (
                 not col.primary_key
-                and col.autoincrement is False
-                and col.default is None
-                and col.server_default is None
+                and col.autoincrement is not True
+                and not is_identity
+                and not is_computed
             ),
         })
 
