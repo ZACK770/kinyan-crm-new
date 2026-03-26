@@ -149,8 +149,14 @@ async def bulk_delete_leads(db: AsyncSession, lead_ids: list[int]) -> int:
     from sqlalchemy import delete as sa_delete
     if not lead_ids:
         return 0
-    # Delete interactions first
+    # Delete related data first (respecting foreign key constraints)
+    # Order matters: delete dependent records before parent records
     await db.execute(sa_delete(LeadInteraction).where(LeadInteraction.lead_id.in_(lead_ids)))
+    await db.execute(sa_delete(LeadMessage).where(LeadMessage.lead_id.in_(lead_ids)))
+    await db.execute(sa_delete(LeadProduct).where(LeadProduct.lead_id.in_(lead_ids)))
+    await db.execute(sa_delete(SalesTask).where(SalesTask.lead_id.in_(lead_ids)))
+    await db.execute(sa_delete(Inquiry).where(Inquiry.lead_id.in_(lead_ids)))
+    await db.execute(sa_delete(HistoryEntry).where(HistoryEntry.lead_id.in_(lead_ids)))
     result = await db.execute(sa_delete(Lead).where(Lead.id.in_(lead_ids)))
     await db.flush()
     return result.rowcount
