@@ -22,7 +22,7 @@ from api import (
     , inquiries_api, exams_api, payments_api, expenses_api, attendance_api, collections_api
     , auth_api, users_api, audit_logs_api, campaigns_api, files_api, sales_assignment_api
     , course_tracks_api, lecturers_api, messages_api, templates_api, lead_conversion_api
-    , import_api, webhook_logs_api, webhook_queue_api, export_api, topics_api
+    , import_api, import_generic_api, webhook_logs_api, webhook_queue_api, export_api, topics_api
     , inbound_emails_api, sales_simulator_api, popup_api, table_prefs_api, chat_api
 )
 from api import tasks_api
@@ -89,6 +89,7 @@ app.include_router(webhook_queue_api.router, tags=["webhook-queue"])
 app.include_router(messages_api.router, prefix="/api/messages", tags=["messages"])
 app.include_router(templates_api.router, prefix="/api/templates", tags=["templates"])
 app.include_router(import_api.router, prefix="/api/admin", tags=["import"])
+app.include_router(import_generic_api.router, prefix="/api/admin/import", tags=["import-generic"])
 app.include_router(export_api.router, prefix="/api/export", tags=["export"])
 app.include_router(topics_api.router, prefix="/api/topics", tags=["topics"])
 app.include_router(inbound_emails_api.router, prefix="/api/inbound-emails", tags=["inbound-emails"])

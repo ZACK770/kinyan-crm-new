@@ -83,6 +83,18 @@ export function SmartTable<T>({
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(defaultPgSize)
 
+  // Track if we're in the middle of clearing filters to prevent reload
+  const [isClearingFilters, setIsClearingFilters] = useState(false)
+
+  // Clear filters properly - resets active filter and updates state
+  const handleClearFilters = useCallback(() => {
+    setIsClearingFilters(true)
+    setFilters([])
+    setActiveSavedFilterId(null)
+    // Reset flag after a short delay to allow state to settle
+    setTimeout(() => setIsClearingFilters(false), 100)
+  }, [])
+
   // Initialize state from storage or defaults
   useEffect(() => {
     // Set default visible columns
@@ -128,6 +140,9 @@ export function SmartTable<T>({
     // Then load from server (source-of-truth, sync between devices)
     let cancelled = false
     ;(async () => {
+      // Skip server load if we're in the middle of clearing filters
+      if (isClearingFilters) return
+      
       try {
         const res = await api.get<{ storage_key: string; data: any }>(
           `/users/me/saved-table-prefs?storage_key=${encodeURIComponent(storageKey)}`
@@ -162,6 +177,9 @@ export function SmartTable<T>({
     })()
 
     ;(async () => {
+      // Skip global prefs load if we're in the middle of clearing filters
+      if (isClearingFilters) return
+      
       try {
         const res = await api.get<{ storage_key: string; data: any }>(
           `/table-prefs/global?storage_key=${encodeURIComponent(storageKey)}`
@@ -661,7 +679,7 @@ export function SmartTable<T>({
           <span>לא נמצאו תוצאות התואמות לסינון</span>
           <button 
             className={`${shared.btn} ${shared['btn-ghost']} ${shared['btn-sm']}`}
-            onClick={() => setFilters([])}
+            onClick={handleClearFilters}
           >
             נקה סינון
           </button>

@@ -436,7 +436,16 @@ async def process_incoming_lead(db: AsyncSession, **kwargs) -> dict:
     if existing:
         # Existing lead → add interaction + attribute to answering agent if applicable
         await add_interaction(db, existing.id, **kwargs)
-        if answered_sp and existing.salesperson_id != answered_sp.id:
+        
+        # Only update salesperson on the SECOND interaction (first with AnswerNumber)
+        # This ensures the first answered call assigns the lead, subsequent calls don't reassign
+        from sqlalchemy import select, func
+        interaction_count_stmt = select(func.count(LeadInteraction.id)).where(LeadInteraction.lead_id == existing.id)
+        interaction_count_result = await db.execute(interaction_count_stmt)
+        interaction_count = interaction_count_result.scalar()
+        
+        # If this is the second interaction AND we have an answering salesperson, update assignment
+        if answered_sp and interaction_count == 2:
             existing.salesperson_id = answered_sp.id
         await db.commit()
         return {
