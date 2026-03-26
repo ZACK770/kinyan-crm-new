@@ -110,6 +110,77 @@ def _get_entity_hebrew_name(table_name: str) -> str:
     return hebrew_names.get(table_name, table_name)
 
 
+def _get_field_hebrew_label(entity: str, field_name: str) -> str:
+    """Best-effort Hebrew labels for fields.
+
+    Note: This is intentionally partial. For fields without an explicit mapping,
+    we fallback to the raw field_name.
+    """
+    common = {
+        "id": "מזהה",
+        "created_at": "נוצר בתאריך",
+        "updated_at": "עודכן בתאריך",
+        "is_active": "פעיל",
+        "full_name": "שם מלא",
+        "first_name": "שם פרטי",
+        "last_name": "שם משפחה",
+        "phone": "טלפון",
+        "phone2": "טלפון נוסף",
+        "email": "אימייל",
+        "city": "עיר",
+        "address": "כתובת",
+        "notes": "הערות",
+        "status": "סטטוס",
+        "source": "מקור",
+        "amount": "סכום",
+        "date": "תאריך",
+        "due_date": "תאריך יעד",
+        "start_date": "תאריך התחלה",
+        "end_date": "תאריך סיום",
+        "description": "תיאור",
+        "title": "כותרת",
+        "message": "הודעה",
+        "content": "תוכן",
+        "user_id": "משתמש",
+        "lead_id": "ליד",
+        "student_id": "סטודנט",
+        "course_id": "קורס",
+        "campaign_id": "קמפיין",
+        "salesperson_id": "נציג מכירות",
+    }
+
+    per_entity = {
+        "leads": {
+            "lead_response": "סטטוס מענה",
+            "source_message": "הודעה מהליד",
+            "arrival_date": "תאריך יצירה",
+            "last_contact_date": "תאריך פניה אחרונה",
+            "campaign_name": "שם הקמפיין",
+        },
+        "users": {
+            "role_name": "תפקיד",
+            "permission_level": "רמת הרשאה",
+            "avatar_url": "תמונת פרופיל",
+            "last_login": "כניסה אחרונה",
+        },
+        "payments": {
+            "payment_method": "אמצעי תשלום",
+            "transaction_id": "מזהה עסקה",
+            "confirmation": "אישור",
+        },
+        "commitments": {
+            "nedarim_subscription_id": "מזהה הוראת קבע (נדרים)",
+        },
+    }
+
+    entity_map = per_entity.get(entity, {})
+    if field_name in entity_map:
+        return entity_map[field_name]
+    if field_name in common:
+        return common[field_name]
+    return field_name
+
+
 @router.get("/entities")
 async def list_importable_entities(
     user=Depends(require_permission("admin")),
@@ -120,8 +191,10 @@ async def list_importable_entities(
         if _is_importable_table(table_name, table_obj):
             hebrew_name = _get_entity_hebrew_name(table_name)
             entities.append({
-                "entity": table_name, 
-                "label": f"{hebrew_name} ({table_name})"
+                "entity": table_name,
+                "label_he": hebrew_name,
+                "label_en": table_name,
+                "label": f"{hebrew_name} ({table_name})",
             })
     return entities
 
@@ -144,6 +217,7 @@ async def describe_entity_fields(
         is_computed = bool(getattr(col, "computed", None))
         fields.append({
             "name": col.name,
+            "label_he": _get_field_hebrew_label(entity, col.name),
             "type": _field_type_from_sqlalchemy(col.type),
             "nullable": col.nullable,
             "primary_key": col.primary_key,
@@ -179,6 +253,7 @@ def _describe_entity_fields_sync(entity: str) -> dict:
         is_computed = bool(getattr(col, "computed", None))
         fields.append({
             "name": col.name,
+            "label_he": _get_field_hebrew_label(entity, col.name),
             "type": _field_type_from_sqlalchemy(col.type),
             "nullable": col.nullable,
             "primary_key": col.primary_key,

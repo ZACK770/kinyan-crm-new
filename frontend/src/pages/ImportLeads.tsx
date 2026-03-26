@@ -22,10 +22,13 @@ interface ImportResult {
 interface Entity {
   entity: string
   label: string
+  label_he?: string
+  label_en?: string
 }
 
 interface EntityField {
   name: string
+  label_he?: string
   type: string
   nullable: boolean
   primary_key: boolean
@@ -66,6 +69,26 @@ function formatFileSize(bytes: number): string {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
 }
 
+function entityLabel(entity: Entity): { he: string; en: string; combined: string } {
+  const he = entity.label_he || entity.label || entity.entity
+  const en = entity.label_en || entity.entity
+  return {
+    he,
+    en,
+    combined: `${he} (${en})`,
+  }
+}
+
+function fieldLabel(field: EntityField): { he: string; en: string; combined: string } {
+  const he = field.label_he || field.name
+  const en = field.name
+  return {
+    he,
+    en,
+    combined: `${he} (${en})`,
+  }
+}
+
 export function ImportLeadsPage() {
   const [file, setFile] = useState<File | null>(null)
   const [duplicateMode, setDuplicateMode] = useState<DuplicateMode>('skip')
@@ -83,6 +106,9 @@ export function ImportLeadsPage() {
   const [preview, setPreview] = useState<PreviewResponse | null>(null)
   // UI mapping is: Excel header -> entity field name (or '')
   const [mapping, setMapping] = useState<Record<string, string>>({})
+
+  const selectedEntityInfo = entities.find((e) => e.entity === selectedEntity) || null
+  const selectedEntityLabel = selectedEntityInfo ? entityLabel(selectedEntityInfo) : null
 
   // Load entities on mount
   useEffect(() => {
@@ -111,11 +137,21 @@ export function ImportLeadsPage() {
   }, [])
 
   const handleEntitySelect = useCallback((entity: string) => {
+    // Switching entity mid-wizard should reset downstream state
+    setFile(null)
+    setPreview(null)
+    setMapping({})
+    setResult(null)
+    setError(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+
     setSelectedEntity(entity)
     setEntityDescription(null)
     setDuplicateKeyField('')
     loadEntityDescription(entity)
+    setStep('upload')
   }, [loadEntityDescription])
+
   const handleFileSelect = useCallback((selectedFile: File) => {
     const validTypes = [
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -255,6 +291,26 @@ export function ImportLeadsPage() {
   })()
   const canImport = Boolean(preview) && requiredMissingUi.length === 0 && !hasDuplicateTargetField
 
+  const fieldByName = new Map<string, EntityField>(writableFields.map((f) => [f.name, f]))
+  const fieldLabelByName = (name: string) => {
+    const f = fieldByName.get(name)
+    return f ? fieldLabel(f).combined : name
+  }
+
+  const steps = [
+    { key: 'entity', label: 'בחירת ישות', done: Boolean(selectedEntity) },
+    { key: 'upload', label: 'העלאת קובץ', done: Boolean(file) },
+    { key: 'mapping', label: 'מיפוי', done: Boolean(preview) },
+    { key: 'done', label: 'סיום', done: step === 'done' },
+  ] as const
+  const activeStepKey = (() => {
+    if (step === 'done') return 'done'
+    if (!selectedEntity) return 'entity'
+    if (!file) return 'upload'
+    if (!preview) return 'mapping'
+    return 'mapping'
+  })()
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
@@ -264,43 +320,67 @@ export function ImportLeadsPage() {
         </p>
       </div>
 
-      {/* Entity selection */}
-      {step === 'entity' && !file && !result && (
-        <div className={styles.optionsSection}>
-          <h3 className={styles.optionsTitle}>
-            <Settings2 size={18} />
-            בחר ישות לייבוא
-          </h3>
-          
-          {loading ? (
-            <div>טוען ישויות...</div>
-          ) : entities.length === 0 ? (
-            <div>לא נמצאו ישויות זמינות לייבוא</div>
-          ) : (
-            <div style={{ display: 'grid', gap: '0.5rem' }}>
+      <div className={styles.wizardBar}>
+        {steps.map((st) => (
+          <div
+            key={st.key}
+            className={`${styles.wizardStep} ${activeStepKey === st.key ? styles.wizardStepActive : ''} ${st.done ? styles.wizardStepDone : ''}`}
+          >
+            <div className={styles.wizardStepLabel}>{st.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className={styles.optionsSection}>
+        <h3 className={styles.optionsTitle}>
+          <Settings2 size={18} />
+          בחר ישות לייבוא
+        </h3>
+
+        {loading && entities.length === 0 ? (
+          <div>טוען ישויות...</div>
+        ) : entities.length === 0 ? (
+          <div>לא נמצאו ישויות זמינות לייבוא</div>
+        ) : (
+          <div className={styles.entitySelectRow}>
+            <select
+              className={styles.entitySelect}
+              value={selectedEntity}
+              onChange={(e) => {
+                const v = e.target.value
+                if (!v) {
+                  handleReset()
+                  return
+                }
+                handleEntitySelect(v)
+              }}
+            >
+              <option value="">— בחר ישות —</option>
               {entities.map((entity) => (
-                <button
-                  key={entity.entity}
-                  className={`${s.btn} ${selectedEntity === entity.entity ? s['btn-primary'] : s['btn-secondary']}`}
-                  onClick={() => {
-                    handleEntitySelect(entity.entity)
-                    setStep('upload')
-                  }}
-                  style={{ justifyContent: 'flex-start', textAlign: 'right' }}
-                >
-                  {entity.label}
-                </button>
+                <option key={entity.entity} value={entity.entity}>
+                  {entityLabel(entity).combined}
+                </option>
               ))}
-            </div>
-          )}
-        </div>
-      )}
+            </select>
+
+            {selectedEntityLabel && (
+              <div className={styles.entityChosen}>
+                <div className={styles.entityChosenHe}>{selectedEntityLabel.he}</div>
+                <div className={styles.entityChosenEn}>{selectedEntityLabel.en}</div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Upload area */}
-      {step === 'upload' && !file && !result && (
+      {!file && !result && (
         <div
-          className={`${styles.uploadArea} ${dragActive ? styles.uploadAreaActive : ''}`}
-          onClick={() => fileInputRef.current?.click()}
+          className={`${styles.uploadArea} ${dragActive ? styles.uploadAreaActive : ''} ${!selectedEntity ? styles.uploadAreaDisabled : ''}`}
+          onClick={() => {
+            if (!selectedEntity) return
+            fileInputRef.current?.click()
+          }}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -309,7 +389,7 @@ export function ImportLeadsPage() {
             <Upload size={48} strokeWidth={1.2} />
           </div>
           <div className={styles.uploadText}>
-            גרור קובץ אקסל לכאן או לחץ לבחירה
+            {selectedEntity ? 'גרור קובץ אקסל לכאן או לחץ לבחירה' : 'בחר ישות כדי להעלות קובץ'}
           </div>
           <div className={styles.uploadHint}>
             קבצי .xlsx בלבד
@@ -343,7 +423,7 @@ export function ImportLeadsPage() {
         <div className={styles.optionsSection}>
           <h3 className={styles.optionsTitle}>
             <Info size={18} />
-            מיפוי עמודות מהקובץ לשדות ב{selectedEntity}
+            מיפוי עמודות מהקובץ לשדות ב{selectedEntityLabel?.he || selectedEntity}
           </h3>
 
           {!preview && !loading && (
@@ -358,12 +438,20 @@ export function ImportLeadsPage() {
           {preview && (
             <>
               <div style={{ marginBottom: '1rem', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                בחר עבור כל עמודה בקובץ לאיזה שדה ב{selectedEntity} למפות. חובה: {preview.required_fields_suggested.join(', ')}
+                בחר עבור כל עמודה בקובץ לאיזה שדה למפות.
+                {' '}
+                חובה:
+                {' '}
+                {preview.required_fields_suggested.map((f, i) => (
+                  <span key={f} className={styles.inlineFieldTag}>
+                    {fieldLabelByName(f)}{i < preview.required_fields_suggested.length - 1 ? ',' : ''}
+                  </span>
+                ))}
               </div>
 
               {(requiredMissingUi.length > 0 || hasDuplicateTargetField) && (
                 <div style={{ marginBottom: '0.75rem', fontSize: '0.85rem', color: 'var(--color-danger)' }}>
-                  {requiredMissingUi.length > 0 ? `חסרים שדות חובה במיפוי: ${requiredMissingUi.join(', ')}` : ''}
+                  {requiredMissingUi.length > 0 ? `חסרים שדות חובה במיפוי: ${requiredMissingUi.map(fieldLabelByName).join(', ')}` : ''}
                   {requiredMissingUi.length > 0 && hasDuplicateTargetField ? ' | ' : ''}
                   {hasDuplicateTargetField ? 'לא ניתן למפות שני עמודות לאותו שדה יעד' : ''}
                 </div>
@@ -407,7 +495,7 @@ export function ImportLeadsPage() {
                                 <option value="">(לא למפות)</option>
                                 {writableFields.map((f) => (
                                   <option key={f.name} value={f.name}>
-                                    {f.name}
+                                    {fieldLabel(f).combined}
                                   </option>
                                 ))}
                               </select>
@@ -477,7 +565,7 @@ export function ImportLeadsPage() {
               >
                 {entityDescription.duplicate_keys_suggested.map((field) => (
                   <option key={field} value={field}>
-                    {field}
+                    {fieldLabelByName(field)}
                   </option>
                 ))}
               </select>
@@ -587,14 +675,15 @@ export function ImportLeadsPage() {
         <div className={styles.columnsInfo}>
           <h3 className={styles.columnsTitle}>
             <Info size={18} />
-            שדות נתמכים ב{selectedEntity}
+            שדות נתמכים ב{selectedEntityLabel?.he || selectedEntity}
           </h3>
           <div className={styles.columnsList}>
             {preview.fields
               .filter(field => field.writable)
               .map((field) => (
                 <div key={field.name} className={styles.columnItem}>
-                  <span>{field.name}</span>
+                  <span className={styles.columnItemMain}>{field.label_he || field.name}</span>
+                  <span className={styles.columnItemSub}>{field.name}</span>
                   {preview.required_fields_suggested.includes(field.name) ? (
                     <span className={styles.columnRequired}>חובה</span>
                   ) : (
