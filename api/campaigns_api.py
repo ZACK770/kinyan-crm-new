@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db import get_db
 from services import campaigns as campaign_svc
 from services import audit_logs
-from .dependencies import require_entity_access
+from .dependencies import require_entity_access, require_permission
 
 router = APIRouter(tags=["campaigns"])
 

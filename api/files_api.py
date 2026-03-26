@@ -12,7 +12,7 @@ from typing import Optional
 from db import get_db
 from db.models import File, User
 from services.storage import storage_service
-from .dependencies import require_entity_access, get_current_user
+from .dependencies import require_entity_access, get_current_user, require_permission
 
 router = APIRouter()
 

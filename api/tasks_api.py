@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_db
-from .dependencies import require_entity_access
+from .dependencies import require_entity_access, require_permission
 from services import audit_logs
 import services.tasks as task_svc
 

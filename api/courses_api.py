@@ -9,7 +9,7 @@ from db import get_db
 from services import courses as course_svc
 from services import lecturers as lecturer_svc
 from services import audit_logs
-from .dependencies import require_entity_access
+from .dependencies import require_entity_access, require_permission
 
 router = APIRouter(tags=["courses"])
 
