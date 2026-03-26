@@ -34,6 +34,7 @@ import {
 import s from './SmartTable.module.css'
 import shared from '@/styles/shared.module.css'
 import { api } from '@/lib/api'
+import { useToast } from '@/components/ui'
 
 export function SmartTable<T>({
   data,
@@ -58,6 +59,8 @@ export function SmartTable<T>({
   toolbarExtra,
   rowClassName,
 }: SmartTableProps<T>) {
+  const toast = useToast()
+
   // Search & Pagination props with defaults
   const searchSelect = onSearchSelect ?? onRowClick
   const defaultPgSize = defaultPageSize ?? 100
@@ -69,6 +72,7 @@ export function SmartTable<T>({
   const serverPersistTimeoutRef = useRef<number | null>(null)
 
   const [canPublishGlobal, setCanPublishGlobal] = useState(false)
+  const [isPublishingGlobal, setIsPublishingGlobal] = useState(false)
 
   // State
   const [filters, setFilters] = useState<Filter[]>([])
@@ -311,8 +315,29 @@ export function SmartTable<T>({
     return [...globalSavedFilters, ...userSavedFilters]
   }, [globalSavedFilters, userSavedFilters])
 
-  const handlePublishGlobal = useCallback(async () => {
+  const handlePublishGlobal = useCallback(async (savedFilterId: string) => {
     if (!storageKey) return
+
+    const source = userSavedFilters.find(f => f.id === savedFilterId)
+    if (!source) {
+      toast.error('לא ניתן לפרסם', 'בחר פילטר שמור (לא גלובלי) כדי לפרסם')
+      return
+    }
+
+    const globalId = `g_${savedFilterId}`
+    const published: SavedFilter = {
+      ...source,
+      id: globalId,
+    }
+
+    const updatedGlobalSavedFilters = (() => {
+      const idx = globalSavedFilters.findIndex(f => f.id === globalId)
+      if (idx === -1) return [...globalSavedFilters, published]
+      const next = [...globalSavedFilters]
+      next[idx] = published
+      return next
+    })()
+
     const state: TableState = {
       filters,
       filterMode,
@@ -323,20 +348,38 @@ export function SmartTable<T>({
       pageSize,
     }
     try {
+      setIsPublishingGlobal(true)
       await api.put(
         `/table-prefs/global?storage_key=${encodeURIComponent(storageKey)}`,
         {
           data: {
             tableState: state,
-            savedFilters: globalSavedFilters,
+            savedFilters: updatedGlobalSavedFilters,
             updatedAt: new Date().toISOString(),
           },
         }
       )
-    } catch {
-      // ignore
+      setGlobalSavedFilters(updatedGlobalSavedFilters)
+      setActiveSavedFilterId(globalId)
+      toast.success('פורסם לכולם', `הפילטר "${source.name}" פורסם בהצלחה`)
+    } catch (e: any) {
+      toast.error('שגיאה בפרסום', e?.message || 'לא ניתן לפרסם כרגע')
+    } finally {
+      setIsPublishingGlobal(false)
     }
-  }, [storageKey, filters, filterMode, visibleColumns, columnOrder, sortBy, sortDir, pageSize, globalSavedFilters])
+  }, [
+    storageKey,
+    userSavedFilters,
+    globalSavedFilters,
+    filters,
+    filterMode,
+    visibleColumns,
+    columnOrder,
+    sortBy,
+    sortDir,
+    pageSize,
+    toast,
+  ])
 
   // Get ordered and visible columns
   const displayColumns = useMemo(() => {
@@ -553,6 +596,7 @@ export function SmartTable<T>({
             onDeleteSavedFilter={handleDeleteSavedFilter}
             canPublishGlobal={canPublishGlobal}
             onPublishGlobal={handlePublishGlobal}
+            isPublishingGlobal={isPublishingGlobal}
           />
           <ColumnManager
             columns={columns}

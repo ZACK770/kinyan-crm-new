@@ -27,7 +27,8 @@ interface Props<T> {
   onLoadFilter: (savedFilter: SavedFilter) => void
   onDeleteSavedFilter: (id: string) => void
   canPublishGlobal?: boolean
-  onPublishGlobal?: () => void
+  onPublishGlobal?: (savedFilterId: string) => void
+  isPublishingGlobal?: boolean
 }
 
 export function FilterPanel<T>({
@@ -43,6 +44,7 @@ export function FilterPanel<T>({
   onDeleteSavedFilter,
   canPublishGlobal = false,
   onPublishGlobal,
+  isPublishingGlobal = false,
 }: Props<T>) {
   const [isOpen, setIsOpen] = useState(false)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
@@ -123,6 +125,12 @@ export function FilterPanel<T>({
   }
 
   const activeSavedFilter = savedFilters.find(f => f.id === activeSavedFilterId)
+  const canPublishSelectedSavedFilter = Boolean(
+    canPublishGlobal &&
+    onPublishGlobal &&
+    activeSavedFilterId &&
+    !String(activeSavedFilterId).startsWith('g_')
+  )
 
   return (
     <div className={s.filterPanel}>
@@ -191,10 +199,20 @@ export function FilterPanel<T>({
                   {canPublishGlobal && onPublishGlobal && (
                     <button 
                       className={`${shared.btn} ${shared['btn-ghost']} ${shared['btn-xs']}`}
-                      onClick={onPublishGlobal}
-                      title="פרסום גלובלי לכל המשתמשים"
+                      onClick={() => {
+                        if (!activeSavedFilterId) return
+                        onPublishGlobal(activeSavedFilterId)
+                      }}
+                      title={
+                        !activeSavedFilterId
+                          ? 'בחר פילטר שמור כדי לפרסם'
+                          : String(activeSavedFilterId).startsWith('g_')
+                            ? 'זה כבר פילטר גלובלי'
+                            : 'פרסום גלובלי לכל המשתמשים'
+                      }
+                      disabled={!canPublishSelectedSavedFilter || isPublishingGlobal}
                     >
-                      <Save size={12} /> פרסם לכולם
+                      <Save size={12} /> {isPublishingGlobal ? 'מפרסם...' : 'פרסם לכולם'}
                     </button>
                   )}
                   <button 
