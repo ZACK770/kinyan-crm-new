@@ -155,7 +155,16 @@ export function SmartTable<T>({
         const serverSavedFilters = data.savedFilters as SavedFilter[] | undefined
 
         if (serverTableState) {
-          setFilters(serverTableState.filters || [])
+          // Only apply saved filters if they're valid (not empty/null values)
+          const validFilters = (serverTableState.filters || []).filter((f: any) => {
+            if (!f.field || !f.operator) return false
+            if (f.value === null || f.value === undefined || f.value === '') {
+              return f.operator === 'isEmpty' || f.operator === 'isNotEmpty'
+            }
+            return true
+          })
+          
+          setFilters(validFilters)
           setFilterMode(serverTableState.filterMode || 'and')
           setVisibleColumns(serverTableState.visibleColumns?.length ? serverTableState.visibleColumns : defaultVisible)
           setColumnOrder(serverTableState.columnOrder?.length ? serverTableState.columnOrder : defaultOrder)
@@ -195,7 +204,16 @@ export function SmartTable<T>({
 
         const serverGlobalTableState = data.tableState as TableState | undefined
         if (serverGlobalTableState && !savedState) {
-          setFilters(serverGlobalTableState.filters || [])
+          // Only apply global filters if they're valid (not empty/null values)
+          const validFilters = (serverGlobalTableState.filters || []).filter((f: any) => {
+            if (!f.field || !f.operator) return false
+            if (f.value === null || f.value === undefined || f.value === '') {
+              return f.operator === 'isEmpty' || f.operator === 'isNotEmpty'
+            }
+            return true
+          })
+          
+          setFilters(validFilters)
           setFilterMode(serverGlobalTableState.filterMode || 'and')
           setVisibleColumns(serverGlobalTableState.visibleColumns?.length ? serverGlobalTableState.visibleColumns : defaultVisible)
           setColumnOrder(serverGlobalTableState.columnOrder?.length ? serverGlobalTableState.columnOrder : defaultOrder)

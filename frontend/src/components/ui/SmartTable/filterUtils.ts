@@ -256,10 +256,23 @@ export function applyFilters<T>(
   columns: { key: string; type: FieldType }[],
   filterMode: FilterMode = 'and'
 ): T[] {
-  if (!filters.length) return data
+  // Filter out incomplete filters (null/empty values) before applying
+  const validFilters = filters.filter(filter => {
+    // Skip filters with null/undefined values unless they're empty/notEmpty operators
+    if (filter.value === null || filter.value === undefined || filter.value === '') {
+      return filter.operator === 'isEmpty' || filter.operator === 'isNotEmpty'
+    }
+    // For 'between' operator, ensure both values are present
+    if (filter.operator === 'between' && (!filter.value2 || filter.value2 === '')) {
+      return false
+    }
+    return true
+  })
+  
+  if (!validFilters.length) return data
   
   return data.filter(row => {
-    const results = filters.map(filter => {
+    const results = validFilters.map(filter => {
       const column = columns.find(c => c.key === filter.field)
       if (!column) return true
       return applyFilter(row, filter, column.type)
