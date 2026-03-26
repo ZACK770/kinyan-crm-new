@@ -260,7 +260,7 @@ async def _find_existing_generic(
         return None
     table = Base.metadata.tables[entity]
     col = table.columns.get(duplicate_key_field)
-    if not col:
+    if col is None:
         return None
     # Special case for phone fields: apply normalize logic
     if "phone" in duplicate_key_field.lower() and isinstance(value, str):
