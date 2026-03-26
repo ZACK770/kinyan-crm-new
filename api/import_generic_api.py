@@ -294,6 +294,7 @@ async def import_generic_entity(
     file: UploadFile = File(...),
     mapping_json: str = Form(...),
     user=Depends(require_permission("admin")),
+    db: AsyncSession = Depends(get_db),
 ):
     """Generic import for any entity."""
     if entity not in Base.metadata.tables:
@@ -330,96 +331,95 @@ async def import_generic_entity(
     }
     error_details = []
 
-    async with get_db() as db:
-        for row_idx, raw_cells in enumerate(rows_iter, start=2):
-            stats["total_rows"] += 1
-            row_dict = {headers[i]: raw_cells[i] for i in range(min(len(headers), len(raw_cells)))}
-            # Build data dict from mapping
-            data = {}
-            for field, excel_header in mapping.items():
-                val = row_dict.get(excel_header)
-                if val is not None and val != "":
-                    # Basic type conversion (could be extended)
-                    col = table.columns.get(field)
-                    if col:
-                        py_type = _field_type_from_sqlalchemy(col.type)
-                        try:
-                            if py_type == "integer":
-                                data[field] = int(float(val))
-                            elif py_type == "numeric":
-                                data[field] = float(val)
-                            elif py_type == "boolean":
-                                data[field] = str(val).strip().lower() in {"true", "1", "yes", "כן"}
-                            elif py_type in {"datetime", "date"}:
-                                # Try parsing common formats
-                                if isinstance(val, (datetime,)):
-                                    data[field] = val
-                                else:
-                                    data[field] = datetime.strptime(str(val), "%Y-%m-%d")
+    for row_idx, raw_cells in enumerate(rows_iter, start=2):
+        stats["total_rows"] += 1
+        row_dict = {headers[i]: raw_cells[i] for i in range(min(len(headers), len(raw_cells)))}
+        # Build data dict from mapping
+        data = {}
+        for field, excel_header in mapping.items():
+            val = row_dict.get(excel_header)
+            if val is not None and val != "":
+                # Basic type conversion (could be extended)
+                col = table.columns.get(field)
+                if col:
+                    py_type = _field_type_from_sqlalchemy(col.type)
+                    try:
+                        if py_type == "integer":
+                            data[field] = int(float(val))
+                        elif py_type == "numeric":
+                            data[field] = float(val)
+                        elif py_type == "boolean":
+                            data[field] = str(val).strip().lower() in {"true", "1", "yes", "כן"}
+                        elif py_type in {"datetime", "date"}:
+                            # Try parsing common formats
+                            if isinstance(val, (datetime,)):
+                                data[field] = val
                             else:
-                                data[field] = str(val).strip()
-                        except Exception:
-                            # Keep as string if conversion fails
+                                data[field] = datetime.strptime(str(val), "%Y-%m-%d")
+                        else:
                             data[field] = str(val).strip()
-                    else:
+                    except Exception:
+                        # Keep as string if conversion fails
                         data[field] = str(val).strip()
-
-            # Validate required fields
-            missing = [f for f in required_fields if f not in data or data[f] in (None, "")]
-            if missing:
-                stats["errors"] += 1
-                error_details.append({"row": row_idx - 1, "error": f"Missing required: {', '.join(missing)}"})
-                continue
-
-            # System fields
-            if "created_at" in table.columns:
-                data["created_at"] = datetime.now(timezone.utc)
-            if "created_by" in table.columns:
-                data["created_by"] = f"import_excel:{getattr(user, 'email', 'admin')}"
-
-            # Duplicate detection
-            existing = None
-            if duplicate_key_field and duplicate_key_field in data:
-                existing = await _find_existing_generic(db, entity, duplicate_key_field, data[duplicate_key_field])
-
-            if existing:
-                if duplicate_mode == "skip":
-                    stats["skipped_dup"] += 1
-                    continue
-                elif duplicate_mode == "merge":
-                    # Update only empty fields
-                    for k, v in data.items():
-                        if k != duplicate_key_field and v is not None:
-                            cur = getattr(existing, k, None)
-                            if cur in (None, ""):
-                                setattr(existing, k, v)
-                    await db.commit()
-                    stats["updated"] += 1
-                    continue
-                elif duplicate_mode == "overwrite":
-                    # Overwrite all fields
-                    for k, v in data.items():
-                        if v is not None:
-                            setattr(existing, k, v)
-                    await db.commit()
-                    stats["updated"] += 1
-                    continue
                 else:
-                    # Unknown mode: treat as skip
-                    stats["skipped_dup"] += 1
-                    continue
+                    data[field] = str(val).strip()
 
-            # Insert new
-            try:
-                new_row = table.insert().values(**data)
-                await db.execute(new_row)
-                await db.commit()
-                stats["created"] += 1
-            except Exception as e:
-                await db.rollback()
-                stats["errors"] += 1
-                error_details.append({"row": row_idx - 1, "error": str(e)})
+        # Validate required fields
+        missing = [f for f in required_fields if f not in data or data[f] in (None, "")]
+        if missing:
+            stats["errors"] += 1
+            error_details.append({"row": row_idx - 1, "error": f"Missing required: {', '.join(missing)}"})
+            continue
+
+        # System fields
+        if "created_at" in table.columns:
+            data["created_at"] = datetime.now(timezone.utc)
+        if "created_by" in table.columns:
+            data["created_by"] = f"import_excel:{getattr(user, 'email', 'admin')}"
+
+        # Duplicate detection
+        existing = None
+        if duplicate_key_field and duplicate_key_field in data:
+            existing = await _find_existing_generic(db, entity, duplicate_key_field, data[duplicate_key_field])
+
+        if existing:
+            if duplicate_mode == "skip":
+                stats["skipped_dup"] += 1
                 continue
+            elif duplicate_mode == "merge":
+                # Update only empty fields
+                for k, v in data.items():
+                    if k != duplicate_key_field and v is not None:
+                        cur = getattr(existing, k, None)
+                        if cur in (None, ""):
+                            setattr(existing, k, v)
+                await db.commit()
+                stats["updated"] += 1
+                continue
+            elif duplicate_mode == "overwrite":
+                # Overwrite all fields
+                for k, v in data.items():
+                    if v is not None:
+                        setattr(existing, k, v)
+                await db.commit()
+                stats["updated"] += 1
+                continue
+            else:
+                # Unknown mode: treat as skip
+                stats["skipped_dup"] += 1
+                continue
+
+        # Insert new
+        try:
+            new_row = table.insert().values(**data)
+            await db.execute(new_row)
+            await db.commit()
+            stats["created"] += 1
+        except Exception as e:
+            await db.rollback()
+            stats["errors"] += 1
+            error_details.append({"row": row_idx - 1, "error": str(e)})
+            continue
 
     return {
         "message": f"Import completed for {entity}",
