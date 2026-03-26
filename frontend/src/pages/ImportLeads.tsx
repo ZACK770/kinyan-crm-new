@@ -393,11 +393,11 @@ export function ImportLeadsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {preview.sample_rows.map((r, i) => (
+                      {preview.sample_rows.map((row, i) => (
                         <tr key={i}>
-                          {preview.headers.slice(0, 8).map((h) => (
-                            <td key={h} style={{ padding: '8px 10px', borderBottom: '1px solid var(--color-border-light)' }}>
-                              {r[h] || ''}
+                          {preview.headers.slice(0, 8).map((_, j) => (
+                            <td key={j} style={{ padding: '8px 10px', borderBottom: '1px solid var(--color-border-light)' }}>
+                              {row[j] || ''}
                             </td>
                           ))}
                         </tr>
@@ -559,19 +559,19 @@ export function ImportLeadsPage() {
       )}
 
       {/* Entity info */}
-      {selectedEntity && entityDescription && (
+      {selectedEntity && preview && (
         <div className={styles.columnsInfo}>
           <h3 className={styles.columnsTitle}>
             <Info size={18} />
             שדות נתמכים ב{selectedEntity}
           </h3>
           <div className={styles.columnsList}>
-            {entityDescription.fields
+            {preview.fields
               .filter(field => field.writable)
               .map((field) => (
                 <div key={field.name} className={styles.columnItem}>
                   <span>{field.name}</span>
-                  {entityDescription.required_fields_suggested.includes(field.name) ? (
+                  {preview.required_fields_suggested.includes(field.name) ? (
                     <span className={styles.columnRequired}>חובה</span>
                   ) : (
                     <span className={styles.columnOptional}>אופציונלי</span>

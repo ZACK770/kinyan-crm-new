@@ -42,7 +42,7 @@ interface ModalContextType {
   /** Close the current modal */
   closeModal: () => void
   /** Show a confirm dialog — returns true/false */
-  confirm: (options: ConfirmOptions) => Promise<boolean>
+  confirm: (options: ConfirmOptions | string) => Promise<boolean>
 }
 
 const ModalContext = createContext<ModalContextType | null>(null)
@@ -72,9 +72,14 @@ export const ModalProvider: FC<{ children: ReactNode }> = ({ children }) => {
     setModal(null)
   }, [])
 
-  const confirmFn = useCallback((options: ConfirmOptions): Promise<boolean> => {
+  const confirmFn = useCallback((options: ConfirmOptions | string): Promise<boolean> => {
+    // Support both string (legacy) and object (new) formats
+    const confirmOptions: ConfirmOptions = typeof options === 'string' 
+      ? { title: 'אישור', message: options }
+      : options
+    
     return new Promise((resolve) => {
-      setConfirmState({ options, resolve })
+      setConfirmState({ options: confirmOptions, resolve })
     })
   }, [])
 

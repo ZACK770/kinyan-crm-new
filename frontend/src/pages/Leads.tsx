@@ -7,6 +7,7 @@ import {
   Pencil,
   MessageSquarePlus,
   UserCheck,
+  Trash2,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, getSourceLabel, formatDate, formatDateTime } from '@/lib/status'
@@ -562,6 +563,24 @@ export function LeadsPage() {
     }
   }
 
+  /* ── Delete Lead ── */
+  const handleDelete = async (lead: Lead) => {
+    const shouldDelete = window.confirm(`האם אתה בטוח שברצונך למחוק את הליד ${lead.full_name}? פעולה זו בלתי הפיכה.`)
+    if (!shouldDelete) return
+
+    try {
+      await api.delete(`leads/${lead.id}`)
+      toast.success('ליד נמחק בהצלחה')
+      fetchLeads()
+      // If we're in workspace view of this lead, go back to list
+      if (selectedLead?.id === lead.id) {
+        backToList()
+      }
+    } catch (err: unknown) {
+      toast.error((err as { message?: string }).message ?? 'שגיאה במחיקה')
+    }
+  }
+
   /* ── Bulk Actions ── */
   const handleBulkUpdate = async (selectedLeads: Lead[], field: string, value: unknown) => {
     try {
@@ -961,7 +980,7 @@ export function LeadsPage() {
       key: '_actions',
       header: '',
       type: 'text',
-      width: 80,
+      width: 110,
       render: r => (
         <div style={{ display: 'flex', gap: 4 }}>
           <button
@@ -977,6 +996,14 @@ export function LeadsPage() {
             title="ערוך"
           >
             <Pencil size={14} strokeWidth={1.5} />
+          </button>
+          <button
+            className={`${s.btn} ${s['btn-ghost']} ${s['btn-xs']}`}
+            onClick={e => { e.stopPropagation(); handleDelete(r) }}
+            title="מחק"
+            style={{ color: 'var(--color-danger, #dc2626)' }}
+          >
+            <Trash2 size={14} strokeWidth={1.5} />
           </button>
         </div>
       ),
@@ -1017,8 +1044,9 @@ export function LeadsPage() {
         courses={courses}
         onClose={backToList}
         onUpdate={refreshSelectedLead}
-        onAddInteraction={() => openAddInteraction(selectedLead.id)}
-        onConvert={() => openConvert(selectedLead)}
+        onAddInteraction={() => openAddInteraction(selectedLead!.id)}
+        onConvert={() => openConvert(selectedLead!)}
+        onDelete={() => handleDelete(selectedLead!)}
       />
     )
   }

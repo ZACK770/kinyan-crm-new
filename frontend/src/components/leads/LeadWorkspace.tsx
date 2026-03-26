@@ -20,6 +20,7 @@ import {
   Paperclip,
   Plus,
   AlertTriangle,
+  Trash2,
 } from 'lucide-react'
 import { BackButton } from '@/components/ui/BackButton'
 import { api } from '@/lib/api'
@@ -108,6 +109,7 @@ interface LeadWorkspaceProps {
   onCreate?: (lead: Lead) => void  // Called after successful creation
   onAddInteraction?: () => void
   onConvert?: () => void
+  onDelete?: () => void  // Added delete callback
 }
 
 type TabId = 'interactions' | 'tasks' | 'payments' | 'conversion' | 'inquiries' | 'emails'
@@ -122,6 +124,7 @@ export function LeadWorkspace({
   onCreate,
   onAddInteraction,
   onConvert,
+  onDelete,
 }: LeadWorkspaceProps) {
   const isCreateMode = !lead
   const [activeTab, setActiveTab] = useState<TabId>('interactions')
@@ -412,6 +415,15 @@ export function LeadWorkspace({
           {onAddInteraction && (
             <button className={`${s.btn} ${s['btn-secondary']} ${s['btn-sm']}`} onClick={onAddInteraction}>
               <MessageSquarePlus size={14} /> הוסף פעילות
+            </button>
+          )}
+          {onDelete && (
+            <button 
+              className={`${s.btn} ${s['btn-danger']} ${s['btn-sm']}`} 
+              onClick={onDelete}
+              style={{ background: 'var(--color-danger, #dc2626)', color: 'white' }}
+            >
+              <Trash2 size={14} /> מחק ליד
             </button>
           )}
         </div>
