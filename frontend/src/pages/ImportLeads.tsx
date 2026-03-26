@@ -44,7 +44,7 @@ interface EntityDescription {
 interface PreviewResponse {
   entity: string
   headers: string[]
-  sample_rows: Array<Record<string, string | null>>
+  sample_rows: string[][]
   fields: EntityField[]
   required_fields_suggested: string[]
   duplicate_keys_suggested: string[]
@@ -81,6 +81,7 @@ export function ImportLeadsPage() {
   const [selectedEntity, setSelectedEntity] = useState<string>('')
   const [entityDescription, setEntityDescription] = useState<EntityDescription | null>(null)
   const [preview, setPreview] = useState<PreviewResponse | null>(null)
+  // UI mapping is: Excel header -> entity field name (or '')
   const [mapping, setMapping] = useState<Record<string, string>>({})
 
   // Load entities on mount
@@ -159,10 +160,10 @@ export function ImportLeadsPage() {
       const res = await api.upload<PreviewResponse>('/admin/import/preview-file', formData)
       setPreview(res)
       const initial: Record<string, string> = {}
-      // Auto-map required fields
-      res.required_fields_suggested.forEach((f) => {
-        const exact = res.headers.find((h) => h === f) || res.headers.find((h) => h.toLowerCase() === f.toLowerCase())
-        if (exact) initial[f] = exact
+      // Auto-map columns whose header matches a target field name
+      res.headers.forEach((h) => {
+        const exact = res.fields.find((f) => f.writable && f.name === h) || res.fields.find((f) => f.writable && f.name.toLowerCase() === h.toLowerCase())
+        if (exact) initial[h] = exact.name
       })
       if (Object.keys(initial).length) setMapping((m) => ({ ...m, ...initial }))
     } catch (err: unknown) {
@@ -182,10 +183,27 @@ export function ImportLeadsPage() {
     setStep('importing')
 
     try {
+      if (!preview) {
+        throw new Error('יש לטעון תצוגה מקדימה לפני ייבוא')
+      }
+
+      // Convert UI mapping (header -> field) into backend mapping (field -> header)
+      const backendMapping: Record<string, string> = {}
+      for (const [header, fieldName] of Object.entries(mapping)) {
+        if (!fieldName) continue
+        backendMapping[fieldName] = header
+      }
+
+      // Validate required fields are mapped
+      const requiredMissing = (preview.required_fields_suggested || []).filter((f) => !backendMapping[f])
+      if (requiredMissing.length) {
+        throw new Error(`חובה למפות את השדות: ${requiredMissing.join(', ')}`)
+      }
+
       const formData = new FormData()
       formData.append('file', file)
       formData.append('entity', selectedEntity)
-      formData.append('mapping_json', JSON.stringify(mapping))
+      formData.append('mapping_json', JSON.stringify(backendMapping))
 
       let url = `/admin/import/import?duplicate_mode=${duplicateMode}`
       if (duplicateKeyField) {
@@ -219,14 +237,22 @@ export function ImportLeadsPage() {
 
   const totalProcessed = result ? Object.values(result.stats).reduce((a, b) => a + b, 0) : 0
 
-  const canImport = (() => {
-    if (!preview || !selectedEntity) return false
-    for (const req of preview.required_fields_suggested) {
-      if (!mapping[req]) return false
-      if (!preview.headers.includes(mapping[req])) return false
+  const writableFields = preview ? preview.fields.filter((f) => f.writable) : []
+  const mappedTargetFields = new Set(Object.values(mapping).filter(Boolean))
+  const requiredMissingUi = preview
+    ? (preview.required_fields_suggested || []).filter((f) => !mappedTargetFields.has(f))
+    : []
+  const hasDuplicateTargetField = (() => {
+    const counts = new Map<string, number>()
+    Object.values(mapping)
+      .filter(Boolean)
+      .forEach((v) => counts.set(v, (counts.get(v) || 0) + 1))
+    for (const n of counts.values()) {
+      if (n > 1) return true
     }
-    return true
+    return false
   })()
+  const canImport = Boolean(preview) && requiredMissingUi.length === 0 && !hasDuplicateTargetField
 
   return (
     <div className={styles.container}>
@@ -331,50 +357,16 @@ export function ImportLeadsPage() {
           {preview && (
             <>
               <div style={{ marginBottom: '1rem', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                בחר לאיזו עמודה בקובץ מתאים כל שדה. חובה: {preview.required_fields_suggested.join(', ')}
+                בחר עבור כל עמודה בקובץ לאיזה שדה ב{selectedEntity} למפות. חובה: {preview.required_fields_suggested.join(', ')}
               </div>
-              
-              {/* Debug info */}
-              <div style={{ fontSize: '0.75rem', color: '#666', marginBottom: '0.5rem' }}>
-                Debug: {preview.fields?.length || 0} writable fields, {preview.headers?.length || 0} headers
-              </div>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                {preview.fields
-                  .filter(field => field.writable)
-                  .map((field) => (
-                    <div key={field.name}>
-                      <label style={{ display: 'block', marginBottom: 6, fontWeight: 600, fontSize: '0.85rem' }}>
-                        {field.name}
-                        {preview.required_fields_suggested.includes(field.name) ? ' (חובה)' : ''}
-                        {field.type && ` (${field.type})`}
-                      </label>
-                      <select
-                        value={mapping[field.name] || ''}
-                        onChange={(e) => {
-                          const v = e.target.value
-                          setMapping((m) => {
-                            const next = { ...m }
-                            if (!v) {
-                              delete next[field.name]
-                            } else {
-                              next[field.name] = v
-                            }
-                            return next
-                          })
-                        }}
-                        className={s.input}
-                      >
-                        <option value="">(לא למפות)</option>
-                        {preview.headers.map((h) => (
-                          <option key={h} value={h}>
-                            {h}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
-              </div>
+
+              {(requiredMissingUi.length > 0 || hasDuplicateTargetField) && (
+                <div style={{ marginBottom: '0.75rem', fontSize: '0.85rem', color: 'var(--color-danger)' }}>
+                  {requiredMissingUi.length > 0 ? `חסרים שדות חובה במיפוי: ${requiredMissingUi.join(', ')}` : ''}
+                  {requiredMissingUi.length > 0 && hasDuplicateTargetField ? ' | ' : ''}
+                  {hasDuplicateTargetField ? 'לא ניתן למפות שני עמודות לאותו שדה יעד' : ''}
+                </div>
+              )}
 
               <div style={{ marginTop: '1rem' }}>
                 <div style={{ fontWeight: 600, marginBottom: 6, fontSize: '0.85rem' }}>תצוגה מקדימה (עד 5 שורות)</div>
@@ -382,7 +374,7 @@ export function ImportLeadsPage() {
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                     <thead>
                       <tr>
-                        {preview.headers.slice(0, 8).map((h) => (
+                        {preview.headers.map((h) => (
                           <th
                             key={h}
                             style={{
@@ -390,9 +382,35 @@ export function ImportLeadsPage() {
                               padding: '8px 10px',
                               borderBottom: '1px solid var(--color-border-light)',
                               background: '#f8fafc',
+                              verticalAlign: 'top',
                             }}
                           >
-                            {h}
+                            <div style={{ display: 'grid', gap: 6 }}>
+                              <div style={{ fontWeight: 700 }}>{h}</div>
+                              <select
+                                value={mapping[h] || ''}
+                                onChange={(e) => {
+                                  const v = e.target.value
+                                  setMapping((m) => {
+                                    const next = { ...m }
+                                    if (!v) {
+                                      delete next[h]
+                                    } else {
+                                      next[h] = v
+                                    }
+                                    return next
+                                  })
+                                }}
+                                className={s.input}
+                              >
+                                <option value="">(לא למפות)</option>
+                                {writableFields.map((f) => (
+                                  <option key={f.name} value={f.name}>
+                                    {f.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
                           </th>
                         ))}
                       </tr>
@@ -400,9 +418,9 @@ export function ImportLeadsPage() {
                     <tbody>
                       {preview.sample_rows.map((row, i) => (
                         <tr key={i}>
-                          {preview.headers.slice(0, 8).map((_, j) => (
+                          {preview.headers.map((_, j) => (
                             <td key={j} style={{ padding: '8px 10px', borderBottom: '1px solid var(--color-border-light)' }}>
-                              {row[j] || ''}
+                              {row?.[j] || ''}
                             </td>
                           ))}
                         </tr>
