@@ -134,6 +134,30 @@ async def get_salespersons(
     ]
 
 
+@router.delete("/{lead_id}")
+async def delete_lead(
+    lead_id: int,
+    request: Request,
+    user = Depends(require_entity_access("leads", "edit")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a single lead by ID."""
+    # Use the existing bulk_delete function with single ID
+    deleted_count = await lead_svc.bulk_delete_leads(db, [lead_id])
+    
+    if deleted_count == 0:
+        raise HTTPException(404, "Lead not found")
+    
+    await audit_logs.log_update(
+        db=db, user=user, entity_type="leads", entity_id=lead_id,
+        description=f"נמחק ליד #{lead_id}",
+        changes={"deleted_id": lead_id},
+        request=request,
+    )
+    await db.commit()
+    return {"deleted": 1, "message": "ליד נמחק בהצלחה"}
+
+
 @router.get("/{lead_id}")
 async def get_lead(
     lead_id: int,
