@@ -94,7 +94,7 @@ async def bulk_update_leads(
 async def bulk_delete_leads(
     data: BulkDeleteRequest,
     request: Request,
-    user = Depends(require_entity_access("leads", "edit")),
+    user = Depends(require_permission("manager")),
     db: AsyncSession = Depends(get_db),
 ):
     count = await lead_svc.bulk_delete_leads(db, data.ids)
@@ -138,7 +138,7 @@ async def get_salespersons(
 async def delete_lead(
     lead_id: int,
     request: Request,
-    user = Depends(require_entity_access("leads", "edit")),
+    user = Depends(require_permission("manager")),
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a single lead by ID."""

@@ -247,7 +247,7 @@ async def update_template(
 @router.delete("/{template_id}")
 async def delete_template(
     template_id: int,
-    user: User = Depends(require_entity_access("leads", "edit")),
+    user = Depends(require_permission("manager")),
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a template and its attachments."""
@@ -340,7 +340,7 @@ async def add_template_attachment(
 async def remove_template_attachment(
     template_id: int,
     file_id: int,
-    user: User = Depends(require_entity_access("leads", "edit")),
+    user = Depends(require_permission("manager")),
     db: AsyncSession = Depends(get_db),
 ):
     """Remove an attachment from a template."""

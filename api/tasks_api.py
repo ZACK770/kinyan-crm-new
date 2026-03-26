@@ -189,7 +189,7 @@ async def update_task(
 async def delete_task(
     task_id: int,
     request: Request,
-    user=Depends(require_entity_access("tasks", "edit")),
+    user = Depends(require_permission("manager")),
     db: AsyncSession = Depends(get_db),
 ):
     deleted = await task_svc.delete_task(db, task_id)

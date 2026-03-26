@@ -144,7 +144,7 @@ async def update_lecturer(
 async def delete_lecturer(
     lecturer_id: int,
     request: Request,
-    user = Depends(require_entity_access("lecturers", "delete")),
+    user = Depends(require_permission("admin")),
     db: AsyncSession = Depends(get_db)
 ):
     """Delete a lecturer (soft delete if has relations, hard delete otherwise)."""

@@ -142,7 +142,7 @@ async def update_campaign(
 async def delete_campaign(
     campaign_id: int,
     request: Request,
-    user = Depends(require_entity_access("campaigns", "delete")),
+    user = Depends(require_permission("admin")),
     db: AsyncSession = Depends(get_db)
 ):
     success = await campaign_svc.delete_campaign(db, campaign_id)

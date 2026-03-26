@@ -244,7 +244,7 @@ async def update_file(
 @router.delete("/{file_id}")
 async def delete_file(
     file_id: int,
-    user: User = Depends(get_current_user),
+    user = Depends(require_permission("manager")),
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a file from storage and database."""

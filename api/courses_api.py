@@ -169,7 +169,7 @@ async def update_course(
 async def delete_course(
     course_id: int,
     request: Request,
-    user = Depends(require_entity_access("courses", "delete")),
+    user = Depends(require_permission("admin")),
     db: AsyncSession = Depends(get_db)
 ):
     success = await course_svc.delete_course(db, course_id)
