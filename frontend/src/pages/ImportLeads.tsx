@@ -333,15 +333,20 @@ export function ImportLeadsPage() {
               <div style={{ marginBottom: '1rem', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
                 בחר לאיזו עמודה בקובץ מתאים כל שדה. חובה: {preview.required_fields_suggested.join(', ')}
               </div>
+              
+              {/* Debug info */}
+              <div style={{ fontSize: '0.75rem', color: '#666', marginBottom: '0.5rem' }}>
+                Debug: {preview.fields?.length || 0} writable fields, {preview.headers?.length || 0} headers
+              </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 {preview.fields
-                  .filter(field => field.writable)
+                  ?.filter(field => field.writable)
                   .map((field) => (
                     <div key={field.name}>
                       <label style={{ display: 'block', marginBottom: 6, fontWeight: 600, fontSize: '0.85rem' }}>
                         {field.name}
-                        {preview.required_fields_suggested.includes(field.name) ? ' (חובה)' : ''}
+                        {preview.required_fields_suggested?.includes(field.name) ? ' (חובה)' : ''}
                         {field.type && ` (${field.type})`}
                       </label>
                       <select
@@ -361,7 +366,7 @@ export function ImportLeadsPage() {
                         className={s.input}
                       >
                         <option value="">(לא למפות)</option>
-                        {preview.headers.map((h) => (
+                        {preview.headers?.map((h) => (
                           <option key={h} value={h}>
                             {h}
                           </option>
