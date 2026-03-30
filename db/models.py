@@ -807,7 +807,9 @@ class ExamSubmission(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     exam_id: Mapped[int] = mapped_column(ForeignKey("exams.id", ondelete="CASCADE"), nullable=False)
     student_id: Mapped[Optional[int]] = mapped_column(ForeignKey("students.id"))
-    examinee_id: Mapped[Optional[int]] = mapped_column(ForeignKey("examinees.id"))
+    examinee_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("examinees.id", ondelete="SET NULL", name="fk_exam_submissions_examinee_id")
+    )
     submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     score: Mapped[Optional[int]] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(50), default="הוגש")  # הוגש / נבדק / עבר / נכשל
@@ -1571,9 +1573,14 @@ class GlobalTablePref(Base):
     __tablename__ = "global_table_prefs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    storage_key: Mapped[str] = mapped_column(String(200), nullable=False, unique=True, index=True)
+    storage_key: Mapped[str] = mapped_column(String(200), nullable=False)
     data: Mapped[Optional[dict]] = mapped_column(JSON)
     updated_by_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("ix_global_table_prefs_storage_key", "storage_key", unique=True),
+        Index("idx_global_table_prefs_storage_key", "storage_key"),
+    )
 
     updated_by_user: Mapped[Optional["User"]] = relationship(foreign_keys=[updated_by_user_id])
