@@ -186,3 +186,17 @@ FROM pg_stat_user_tables ORDER BY n_live_tup DESC;
 3. **לעולם** לשמור על `.env` מעודכן — זה מקור האמת לחיבור.
 4. הקוד ב- `db/__init__.py` קורא את `DATABASE_URL` מ-`.env` → מעביר ל-engine → מעביר ל-Alembic.
 5. כל שינוי במבנה טבלאות → עדכון `models.py` → `alembic revision --autogenerate` → בדיקה → `alembic upgrade head`.
+
+---
+
+## Checklist תפעולי למיגרציות (מומלץ)
+
+1. להגדיר `DATABASE_URL` במשתנה סביבה או ב-`.env` ולוודא שזה ה-DB הנכון.
+2. להריץ Preflight לא-הרסני (למשל: `current_database()` / `current_user`) לפני שמריצים `upgrade`.
+3. להריץ `alembic revision --autogenerate` ואז **לבדוק את הקובץ** שנוצר:
+   - אם מופיעים `drop_table`/`drop_index` על טבלאות לא קשורות — לעצור ולתקן ידנית.
+4. להריץ `alembic upgrade head`.
+5. להריץ `alembic check` כדי לוודא שאין סטייה בין DB למודלים.
+
+> הערה: אם בעבר רצתה מערכת אחרת על אותו DB והשאירו טבלאות לא רלוונטיות, מומלץ להפעיל guard ב-`alembic/env.py`
+> כדי למנוע מ-autogenerate להציע מחיקות על טבלאות שלא שייכות למודלים.

@@ -118,3 +118,40 @@
 3. **לעשות `alembic check` אחרי כל שינוי במודלים** כדי לוודא שהמיגרציה תואמת.
 4. **לבדוק את ה־SQL שנוצר אוטומטית** לפני `upgrade head`.
 5. **לגבות את הקבצים ב־`alembic/versions/` ב־git** אחרי כל מיגרציה פעילה.
+
+---
+
+## Workflow מומלץ (כדי ש-Alembic "יעבוד תמיד")
+
+### 1) להריץ Alembic מתוך venv ייעודי למיגרציות
+
+לפעמים ה-venv הראשי של הפרויקט נשבר / חסרים בו scripts.
+
+- ליצור venv ייעודי בתוך `scripts/` (לדוגמה: `scripts/.venv_migrate`)
+- להתקין אליו את התלויות (אפשר `pip install -r requirements.txt`)
+- להריץ ממנו את `alembic.exe`
+
+### 2) Preflight ל-DB לפני כל `upgrade`/`autogenerate`
+
+לפני שמריצים מיגרציות על DB מרוחק:
+
+- לוודא `DATABASE_URL` נכון (host/db/user)
+- להריץ בדיקה לא-הרסנית שמדפיסה:
+  - `current_database()`
+  - `current_user`
+  - ורשימת טבלאות "חשודות" אם יש (למשל כאלה מפרויקטים אחרים)
+
+### 3) Guard ב-`alembic/env.py` כדי למנוע DROP של טבלאות לא-שייכות
+
+אם ה-DB מכיל טבלאות שלא קיימות במודלים שלנו (למשל בגלל פרויקט אחר שרץ פעם על אותו DB),
+Alembic עלול להציע `drop_table` ב-autogenerate.
+
+פתרון מומלץ:
+- להוסיף `include_object` ל-`context.configure(...)` ולסנן טבלאות reflected שלא קיימות ב-`Base.metadata.tables`.
+
+### 4) כללי בטיחות ל-`revision --autogenerate`
+
+- אם ה-migration שנוצר מכיל `drop_table`/`drop_index` על טבלאות לא קשורות — **לא מריצים upgrade**.
+- במקום זה:
+  - לערוך את קובץ ה-migration ולהשאיר רק את השינויים הנדרשים
+  - לשקול להפוך ל-idempotent עם `IF NOT EXISTS` (כמו שהמסמך ממליץ)
