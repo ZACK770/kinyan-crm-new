@@ -74,8 +74,8 @@ async def create_exam_registration(
     if not examinee:
         # Auto-create examinee for registration
         examinee = Examinee(
-            name=name or phone,
             phone=phone,
+            source="registration",  # Use source instead of name
             is_verified=False  # Can be verified later
         )
         db.add(examinee)

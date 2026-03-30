@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db import get_db
 from services import examinees as examinee_svc
 from services import audit_logs
+from services.exam_registration import get_examinee_registrations as get_public_registrations
 from .dependencies import require_entity_access, require_permission
 
 router = APIRouter(tags=["examinees"])
@@ -166,6 +167,22 @@ async def register_for_exam(
     )
     await db.commit()
     return {"id": sub.id, "status": sub.status}
+
+
+@router.get("/{examinee_id}/exam-registrations")
+async def get_examinee_exam_registrations(
+    examinee_id: int,
+    user=Depends(require_entity_access("examinees", "view")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get exam registrations from the new registration system"""
+    ex = await examinee_svc.get_examinee(db, examinee_id)
+    if not ex:
+        raise HTTPException(404, "Examinee not found")
+    
+    # Get registrations from the new system
+    registrations = await get_public_registrations(db, ex.phone)
+    return registrations
 
 
 @router.patch("/{examinee_id}")

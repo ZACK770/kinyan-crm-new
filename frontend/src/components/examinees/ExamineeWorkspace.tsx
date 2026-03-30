@@ -47,12 +47,16 @@ interface ExamineeSubmission {
   internal_notes: string | null
 }
 
-interface ExamListItem {
-  id: number
-  name: string
+interface ExamRegistration {
+  registration_id: number
+  registration_code: string
+  exam_date: string
+  exam_name: string
   exam_type: string
-  exam_date: string | null
-  course_id: number
+  course_name: string | null
+  status: string
+  notes: string | null
+  created_at: string
 }
 
 function TabButton({
@@ -139,30 +143,48 @@ function HistoryTab({ examineeId }: { examineeId: number }) {
   )
 }
 
-function RegistrationsTab({ examineeId, onRegistered }: { examineeId: number; onRegistered: () => void }) {
+function RegistrationsTab({
+  examineeId,
+  examineePhone,
+  examineeName,
+  onRegistered,
+}: {
+  examineeId: number
+  examineePhone: string
+  examineeName: string | null
+  onRegistered: () => void
+}) {
   const toast = useToast()
   const [loading, setLoading] = useState(true)
-  const [exams, setExams] = useState<ExamListItem[]>([])
-  const [selectedExamId, setSelectedExamId] = useState<string>('')
+  const [examDates, setExamDates] = useState<any[]>([])
+  const [selectedExam, setSelectedExam] = useState<{exam_date_id: number, exam_id: number} | null>(null)
   const [isRegistering, setIsRegistering] = useState(false)
 
+  // Load upcoming exam dates
   useEffect(() => {
     let isMounted = true
     setLoading(true)
-    api.get<ExamListItem[]>('/api/exams?limit=500')
-      .then(data => { if (isMounted) setExams(data || []) })
-      .catch(() => toast.error('שגיאה בטעינת מבחנים'))
+    // Get upcoming exam dates from public API
+    fetch('/public/exam-registration/exam-dates/upcoming')
+      .then(res => res.json())
+      .then(data => { if (isMounted) setExamDates(data || []) })
+      .catch(() => toast.error('שגיאה בטעינת תאריכי בחינה'))
       .finally(() => { if (isMounted) setLoading(false) })
     return () => { isMounted = false }
   }, [toast])
 
   const handleRegister = async () => {
-    if (!selectedExamId) return
+    if (!selectedExam) return
     setIsRegistering(true)
     try {
-      await api.post(`examinees/${examineeId}/registrations`, { exam_id: Number(selectedExamId) })
+      await api.post(`/public/exam-registration/register`, {
+        exam_date_id: selectedExam.exam_date_id,
+        exam_id: selectedExam.exam_id,
+        phone: examineePhone,
+        name: examineeName || undefined,
+      })
       toast.success('נרשם למבחן')
-      setSelectedExamId('')
+      setSelectedExam(null)
       onRegistered()
     } catch (err: any) {
       toast.error(err?.message ?? 'שגיאה ברישום למבחן')
@@ -171,52 +193,106 @@ function RegistrationsTab({ examineeId, onRegistered }: { examineeId: number; on
     }
   }
 
-  if (loading) return <div style={{ color: 'var(--color-text-muted)' }}>טוען מבחנים...</div>
-  if (!exams.length) return <EmptyState title="אין עדיין מבחנים" />
+  if (loading) return <div style={{ color: 'var(--color-text-muted)' }}>טוען תאריכי בחינה...</div>
+  if (!examDates.length) return <EmptyState title="אין תאריכי בחינה פעילים" />
 
   return (
-    <div>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 14, flexWrap: 'wrap' }}>
-        <div className={s['form-group']} style={{ minWidth: 280 }}>
-          <label className={s['form-label']}>בחר מבחן לרישום</label>
-          <select className={s.select} value={selectedExamId} onChange={e => setSelectedExamId(e.target.value)}>
-            <option value="">— בחר —</option>
-            {exams.map(e => (
-              <option key={e.id} value={String(e.id)}>
-                {e.name}{e.exam_date ? ` — ${e.exam_date}` : ''}
-              </option>
-            ))}
-          </select>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Registration Form */}
+      <div style={{ padding: 16, border: '1px solid var(--color-border-light)', borderRadius: 8 }}>
+        <h4 style={{ margin: '0 0 12px 0', fontSize: 14, fontWeight: 600 }}>רישום לבחינה</h4>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'end' }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>בחינה</label>
+            <select
+              value={selectedExam ? `${selectedExam.exam_date_id}-${selectedExam.exam_id}` : ''}
+              onChange={(e) => {
+                const [dateId, examId] = e.target.value.split('-').map(Number)
+                setSelectedExam({ exam_date_id: dateId, exam_id: examId })
+              }}
+              style={{ width: '100%', padding: '8px', border: '1px solid var(--color-border-light)', borderRadius: 4 }}
+            >
+              <option value="">בחר בחינה...</option>
+              {examDates.map(ed => (
+                <optgroup key={ed.exam_date_id} label={`${ed.date} ${ed.description || ''}`}>
+                  {ed.exams.map((exam: any) => (
+                    <option key={`${ed.exam_date_id}-${exam.exam_id}`} value={`${ed.exam_date_id}-${exam.exam_id}`}>
+                      {exam.course_name || ''} - {exam.exam_name}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+          <button
+            onClick={handleRegister}
+            disabled={!selectedExam || isRegistering}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: selectedExam && !isRegistering ? 'var(--color-primary)' : 'var(--color-border-light)',
+              color: selectedExam && !isRegistering ? 'white' : 'var(--color-text-muted)',
+              border: 'none',
+              borderRadius: 4,
+              cursor: selectedExam && !isRegistering ? 'pointer' : 'not-allowed'
+            }}
+          >
+            {isRegistering ? 'רושם...' : 'רשום'}
+          </button>
         </div>
-        <button
-          type="button"
-          className={`${s.btn} ${s['btn-primary']}`}
-          disabled={!selectedExamId || isRegistering}
-          onClick={handleRegister}
-        >
-          {isRegistering ? 'רושם...' : 'רשום למבחן'}
-        </button>
       </div>
-      <table className={s.table}>
-        <thead>
-          <tr>
-            <th>מבחן</th>
-            <th>סוג</th>
-            <th>תאריך</th>
-            <th>קורס</th>
-          </tr>
-        </thead>
-        <tbody>
-          {exams.map(e => (
-            <tr key={e.id}>
-              <td>{e.name}</td>
-              <td>{e.exam_type}</td>
-              <td>{e.exam_date || '—'}</td>
-              <td>{e.course_id}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+
+      {/* Existing Registrations */}
+      <ExistingRegistrations examineeId={examineeId} />
+    </div>
+  )
+}
+
+function ExistingRegistrations({ examineeId }: { examineeId: number }) {
+  const toast = useToast()
+  const [loading, setLoading] = useState(true)
+  const [registrations, setRegistrations] = useState<ExamRegistration[]>([])
+
+  useEffect(() => {
+    let isMounted = true
+    setLoading(true)
+    api.get<ExamRegistration[]>(`/api/examinees/${examineeId}/exam-registrations`)
+      .then(data => { if (isMounted) setRegistrations(data || []) })
+      .catch(() => toast.error('שגיאה בטעינת רישומים'))
+      .finally(() => { if (isMounted) setLoading(false) })
+    return () => { isMounted = false }
+  }, [examineeId, toast])
+
+  if (loading) return <div style={{ color: 'var(--color-text-muted)' }}>טוען רישומים...</div>
+  if (!registrations.length) return <EmptyState title="אין רישומים קודמים" />
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>רישומים קודמים</h4>
+      {registrations.map((reg) => (
+        <div key={reg.registration_id} style={{ padding: 12, border: '1px solid var(--color-border-light)', borderRadius: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>{reg.exam_name}</div>
+              <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                {reg.course_name && `${reg.course_name} • `}
+                {reg.exam_date}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                קוד רישום: {reg.registration_code}
+              </div>
+            </div>
+            <div style={{
+              padding: '2px 8px',
+              borderRadius: 12,
+              fontSize: 11,
+              backgroundColor: reg.status === 'registered' ? 'var(--color-success)' : 'var(--color-border-light)',
+              color: reg.status === 'registered' ? 'white' : 'var(--color-text-muted)'
+            }}>
+              {reg.status === 'registered' ? 'רשום' : reg.status}
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -573,6 +649,8 @@ export function ExamineeWorkspace({
           {activeTab === 'registrations' && (
             <RegistrationsTab
               examineeId={examinee!.id}
+              examineePhone={examinee!.phone}
+              examineeName={examinee!.full_name ?? null}
               onRegistered={() => {
                 setActiveTab('submissions')
               }}
