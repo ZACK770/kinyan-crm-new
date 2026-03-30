@@ -27,6 +27,7 @@ import {
   Mail,
   Lock,
   Zap,
+  ClipboardList,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import clsx from 'clsx'
@@ -91,6 +92,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
 
 // Manager+ navigation items
 const MANAGER_NAV_ITEMS: NavItem[] = [
+  { to: '/admin/exams', label: 'מבחנים', icon: ClipboardList },
   { to: '/admin/popups', label: 'הודעות פופ-אפ', icon: Zap },
   { to: '/admin/sales-assignment', label: 'אנשי מכירות ושיוך', icon: UserCog },
   { to: '/admin/webhook-logs', label: 'לוגים Webhooks', icon: Activity },

@@ -785,6 +785,10 @@ class Exam(Base):
     lecturer_id: Mapped[Optional[int]] = mapped_column(ForeignKey("lecturers.id"))
     exam_date: Mapped[Optional[date]] = mapped_column(Date)
     exam_type: Mapped[str] = mapped_column(String(50), default="בכתב")  # בעל-פה / בכתב / מטלה
+    material: Mapped[Optional[str]] = mapped_column(Text)
+    registration_price: Mapped[Optional[int]] = mapped_column(Integer)
+    registration_url: Mapped[Optional[str]] = mapped_column(String(500))
+    is_registration_open: Mapped[bool] = mapped_column(default=True)
     questionnaire_url: Mapped[Optional[str]] = mapped_column(String(500))
     answers_url: Mapped[Optional[str]] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -30,10 +30,24 @@ class ExamRegistrationResponse(BaseModel):
     exam_type: str
     course_id: int
     course_name: Optional[str]
+    registration_price: Optional[int] = None
+    registration_url: Optional[str] = None
+    is_registration_open: Optional[bool] = None
     examinee_name: str
     examinee_phone: str
     status: str
     created_at: str
+
+
+class ExamInfo(BaseModel):
+    exam_id: int
+    exam_name: str
+    exam_type: str
+    course_id: int
+    course_name: Optional[str]
+    registration_price: Optional[int] = None
+    registration_url: Optional[str] = None
+    is_registration_open: bool
 
 
 class ExamDateInfo(BaseModel):
@@ -41,7 +55,7 @@ class ExamDateInfo(BaseModel):
     date: str
     description: Optional[str]
     max_registrations: Optional[int]
-    exams: List[dict]
+    exams: List[ExamInfo]
 
 
 class RegistrationInfo(BaseModel):

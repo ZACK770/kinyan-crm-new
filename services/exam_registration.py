@@ -43,6 +43,9 @@ async def get_upcoming_exam_dates(db: AsyncSession) -> list[dict]:
                 "exam_type": exam.exam_type,
                 "course_id": exam.course_id,
                 "course_name": exam.course.name if exam.course else None,
+                "registration_price": exam.registration_price,
+                "registration_url": exam.registration_url,
+                "is_registration_open": exam.is_registration_open,
             })
         
         items.append({
@@ -173,6 +176,9 @@ async def create_exam_registration(
         "exam_type": loaded.exam.exam_type,
         "course_id": loaded.exam.course_id,
         "course_name": loaded.exam.course.name if loaded.exam.course else None,
+        "registration_price": loaded.exam.registration_price,
+        "registration_url": loaded.exam.registration_url,
+        "is_registration_open": loaded.exam.is_registration_open,
         "examinee_name": getattr(loaded.examinee, "full_name", None) or loaded.examinee.phone,
         "examinee_phone": loaded.examinee.phone,
         "status": loaded.status,

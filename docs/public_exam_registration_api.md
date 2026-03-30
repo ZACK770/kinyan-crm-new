@@ -56,7 +56,10 @@ None.
         "exam_name": "מבחן דמו 1",
         "exam_type": "בכתב",
         "course_id": 3,
-        "course_name": "קורס לדוגמה"
+        "course_name": "קורס לדוגמה",
+        "registration_price": 180,
+        "registration_url": "https://example.com/pay",
+        "is_registration_open": true
       }
     ]
   }
@@ -102,6 +105,9 @@ Creates a registration for an examinee to a specific exam on a specific exam dat
   "exam_type": "בכתב",
   "course_id": 3,
   "course_name": "קורס לדוגמה",
+  "registration_price": 180,
+  "registration_url": "https://example.com/pay",
+  "is_registration_open": true,
   "examinee_name": "ישראל ישראלי",
   "examinee_phone": "0501234567",
   "created_at": "2026-03-30T14:21:52.870798+03:00"

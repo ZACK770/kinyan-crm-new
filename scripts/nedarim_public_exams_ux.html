@@ -659,7 +659,11 @@
           const exams = Array.isArray(d.exams) ? d.exams : []
           const examsHtml = exams.map((e) => {
             const title = e.course_name ? `${e.course_name} • ${e.exam_name}` : e.exam_name
-            const meta = e.exam_type ? `סוג: ${e.exam_type}` : ''
+            const parts = []
+            if (e.exam_type) parts.push(`סוג: ${e.exam_type}`)
+            if (e.is_registration_open === false) parts.push('הרשמה סגורה')
+            if (typeof e.registration_price === 'number') parts.push(`מחיר: ₪${e.registration_price}`)
+            const meta = parts.join(' • ')
             return `
               <div class="examItem">
                 <div class="examMeta">

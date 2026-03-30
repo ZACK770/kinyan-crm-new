@@ -21,6 +21,24 @@ class ExamCreate(BaseModel):
     exam_date: date | None = None
     questionnaire_url: str | None = None
     answers_url: str | None = None
+    material: str | None = None
+    registration_price: int | None = None
+    registration_url: str | None = None
+    is_registration_open: bool | None = None
+
+
+class ExamUpdate(BaseModel):
+    name: str | None = None
+    course_id: int | None = None
+    exam_type: str | None = None
+    lecturer_id: int | None = None
+    exam_date: date | None = None
+    questionnaire_url: str | None = None
+    answers_url: str | None = None
+    material: str | None = None
+    registration_price: int | None = None
+    registration_url: str | None = None
+    is_registration_open: bool | None = None
 
 
 class SubmissionCreate(BaseModel):
@@ -39,15 +57,7 @@ async def list_exams(
     db: AsyncSession = Depends(get_db),
 ):
     """List exams, optionally filtered by course_id."""
-    if course_id is not None:
-        items = await exam_svc.list_course_exams(db, course_id)
-    else:
-        from sqlalchemy import select as sa_select
-        from db.models import Exam
-
-        stmt = sa_select(Exam).order_by(Exam.exam_date.desc().nullslast(), Exam.id.desc()).limit(limit)
-        res = await db.execute(stmt)
-        items = list(res.scalars().all())
+    items = await exam_svc.list_exams(db, limit=limit, course_id=course_id)
 
     return [
         {
@@ -56,6 +66,13 @@ async def list_exams(
             "exam_type": e.exam_type,
             "exam_date": str(e.exam_date) if e.exam_date else None,
             "course_id": e.course_id,
+            "lecturer_id": e.lecturer_id,
+            "questionnaire_url": e.questionnaire_url,
+            "answers_url": e.answers_url,
+            "material": e.material,
+            "registration_price": e.registration_price,
+            "registration_url": e.registration_url,
+            "is_registration_open": e.is_registration_open,
         }
         for e in items
     ]
@@ -65,6 +82,24 @@ class GradeSubmission(BaseModel):
     score: int
     status: str = "נבדק"
     internal_notes: str | None = None
+
+
+class ExamDateCreate(BaseModel):
+    date: date
+    description: str | None = None
+    is_active: bool = True
+    max_registrations: int | None = None
+
+
+class ExamDateUpdate(BaseModel):
+    date: date | None = None
+    description: str | None = None
+    is_active: bool | None = None
+    max_registrations: int | None = None
+
+
+class ExamDateAssignRequest(BaseModel):
+    exam_id: int
 
 
 @router.get("/course/{course_id}")
@@ -111,6 +146,14 @@ async def get_exam(
         "name": exam.name,
         "exam_type": exam.exam_type,
         "exam_date": str(exam.exam_date) if exam.exam_date else None,
+        "course_id": exam.course_id,
+        "lecturer_id": exam.lecturer_id,
+        "questionnaire_url": exam.questionnaire_url,
+        "answers_url": exam.answers_url,
+        "material": exam.material,
+        "registration_price": exam.registration_price,
+        "registration_url": exam.registration_url,
+        "is_registration_open": exam.is_registration_open,
         "average_score": avg,
         "submissions": [
             {
@@ -123,6 +166,152 @@ async def get_exam(
             for s in exam.submissions
         ],
     }
+
+
+@router.patch("/{exam_id}")
+async def update_exam(
+    exam_id: int,
+    data: ExamUpdate,
+    user = Depends(require_entity_access("exams", "edit")),
+    db: AsyncSession = Depends(get_db),
+):
+    exam = await exam_svc.update_exam(db, exam_id, **data.model_dump(exclude_unset=True))
+    if not exam:
+        raise HTTPException(404, "Exam not found")
+    await db.commit()
+    return {"id": exam.id}
+
+
+@router.delete("/{exam_id}")
+async def delete_exam(
+    exam_id: int,
+    user = Depends(require_entity_access("exams", "delete")),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        ok = await exam_svc.delete_exam(db, exam_id)
+        if not ok:
+            raise HTTPException(404, "Exam not found")
+        await db.commit()
+        return {"ok": True}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.get("/exam-dates")
+async def list_exam_dates(
+    limit: int = Query(500, le=2000),
+    user = Depends(require_entity_access("exams", "view")),
+    db: AsyncSession = Depends(get_db),
+):
+    items = await exam_svc.list_exam_dates(db, limit=limit)
+    return [
+        {
+            "id": x.id,
+            "date": str(x.date),
+            "description": x.description,
+            "is_active": x.is_active,
+            "max_registrations": x.max_registrations,
+            "created_at": str(x.created_at),
+        }
+        for x in items
+    ]
+
+
+@router.post("/exam-dates")
+async def create_exam_date(
+    data: ExamDateCreate,
+    user = Depends(require_entity_access("exams", "create")),
+    db: AsyncSession = Depends(get_db),
+):
+    ed = await exam_svc.create_exam_date(
+        db,
+        date_value=data.date,
+        description=data.description,
+        is_active=data.is_active,
+        max_registrations=data.max_registrations,
+    )
+    await db.commit()
+    return {"id": ed.id}
+
+
+@router.patch("/exam-dates/{exam_date_id}")
+async def update_exam_date(
+    exam_date_id: int,
+    data: ExamDateUpdate,
+    user = Depends(require_entity_access("exams", "edit")),
+    db: AsyncSession = Depends(get_db),
+):
+    ed = await exam_svc.update_exam_date(
+        db,
+        exam_date_id,
+        date_value=data.date,
+        description=data.description,
+        is_active=data.is_active,
+        max_registrations=data.max_registrations,
+    )
+    if not ed:
+        raise HTTPException(404, "ExamDate not found")
+    await db.commit()
+    return {"id": ed.id}
+
+
+@router.delete("/exam-dates/{exam_date_id}")
+async def delete_exam_date(
+    exam_date_id: int,
+    user = Depends(require_entity_access("exams", "delete")),
+    db: AsyncSession = Depends(get_db),
+):
+    ok = await exam_svc.delete_exam_date(db, exam_date_id)
+    if not ok:
+        raise HTTPException(404, "ExamDate not found")
+    await db.commit()
+    return {"ok": True}
+
+
+@router.get("/exam-dates/{exam_date_id}/exams")
+async def list_exams_for_exam_date(
+    exam_date_id: int,
+    user = Depends(require_entity_access("exams", "view")),
+    db: AsyncSession = Depends(get_db),
+):
+    items = await exam_svc.list_exam_date_exams(db, exam_date_id)
+    return [
+        {
+            "id": e.id,
+            "name": e.name,
+            "exam_type": e.exam_type,
+            "course_id": e.course_id,
+            "registration_price": e.registration_price,
+            "registration_url": e.registration_url,
+            "is_registration_open": e.is_registration_open,
+        }
+        for e in items
+    ]
+
+
+@router.post("/exam-dates/{exam_date_id}/exams")
+async def assign_exam_to_exam_date(
+    exam_date_id: int,
+    data: ExamDateAssignRequest,
+    user = Depends(require_entity_access("exams", "edit")),
+    db: AsyncSession = Depends(get_db),
+):
+    await exam_svc.assign_exam_to_date(db, exam_date_id, data.exam_id)
+    await db.commit()
+    return {"ok": True}
+
+
+@router.delete("/exam-dates/{exam_date_id}/exams/{exam_id}")
+async def unassign_exam_from_exam_date(
+    exam_date_id: int,
+    exam_id: int,
+    user = Depends(require_entity_access("exams", "edit")),
+    db: AsyncSession = Depends(get_db),
+):
+    await exam_svc.unassign_exam_from_date(db, exam_date_id, exam_id)
+    await db.commit()
+    return {"ok": True}
 
 
 @router.post("/{exam_id}/submissions")

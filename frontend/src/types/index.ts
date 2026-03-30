@@ -125,6 +125,30 @@ export interface Course {
   created_at: string
 }
 
+export interface Exam {
+  id: number
+  name: string
+  course_id: number
+  lecturer_id?: number | null
+  exam_type: string
+  exam_date?: string | null
+  questionnaire_url?: string | null
+  answers_url?: string | null
+  material?: string | null
+  registration_price?: number | null
+  registration_url?: string | null
+  is_registration_open?: boolean | null
+}
+
+export interface ExamDate {
+  id: number
+  date: string
+  description?: string | null
+  is_active: boolean
+  max_registrations?: number | null
+  created_at: string
+}
+
 export interface CourseModule {
   id: number
   course_id: number
