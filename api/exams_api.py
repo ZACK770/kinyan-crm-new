@@ -121,84 +121,6 @@ async def list_course_exams(
     ]
 
 
-@router.post("/")
-async def create_exam(
-    data: ExamCreate,
-    user = Depends(require_entity_access("exams", "create")),
-    db: AsyncSession = Depends(get_db)
-):
-    exam = await exam_svc.create_exam(db, **data.model_dump())
-    await db.commit()
-    return {"id": exam.id, "name": exam.name}
-
-
-@router.get("/{exam_id}")
-async def get_exam(
-    exam_id: int,
-    user = Depends(require_entity_access("exams", "view")),
-    db: AsyncSession = Depends(get_db)
-):
-    exam = await exam_svc.get_exam_with_submissions(db, exam_id)
-    if not exam:
-        raise HTTPException(404, "Exam not found")
-    avg = await exam_svc.get_exam_average(db, exam_id)
-    return {
-        "id": exam.id,
-        "name": exam.name,
-        "exam_type": exam.exam_type,
-        "exam_date": str(exam.exam_date) if exam.exam_date else None,
-        "course_id": exam.course_id,
-        "lecturer_id": exam.lecturer_id,
-        "questionnaire_url": exam.questionnaire_url,
-        "answers_url": exam.answers_url,
-        "material": exam.material,
-        "registration_price": exam.registration_price,
-        "registration_url": exam.registration_url,
-        "is_registration_open": exam.is_registration_open,
-        "average_score": avg,
-        "submissions": [
-            {
-                "id": s.id,
-                "student_id": s.student_id,
-                "score": s.score,
-                "status": s.status,
-                "submitted_at": str(s.submitted_at) if s.submitted_at else None,
-            }
-            for s in exam.submissions
-        ],
-    }
-
-
-@router.patch("/{exam_id}")
-async def update_exam(
-    exam_id: int,
-    data: ExamUpdate,
-    user = Depends(require_entity_access("exams", "edit")),
-    db: AsyncSession = Depends(get_db),
-):
-    exam = await exam_svc.update_exam(db, exam_id, **data.model_dump(exclude_unset=True))
-    if not exam:
-        raise HTTPException(404, "Exam not found")
-    await db.commit()
-    return {"id": exam.id}
-
-
-@router.delete("/{exam_id}")
-async def delete_exam(
-    exam_id: int,
-    user = Depends(require_entity_access("exams", "delete")),
-    db: AsyncSession = Depends(get_db),
-):
-    try:
-        ok = await exam_svc.delete_exam(db, exam_id)
-        if not ok:
-            raise HTTPException(404, "Exam not found")
-        await db.commit()
-        return {"ok": True}
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-
-
 @router.get("/exam-dates")
 async def list_exam_dates(
     limit: int = Query(500, le=2000),
@@ -313,6 +235,84 @@ async def unassign_exam_from_exam_date(
     await exam_svc.unassign_exam_from_date(db, exam_date_id, exam_id)
     await db.commit()
     return {"ok": True}
+
+
+@router.post("/")
+async def create_exam(
+    data: ExamCreate,
+    user = Depends(require_entity_access("exams", "create")),
+    db: AsyncSession = Depends(get_db)
+):
+    exam = await exam_svc.create_exam(db, **data.model_dump())
+    await db.commit()
+    return {"id": exam.id, "name": exam.name}
+
+
+@router.get("/{exam_id}")
+async def get_exam(
+    exam_id: int,
+    user = Depends(require_entity_access("exams", "view")),
+    db: AsyncSession = Depends(get_db)
+):
+    exam = await exam_svc.get_exam_with_submissions(db, exam_id)
+    if not exam:
+        raise HTTPException(404, "Exam not found")
+    avg = await exam_svc.get_exam_average(db, exam_id)
+    return {
+        "id": exam.id,
+        "name": exam.name,
+        "exam_type": exam.exam_type,
+        "exam_date": str(exam.exam_date) if exam.exam_date else None,
+        "course_id": exam.course_id,
+        "lecturer_id": exam.lecturer_id,
+        "questionnaire_url": exam.questionnaire_url,
+        "answers_url": exam.answers_url,
+        "material": exam.material,
+        "registration_price": exam.registration_price,
+        "registration_url": exam.registration_url,
+        "is_registration_open": exam.is_registration_open,
+        "average_score": avg,
+        "submissions": [
+            {
+                "id": s.id,
+                "student_id": s.student_id,
+                "score": s.score,
+                "status": s.status,
+                "submitted_at": str(s.submitted_at) if s.submitted_at else None,
+            }
+            for s in exam.submissions
+        ],
+    }
+
+
+@router.patch("/{exam_id}")
+async def update_exam(
+    exam_id: int,
+    data: ExamUpdate,
+    user = Depends(require_entity_access("exams", "edit")),
+    db: AsyncSession = Depends(get_db),
+):
+    exam = await exam_svc.update_exam(db, exam_id, **data.model_dump(exclude_unset=True))
+    if not exam:
+        raise HTTPException(404, "Exam not found")
+    await db.commit()
+    return {"id": exam.id}
+
+
+@router.delete("/{exam_id}")
+async def delete_exam(
+    exam_id: int,
+    user = Depends(require_entity_access("exams", "delete")),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        ok = await exam_svc.delete_exam(db, exam_id)
+        if not ok:
+            raise HTTPException(404, "Exam not found")
+        await db.commit()
+        return {"ok": True}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @router.post("/{exam_id}/submissions")
