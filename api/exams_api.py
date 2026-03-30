@@ -31,6 +31,36 @@ class SubmissionCreate(BaseModel):
     internal_notes: str | None = None
 
 
+@router.get("/")
+async def list_exams(
+    course_id: int | None = Query(None),
+    limit: int = Query(200, le=1000),
+    user=Depends(require_entity_access("exams", "view")),
+    db: AsyncSession = Depends(get_db),
+):
+    """List exams, optionally filtered by course_id."""
+    if course_id is not None:
+        items = await exam_svc.list_course_exams(db, course_id)
+    else:
+        from sqlalchemy import select as sa_select
+        from db.models import Exam
+
+        stmt = sa_select(Exam).order_by(Exam.exam_date.desc().nullslast(), Exam.id.desc()).limit(limit)
+        res = await db.execute(stmt)
+        items = list(res.scalars().all())
+
+    return [
+        {
+            "id": e.id,
+            "name": e.name,
+            "exam_type": e.exam_type,
+            "exam_date": str(e.exam_date) if e.exam_date else None,
+            "course_id": e.course_id,
+        }
+        for e in items
+    ]
+
+
 class GradeSubmission(BaseModel):
     score: int
     status: str = "נבדק"

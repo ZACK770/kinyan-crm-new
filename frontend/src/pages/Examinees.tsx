@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Plus, Phone } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
 import { SmartTable, type SmartColumn } from '@/components/ui/SmartTable'
+import { ExamineeWorkspace } from '@/components/examinees'
 import type { Examinee } from '@/types'
 import s from '@/styles/shared.module.css'
 
@@ -11,6 +13,36 @@ export function ExamineesPage() {
 
   const [examinees, setExaminees] = useState<Examinee[]>([])
   const [loading, setLoading] = useState(true)
+
+  type ViewMode = 'list' | 'create'
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
+  const [selectedExaminee, setSelectedExaminee] = useState<Examinee | null>(null)
+  const [loadingWorkspace, setLoadingWorkspace] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  useEffect(() => {
+    if (searchParams.get('create') === 'true') {
+      setViewMode('create')
+      setSelectedExaminee(null)
+      setSearchParams({}, { replace: true })
+    } else if (searchParams.get('examinee')) {
+      const examineeId = Number(searchParams.get('examinee'))
+      if (examineeId && !isNaN(examineeId) && selectedExaminee?.id !== examineeId) {
+        setLoadingWorkspace(true)
+        api.get<Examinee>(`examinees/${examineeId}`)
+          .then(ex => {
+            setSelectedExaminee(ex)
+            setViewMode('list')
+          })
+          .catch(() => {
+            toast.error('נבחן לא נמצא')
+            setSearchParams({}, { replace: true })
+          })
+          .finally(() => setLoadingWorkspace(false))
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   const columns: SmartColumn<Examinee>[] = [
     {
@@ -96,6 +128,58 @@ export function ExamineesPage() {
     }
   }, [toast])
 
+  const openCreate = () => {
+    setSelectedExaminee(null)
+    setViewMode('create')
+  }
+
+  const openExamineeWorkspace = async (row: Examinee) => {
+    try {
+      const full = await api.get<Examinee>(`examinees/${row.id}`)
+      setSelectedExaminee(full)
+      setViewMode('list')
+      setSearchParams({ examinee: String(row.id) }, { replace: true })
+    } catch {
+      toast.error('שגיאה בטעינת פרטי נבחן')
+    }
+  }
+
+  const backToList = () => {
+    setSelectedExaminee(null)
+    setViewMode('list')
+    setSearchParams({}, { replace: true })
+  }
+
+  const refreshSelected = async () => {
+    if (!selectedExaminee) return
+    try {
+      const fresh = await api.get<Examinee>(`examinees/${selectedExaminee.id}`)
+      setSelectedExaminee(fresh)
+    } catch {
+      // ignore
+    }
+  }
+
+  const handleDeleteOne = async (ex: Examinee) => {
+    const shouldDelete = window.confirm(`האם אתה בטוח שברצונך למחוק את הנבחן ${ex.full_name || ex.phone}? פעולה זו בלתי הפיכה.`)
+    if (!shouldDelete) return
+    try {
+      await api.delete(`examinees/${ex.id}`)
+      toast.success('נבחן נמחק בהצלחה')
+      fetchExaminees()
+      if (selectedExaminee?.id === ex.id) backToList()
+    } catch (err: unknown) {
+      toast.error((err as { message?: string }).message ?? 'שגיאה במחיקה')
+    }
+  }
+
+  const handleCreated = async (newEx: Examinee) => {
+    fetchExaminees()
+    setSelectedExaminee(newEx)
+    setViewMode('list')
+    setSearchParams({ examinee: String(newEx.id) }, { replace: true })
+  }
+
   const serverSearch = useCallback(async (query: string): Promise<Examinee[]> => {
     const results = await api.get<Examinee[]>(`examinees?search=${encodeURIComponent(query)}&limit=20`)
     return results
@@ -104,6 +188,36 @@ export function ExamineesPage() {
   useEffect(() => {
     fetchExaminees()
   }, [fetchExaminees])
+
+  if (viewMode === 'create') {
+    return (
+      <ExamineeWorkspace
+        examinee={null}
+        onClose={backToList}
+        onUpdate={() => {}}
+        onCreate={handleCreated}
+      />
+    )
+  }
+
+  if (selectedExaminee) {
+    return (
+      <ExamineeWorkspace
+        examinee={selectedExaminee}
+        onClose={backToList}
+        onUpdate={refreshSelected}
+        onDelete={() => handleDeleteOne(selectedExaminee)}
+      />
+    )
+  }
+
+  if (loadingWorkspace) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 80, color: 'var(--color-text-muted)' }}>
+        טוען מרחב עבודה...
+      </div>
+    )
+  }
 
   const handleInlineUpdate = async (row: Examinee, field: string, value: unknown) => {
     try {
@@ -148,7 +262,7 @@ export function ExamineesPage() {
         <div className={s['page-actions']}>
           <button
             className={`${s.btn} ${s['btn-primary']}`}
-            onClick={() => toast.info('בשלב זה יצירה נעשית דרך ה-DB / תהליך אוטומטי')}
+            onClick={openCreate}
           >
             <Plus size={16} strokeWidth={1.5} /> נבחן חדש
           </button>
@@ -162,6 +276,7 @@ export function ExamineesPage() {
           loading={loading}
           emptyText="לא נמצאו נבחנים"
           emptyIcon={<Phone size={40} strokeWidth={1.5} />}
+          onRowClick={openExamineeWorkspace}
           onUpdate={handleInlineUpdate}
           onDelete={handleBulkDelete}
           onBulkUpdate={handleBulkUpdate}

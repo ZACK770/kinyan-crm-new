@@ -26,6 +26,7 @@ from api import (
     , inbound_emails_api, sales_simulator_api, popup_api, table_prefs_api, chat_api
     , public_exams_api
     , examinees_api
+    , exam_registration_api
 )
 from api import tasks_api
 from api import salespeople_api
@@ -82,6 +83,7 @@ app.include_router(webhooks_api.router, prefix="/webhooks", tags=["webhooks"])
 
 # --- Public (Nedarim integration) ---
 app.include_router(public_exams_api.router, prefix="/public/exams", tags=["public-exams"])
+app.include_router(exam_registration_api.router, prefix="/public/exam-registration", tags=["public-exam-registration"])
 
 # --- Auth & User Management ---
 app.include_router(auth_api.router, prefix="/api/auth", tags=["auth"])

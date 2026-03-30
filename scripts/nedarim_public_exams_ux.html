@@ -284,6 +284,112 @@
           grid-template-columns: 1fr;
         }
       }
+
+      .btnSecondary {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background 0.2s;
+      }
+
+      .btnSecondary:hover {
+        background: rgba(255, 255, 255, 0.15);
+      }
+
+      .exam-date-card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+
+      .exam-date-card h4 {
+        margin: 0 0 12px 0;
+        color: #4CAF50;
+        font-size: 16px;
+      }
+
+      .exams-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .exam-btn {
+        background: rgba(76, 175, 80, 0.2);
+        color: white;
+        border: 1px solid #4CAF50;
+        padding: 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        text-align: right;
+        transition: background 0.2s;
+      }
+
+      .exam-btn:hover {
+        background: rgba(76, 175, 80, 0.3);
+      }
+
+      .success-message {
+        background: rgba(76, 175, 80, 0.1);
+        border: 1px solid #4CAF50;
+        border-radius: 8px;
+        padding: 20px;
+        text-align: center;
+      }
+
+      .success-message h3 {
+        color: #4CAF50;
+        margin: 0 0 16px 0;
+      }
+
+      .success-message p {
+        margin: 8px 0;
+        color: rgba(255, 255, 255, 0.9);
+      }
+
+      .success-message button {
+        margin: 8px;
+      }
+
+      .register-content,
+      .registrations-content {
+        max-height: 400px;
+        overflow-y: auto;
+      }
+
+      .register-content table,
+      .registrations-content table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 12px;
+      }
+
+      .register-content th,
+      .registrations-content th {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 8px;
+        text-align: right;
+        font-weight: 600;
+      }
+
+      .register-content td,
+      .registrations-content td {
+        padding: 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      }
+
+      .error {
+        color: #f44336;
+        text-align: center;
+        padding: 20px;
+      }
     </style>
   </head>
   <body>
@@ -331,7 +437,26 @@
               <button id="btnShowResults" class="btnGreen">הצג תוצאות</button>
               <button id="btnRegister" class="btnGhost">הרשמה למבחן</button>
             </div>
+            <div style="margin-top: 10px;">
+              <button id="btnMyRegistrations" class="btnSecondary" style="width: 100%;">הרשמות קודמות שלי</button>
+            </div>
             <div id="msgChoice" class="msg hide"></div>
+          </div>
+
+          <div id="panelRegister" class="hide">
+            <div class="divider"></div>
+            <h3>הרשמה לבחינה</h3>
+            <div id="registerContent" class="register-content">
+              <div class="muted">טוען תאריכי בחינה...</div>
+            </div>
+          </div>
+
+          <div id="panelRegistrations" class="hide">
+            <div class="divider"></div>
+            <h3>הרשמות קודמות</h3>
+            <div id="registrationsContent" class="registrations-content">
+              <div class="muted">טוען הרשמות...</div>
+            </div>
           </div>
         </div>
 
@@ -436,12 +561,15 @@
       function resetAll() {
         state.challengeId = null
         state.exams = null
+        state.phone = null
         $('phone').value = ''
         $('last4').value = ''
 
         $('panelPhone').classList.remove('hide')
         $('panelVerify').classList.add('hide')
         $('panelChoice').classList.add('hide')
+        $('panelRegister').classList.add('hide')
+        $('panelRegistrations').classList.add('hide')
 
         $('results').innerHTML = ''
         $('resultsHint').textContent = 'לא בוצע אימות עדיין'
@@ -456,6 +584,9 @@
       }
 
       $('btnReset').addEventListener('click', resetAll)
+
+      $('btnRegister').addEventListener('click', showRegistration)
+      $('btnMyRegistrations').addEventListener('click', showRegistrations)
 
       $('btnStart').addEventListener('click', async () => {
         showMsg('msgStart', '', '')

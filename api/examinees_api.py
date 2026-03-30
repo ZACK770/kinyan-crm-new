@@ -20,6 +20,19 @@ class BulkDeleteRequest(BaseModel):
     ids: list[int]
 
 
+class ExamineeCreate(BaseModel):
+    phone: str
+    full_name: str | None = None
+    id_number: str | None = None
+    email: str | None = None
+    source: str | None = None
+    student_id: int | None = None
+
+
+class RegisterForExamRequest(BaseModel):
+    exam_id: int
+
+
 @router.get("/")
 async def list_examinees(
     search: str | None = Query(None),
@@ -45,6 +58,30 @@ async def list_examinees(
     ]
 
 
+@router.post("/")
+async def create_examinee(
+    data: ExamineeCreate,
+    request: Request,
+    user=Depends(require_entity_access("examinees", "create")),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        ex = await examinee_svc.create_examinee(db, **data.model_dump())
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    await audit_logs.log_create(
+        db=db,
+        user=user,
+        entity_type="examinees",
+        entity_id=ex.id,
+        description=f"נוצר נבחן חדש: {data.phone}",
+        request=request,
+    )
+    await db.commit()
+    return {"id": ex.id}
+
+
 @router.get("/{examinee_id}")
 async def get_examinee(
     examinee_id: int,
@@ -65,6 +102,70 @@ async def get_examinee(
         "created_at": str(ex.created_at) if getattr(ex, "created_at", None) else None,
         "updated_at": str(ex.updated_at) if getattr(ex, "updated_at", None) else None,
     }
+
+
+@router.delete("/{examinee_id}")
+async def delete_examinee(
+    examinee_id: int,
+    request: Request,
+    user=Depends(require_permission("manager")),
+    db: AsyncSession = Depends(get_db),
+):
+    deleted = await examinee_svc.delete_examinee(db, examinee_id)
+    if deleted == 0:
+        raise HTTPException(404, "Examinee not found")
+
+    await audit_logs.log_update(
+        db=db,
+        user=user,
+        entity_type="examinees",
+        entity_id=examinee_id,
+        description=f"נמחק נבחן #{examinee_id}",
+        changes={"deleted_id": examinee_id},
+        request=request,
+    )
+    await db.commit()
+    return {"deleted": 1, "message": "נבחן נמחק בהצלחה"}
+
+
+@router.get("/{examinee_id}/submissions")
+async def list_examinee_submissions(
+    examinee_id: int,
+    user=Depends(require_entity_access("examinees", "view")),
+    db: AsyncSession = Depends(get_db),
+):
+    # Ensure examinee exists (clear 404 instead of returning empty)
+    ex = await examinee_svc.get_examinee(db, examinee_id)
+    if not ex:
+        raise HTTPException(404, "Examinee not found")
+    return await examinee_svc.list_examinee_submissions(db, examinee_id)
+
+
+@router.post("/{examinee_id}/registrations")
+async def register_for_exam(
+    examinee_id: int,
+    data: RegisterForExamRequest,
+    request: Request,
+    user=Depends(require_entity_access("examinees", "edit")),
+    db: AsyncSession = Depends(get_db),
+):
+    ex = await examinee_svc.get_examinee(db, examinee_id)
+    if not ex:
+        raise HTTPException(404, "Examinee not found")
+
+    sub = await examinee_svc.register_examinee_for_exam(db, examinee_id=examinee_id, exam_id=data.exam_id)
+
+    await audit_logs.log_update(
+        db=db,
+        user=user,
+        entity_type="examinees",
+        entity_id=examinee_id,
+        description=f"רישום נבחן למבחן #{data.exam_id}",
+        changes={"action": "register_for_exam", "exam_id": data.exam_id, "submission_id": sub.id},
+        request=request,
+    )
+    await db.commit()
+    return {"id": sub.id, "status": sub.status}
 
 
 @router.patch("/{examinee_id}")

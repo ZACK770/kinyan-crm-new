@@ -796,6 +796,7 @@ class Exam(Base):
     course: Mapped["Course"] = relationship(back_populates="exams")
     lecturer: Mapped[Optional["Lecturer"]] = relationship(back_populates="exams")
     submissions: Mapped[List["ExamSubmission"]] = relationship(back_populates="exam", cascade="all, delete-orphan")
+    exam_dates: Mapped[List["ExamDate"]] = relationship(secondary="exam_date_exams", back_populates="exams")
 
 
 # ============================================================
