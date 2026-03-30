@@ -1,7 +1,8 @@
 """
 Exams API endpoints.
 """
-from datetime import date
+from datetime import date as Date
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +19,7 @@ class ExamCreate(BaseModel):
     course_id: int
     exam_type: str = "בכתב"
     lecturer_id: int | None = None
-    exam_date: date | None = None
+    exam_date: Optional[Date] = None
     questionnaire_url: str | None = None
     answers_url: str | None = None
     material: str | None = None
@@ -32,7 +33,7 @@ class ExamUpdate(BaseModel):
     course_id: int | None = None
     exam_type: str | None = None
     lecturer_id: int | None = None
-    exam_date: date | None = None
+    exam_date: Optional[Date] = None
     questionnaire_url: str | None = None
     answers_url: str | None = None
     material: str | None = None
@@ -85,14 +86,14 @@ class GradeSubmission(BaseModel):
 
 
 class ExamDateCreate(BaseModel):
-    date: date
+    date: Date
     description: str | None = None
     is_active: bool = True
     max_registrations: int | None = None
 
 
 class ExamDateUpdate(BaseModel):
-    date: date | None = None
+    date: Optional[Date] = None
     description: str | None = None
     is_active: bool | None = None
     max_registrations: int | None = None
