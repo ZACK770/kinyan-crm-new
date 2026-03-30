@@ -1,10 +1,8 @@
 import asyncio
+import os
 from datetime import date, datetime, timezone
 
-from sqlalchemy import select
-
-from db import SessionLocal
-from db.models import Course, Exam, ExamSubmission, Examinee
+import asyncpg
 
 
 PHONE = "0527180504"
@@ -16,106 +14,139 @@ EXAM_NAMES = [
     f"מבחן {EXAM_SEED_TAG} 3",
 ]
 
-
-async def _get_or_create_course(db) -> Course:
-    res = await db.execute(select(Course).where(Course.name == COURSE_NAME))
-    course = res.scalar_one_or_none()
-    if course:
-        return course
-
-    course = Course(name=COURSE_NAME, is_active=True)
-    db.add(course)
-    await db.flush()
-    return course
+def _pg_url_from_env() -> str:
+    url = os.environ.get("DATABASE_URL", "")
+    if not url:
+        raise SystemExit("DATABASE_URL is not set")
+    if url.startswith("postgresql+asyncpg://"):
+        url = url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    return url
 
 
-async def _get_or_create_examinee(db) -> Examinee:
-    res = await db.execute(select(Examinee).where(Examinee.phone == PHONE))
-    ex = res.scalar_one_or_none()
-    if ex:
-        return ex
+async def _get_or_create_course(conn) -> int:
+    course_id = await conn.fetchval("select id from courses where name=$1", COURSE_NAME)
+    if course_id:
+        return int(course_id)
 
-    ex = Examinee(full_name="נבחן דמו", phone=PHONE, source="public_exam_demo")
-    db.add(ex)
-    await db.flush()
-    return ex
-
-
-async def _get_or_create_exam(db, *, course_id: int, name: str, exam_dt: date) -> Exam:
-    res = await db.execute(select(Exam).where(Exam.course_id == course_id, Exam.name == name))
-    row = res.scalar_one_or_none()
-    if row:
-        return row
-
-    row = Exam(
-        name=name,
-        course_id=course_id,
-        exam_date=exam_dt,
-        exam_type="בכתב",
+    course_id = await conn.fetchval(
+        """
+        insert into courses (name, is_active, payments_count)
+        values ($1, true, 1)
+        returning id
+        """,
+        COURSE_NAME,
     )
-    db.add(row)
-    await db.flush()
-    return row
+    return int(course_id)
 
 
-async def _exam_exists(db, *, course_id: int, name: str) -> bool:
-    res = await db.execute(select(Exam.id).where(Exam.course_id == course_id, Exam.name == name))
-    return res.scalar_one_or_none() is not None
+async def _get_or_create_examinee(conn) -> int:
+    ex_id = await conn.fetchval("select id from examinees where phone=$1", PHONE)
+    if ex_id:
+        return int(ex_id)
 
-
-async def _ensure_submission(db, *, exam_id: int, examinee_id: int, score: int, status: str) -> bool:
-    res = await db.execute(
-        select(ExamSubmission).where(
-            ExamSubmission.exam_id == exam_id,
-            ExamSubmission.examinee_id == examinee_id,
-        )
+    ex_id = await conn.fetchval(
+        """
+        insert into examinees (full_name, phone, source)
+        values ($1, $2, $3)
+        returning id
+        """,
+        "נבחן דמו",
+        PHONE,
+        "public_exam_demo",
     )
-    existing = res.scalar_one_or_none()
-    if existing:
+    return int(ex_id)
+
+
+async def _get_or_create_exam(conn, *, course_id: int, name: str, exam_dt: date) -> tuple[int, bool]:
+    exam_id = await conn.fetchval("select id from exams where course_id=$1 and name=$2", course_id, name)
+    if exam_id:
+        return int(exam_id), False
+
+    exam_id = await conn.fetchval(
+        """
+        insert into exams (name, course_id, exam_date, exam_type)
+        values ($1, $2, $3, $4)
+        returning id
+        """,
+        name,
+        course_id,
+        exam_dt,
+        "בכתב",
+    )
+    return int(exam_id), True
+
+
+async def _ensure_submission(
+    conn,
+    *,
+    exam_id: int,
+    examinee_id: int,
+    score: int,
+    status: str,
+) -> bool:
+    exists = await conn.fetchval(
+        """
+        select 1
+        from exam_submissions
+        where exam_id=$1 and examinee_id=$2
+        """,
+        exam_id,
+        examinee_id,
+    )
+    if exists:
         return False
 
-    sub = ExamSubmission(
-        exam_id=exam_id,
-        examinee_id=examinee_id,
-        submitted_at=datetime.now(timezone.utc),
-        score=score,
-        status=status,
+    await conn.execute(
+        """
+        insert into exam_submissions (exam_id, examinee_id, submitted_at, score, status)
+        values ($1, $2, $3, $4, $5)
+        """,
+        exam_id,
+        examinee_id,
+        datetime.now(timezone.utc),
+        score,
+        status,
     )
-    db.add(sub)
-    await db.flush()
     return True
 
 
 async def main() -> None:
-    async with SessionLocal() as db:
-        course = await _get_or_create_course(db)
-        ex = await _get_or_create_examinee(db)
+    url = _pg_url_from_env()
+    conn = await asyncpg.connect(url, ssl="require")
+    try:
+        async with conn.transaction():
+            course_id = await _get_or_create_course(conn)
+            examinee_id = await _get_or_create_examinee(conn)
 
-        created_exams = 0
-        created_subs = 0
+            created_exams = 0
+            created_subs = 0
 
-        today = date.today()
-        exam_dates = [today, date.fromordinal(today.toordinal() - 14), date.fromordinal(today.toordinal() - 45)]
-        scores = [92, 78, 64]
-        statuses = ["עבר", "נבדק", "נכשל"]
+            today = date.today()
+            exam_dates = [today, date.fromordinal(today.toordinal() - 14), date.fromordinal(today.toordinal() - 45)]
+            scores = [92, 78, 64]
+            statuses = ["עבר", "נבדק", "נכשל"]
 
-        for i, name in enumerate(EXAM_NAMES):
-            existed = await _exam_exists(db, course_id=course.id, name=name)
-            exam = await _get_or_create_exam(db, course_id=course.id, name=name, exam_dt=exam_dates[i % len(exam_dates)])
-            if not existed:
-                created_exams += 1
+            for i, name in enumerate(EXAM_NAMES):
+                exam_id, created_exam = await _get_or_create_exam(
+                    conn,
+                    course_id=course_id,
+                    name=name,
+                    exam_dt=exam_dates[i % len(exam_dates)],
+                )
+                if created_exam:
+                    created_exams += 1
 
-            created = await _ensure_submission(
-                db,
-                exam_id=exam.id,
-                examinee_id=ex.id,
-                score=scores[i % len(scores)],
-                status=statuses[i % len(statuses)],
-            )
-            if created:
-                created_subs += 1
-
-        await db.commit()
+                created_sub = await _ensure_submission(
+                    conn,
+                    exam_id=exam_id,
+                    examinee_id=examinee_id,
+                    score=scores[i % len(scores)],
+                    status=statuses[i % len(statuses)],
+                )
+                if created_sub:
+                    created_subs += 1
+    finally:
+        await conn.close()
 
     print("Seed complete")
     print("phone:", PHONE)
