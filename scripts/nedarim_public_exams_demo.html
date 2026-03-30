@@ -110,6 +110,9 @@
       }
       .table th { text-align: right; color: var(--muted); background: rgba(18,27,46,0.55); }
       .table tr:last-child td { border-bottom: none; }
+
+      .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+      @media (max-width: 980px) { .grid3 { grid-template-columns: 1fr; } }
     </style>
   </head>
   <body>
@@ -177,6 +180,71 @@
         </div>
       </div>
 
+      <div class="grid3" style="margin-top: 14px">
+        <div class="card">
+          <div class="sectionTitle">
+            <h2>שלב 3 — מועדי בחינה קרובים (Upcoming)</h2>
+            <span id="pill3" class="pill"><span id="dot3" class="dot"></span><span id="status3">ממתין</span></span>
+          </div>
+
+          <label>Base URL</label>
+          <input id="baseUrl3" class="mono" placeholder="http://localhost:8000" />
+
+          <div class="actions">
+            <button id="btnUpcoming">טען מועדים קרובים</button>
+          </div>
+
+          <label class="mini">Debug — Request/Response</label>
+          <pre id="debug3" class="mono"></pre>
+        </div>
+
+        <div class="card">
+          <div class="sectionTitle">
+            <h2>שלב 4 — הרשמה למועד + בחינה</h2>
+            <span id="pill4" class="pill"><span id="dot4" class="dot"></span><span id="status4">ממתין</span></span>
+          </div>
+
+          <label>Base URL</label>
+          <input id="baseUrl4" class="mono" placeholder="http://localhost:8000" />
+
+          <label>טלפון</label>
+          <input id="phone4" class="mono" placeholder="05XXXXXXXX" />
+
+          <label>exam_date_id</label>
+          <input id="examDateId" class="mono" placeholder="1" />
+
+          <label>exam_id</label>
+          <input id="examId" class="mono" placeholder="10" />
+
+          <div class="actions">
+            <button id="btnRegisterExam" class="btn2">בצע הרשמה</button>
+          </div>
+
+          <label class="mini">Debug — Request/Response</label>
+          <pre id="debug4" class="mono"></pre>
+        </div>
+
+        <div class="card">
+          <div class="sectionTitle">
+            <h2>שלב 5 — הרשמות לפי טלפון</h2>
+            <span id="pill5" class="pill"><span id="dot5" class="dot"></span><span id="status5">ממתין</span></span>
+          </div>
+
+          <label>Base URL</label>
+          <input id="baseUrl5" class="mono" placeholder="http://localhost:8000" />
+
+          <label>טלפון</label>
+          <input id="phone5" class="mono" placeholder="05XXXXXXXX" />
+
+          <div class="actions">
+            <button id="btnListRegs">טען הרשמות</button>
+          </div>
+
+          <label class="mini">Debug — Request/Response</label>
+          <pre id="debug5" class="mono"></pre>
+        </div>
+      </div>
+
       <div class="card" style="margin-top: 14px">
         <div class="sectionTitle">
           <h2>לוג ריצה (אלימינציה — מה עבד ומה לא)</h2>
@@ -200,8 +268,8 @@
       }
 
       function setPill(step, kind, text) {
-        const dot = $(step === 1 ? 'dot1' : 'dot2')
-        const status = $(step === 1 ? 'status1' : 'status2')
+        const dot = $(step === 1 ? 'dot1' : step === 2 ? 'dot2' : step === 3 ? 'dot3' : step === 4 ? 'dot4' : 'dot5')
+        const status = $(step === 1 ? 'status1' : step === 2 ? 'status2' : step === 3 ? 'status3' : step === 4 ? 'status4' : 'status5')
         dot.className = 'dot' + (kind ? (' ' + kind) : '')
         status.textContent = text
       }
@@ -223,6 +291,14 @@
         let data = null
         try { data = text ? JSON.parse(text) : null } catch { data = { raw: text } }
 
+        return { ok: resp.ok, status: resp.status, data }
+      }
+
+      async function getJson(url) {
+        const resp = await fetch(url)
+        const text = await resp.text()
+        let data = null
+        try { data = text ? JSON.parse(text) : null } catch { data = { raw: text } }
         return { ok: resp.ok, status: resp.status, data }
       }
 
@@ -274,6 +350,9 @@
         $('resultsHint').textContent = '—'
         setPill(1, '', 'ממתין')
         setPill(2, '', 'ממתין')
+        setPill(3, '', 'ממתין')
+        setPill(4, '', 'ממתין')
+        setPill(5, '', 'ממתין')
         state.start = null
         state.verify = null
       }
@@ -292,6 +371,9 @@
 
       // Default base URL to the current origin (works on Render)
       $('baseUrl').value = window.location.origin
+      $('baseUrl3').value = window.location.origin
+      $('baseUrl4').value = window.location.origin
+      $('baseUrl5').value = window.location.origin
 
       $('btnStart').addEventListener('click', async () => {
         setPill(1, 'warn', 'רץ...')
@@ -378,6 +460,99 @@
           setPill(2, 'err', 'נכשל (Exception)')
           logLine('שלב 2: Exception', { error: String(e) })
           $('debug2').textContent = JSON.stringify({ request: { url, payload }, error: String(e) }, null, 2)
+        }
+      })
+
+      $('btnUpcoming').addEventListener('click', async () => {
+        setPill(3, 'warn', 'רץ...')
+        $('debug3').textContent = ''
+
+        const base = $('baseUrl3').value.trim().replace(/\/+$/, '')
+        const url = `${base}/public/exam-registration/exam-dates/upcoming`
+
+        logLine('שלב 3: שולח בקשה', { url, method: 'GET' })
+        $('debug3').textContent = JSON.stringify({ url, method: 'GET' }, null, 2)
+
+        try {
+          const res = await getJson(url)
+          $('debug3').textContent = JSON.stringify({ request: { url, method: 'GET' }, response: res }, null, 2)
+
+          if (!res.ok) {
+            setPill(3, 'err', `נכשל (${res.status})`)
+            logLine('שלב 3: נכשל', res)
+            return
+          }
+
+          setPill(3, 'ok', 'הצליח')
+          logLine('שלב 3: הצליח', { exam_dates_count: Array.isArray(res.data) ? res.data.length : 0 })
+        } catch (e) {
+          setPill(3, 'err', 'נכשל (Exception)')
+          logLine('שלב 3: Exception', { error: String(e) })
+          $('debug3').textContent = JSON.stringify({ request: { url, method: 'GET' }, error: String(e) }, null, 2)
+        }
+      })
+
+      $('btnRegisterExam').addEventListener('click', async () => {
+        setPill(4, 'warn', 'רץ...')
+        $('debug4').textContent = ''
+
+        const base = $('baseUrl4').value.trim().replace(/\/+$/, '')
+        const phone = $('phone4').value.trim()
+        const exam_date_id = Number(($('examDateId').value || '').trim())
+        const exam_id = Number(($('examId').value || '').trim())
+
+        const url = `${base}/public/exam-registration/register`
+        const payload = { exam_date_id, exam_id, phone }
+
+        logLine('שלב 4: שולח בקשה', { url, payload })
+        $('debug4').textContent = JSON.stringify({ url, payload }, null, 2)
+
+        try {
+          const res = await callJson(url, payload)
+          $('debug4').textContent = JSON.stringify({ request: { url, payload }, response: res }, null, 2)
+
+          if (!res.ok) {
+            setPill(4, 'err', `נכשל (${res.status})`)
+            logLine('שלב 4: נכשל', res)
+            return
+          }
+
+          setPill(4, 'ok', 'הצליח')
+          logLine('שלב 4: הצליח', { registration_code: res.data?.registration_code })
+        } catch (e) {
+          setPill(4, 'err', 'נכשל (Exception)')
+          logLine('שלב 4: Exception', { error: String(e) })
+          $('debug4').textContent = JSON.stringify({ request: { url, payload }, error: String(e) }, null, 2)
+        }
+      })
+
+      $('btnListRegs').addEventListener('click', async () => {
+        setPill(5, 'warn', 'רץ...')
+        $('debug5').textContent = ''
+
+        const base = $('baseUrl5').value.trim().replace(/\/+$/, '')
+        const phone = $('phone5').value.trim()
+        const url = `${base}/public/exam-registration/registrations/${encodeURIComponent(phone)}`
+
+        logLine('שלב 5: שולח בקשה', { url, method: 'GET' })
+        $('debug5').textContent = JSON.stringify({ url, method: 'GET' }, null, 2)
+
+        try {
+          const res = await getJson(url)
+          $('debug5').textContent = JSON.stringify({ request: { url, method: 'GET' }, response: res }, null, 2)
+
+          if (!res.ok) {
+            setPill(5, 'err', `נכשל (${res.status})`)
+            logLine('שלב 5: נכשל', res)
+            return
+          }
+
+          setPill(5, 'ok', 'הצליח')
+          logLine('שלב 5: הצליח', { registrations_count: Array.isArray(res.data) ? res.data.length : 0 })
+        } catch (e) {
+          setPill(5, 'err', 'נכשל (Exception)')
+          logLine('שלב 5: Exception', { error: String(e) })
+          $('debug5').textContent = JSON.stringify({ request: { url, method: 'GET' }, error: String(e) }, null, 2)
         }
       })
 
