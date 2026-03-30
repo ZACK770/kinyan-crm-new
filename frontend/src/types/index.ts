@@ -99,6 +99,18 @@ export interface Student {
   commitments?: Commitment[]
 }
 
+export interface Examinee {
+  id: number
+  full_name?: string
+  phone: string
+  id_number?: string
+  email?: string
+  source?: string
+  student_id?: number
+  created_at?: string
+  updated_at?: string
+}
+
 export interface Course {
   id: number
   name: string

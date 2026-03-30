@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     NEDARIM_MOSAD_ID: str = ""
     NEDARIM_WEBHOOK_SECRET: str = ""
 
+    # Yemot / Call2All API (for tzintuk verification)
+    YEMOT_API_BASE_URL: str = "https://www.call2all.co.il/ym/api/"
+    YEMOT_TOKEN: str = ""
+    YEMOT_TZINTUK_TIMEOUT_SECONDS: float = 9.0
+
     # Frontend URL (for reset links, welcome page, etc.)
     FRONTEND_URL: str = "http://localhost:5173"
 

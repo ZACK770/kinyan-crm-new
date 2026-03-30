@@ -6,6 +6,7 @@ import { LandingPage } from '@/pages/LandingPage'
 import { Dashboard } from '@/pages/Dashboard'
 import { LeadsPage } from '@/pages/Leads'
 import { StudentsPage } from '@/pages/Students'
+import { ExamineesPage } from '@/pages/Examinees'
 import { CoursesPage } from '@/pages/Courses'
 import { PaymentsPage } from '@/pages/Payments'
 import { CollectionsPage } from '@/pages/Collections'
@@ -54,6 +55,7 @@ export function App() {
                 <Route path="/" element={<ViewerRoute><Dashboard /></ViewerRoute>} />
                 <Route path="/leads" element={<ViewerRoute><LeadsPage /></ViewerRoute>} />
                 <Route path="/students" element={<ViewerRoute><StudentsPage /></ViewerRoute>} />
+                <Route path="/examinees" element={<ViewerRoute><ExamineesPage /></ViewerRoute>} />
                 <Route path="/courses" element={<ViewerRoute><CoursesPage /></ViewerRoute>} />
                 <Route path="/tracks" element={<ViewerRoute><TracksPage /></ViewerRoute>} />
                 <Route path="/entry-points" element={<ViewerRoute><EntryPointsPage /></ViewerRoute>} />

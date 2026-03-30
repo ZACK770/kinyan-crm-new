@@ -61,6 +61,29 @@ class EntityPermission(Base):
 
 
 # ============================================================
+# PhoneVerificationChallenge — public phone verification via tzintuk
+# ============================================================
+class PhoneVerificationChallenge(Base):
+    __tablename__ = "phone_verification_challenges"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)  # UUID stored as string
+    phone: Mapped[str] = mapped_column(String(50), nullable=False)
+
+    verify_code_hash: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+
+    provider: Mapped[str] = mapped_column(String(50), default="yemot")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_phone_verify_phone", "phone"),
+        Index("idx_phone_verify_expires", "expires_at"),
+    )
+
+
+# ============================================================
 # Salespeople (אנשי מכירות) — entity 4
 # ============================================================
 class Salesperson(Base):
@@ -643,6 +666,34 @@ class Student(Base):
 
 
 # ============================================================
+# Examinees (נבחנים) — separate from Students
+# ============================================================
+class Examinee(Base):
+    __tablename__ = "examinees"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    full_name: Mapped[Optional[str]] = mapped_column(String(300))
+    phone: Mapped[str] = mapped_column(String(50), nullable=False)
+    id_number: Mapped[Optional[str]] = mapped_column(String(20))
+    email: Mapped[Optional[str]] = mapped_column(String(200))
+    source: Mapped[str] = mapped_column(String(100), default="external_exam_product")
+
+    student_id: Mapped[Optional[int]] = mapped_column(ForeignKey("students.id", ondelete="SET NULL"))
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_examinees_phone", "phone"),
+        Index("idx_examinees_student", "student_id"),
+    )
+
+    student: Mapped[Optional["Student"]] = relationship()
+    exam_submissions: Mapped[List["ExamSubmission"]] = relationship(back_populates="examinee")
+
+
+# ============================================================
 # Enrollments (הרשמות לקורסים)
 # ============================================================
 class Enrollment(Base):
@@ -755,7 +806,8 @@ class ExamSubmission(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     exam_id: Mapped[int] = mapped_column(ForeignKey("exams.id", ondelete="CASCADE"), nullable=False)
-    student_id: Mapped[int] = mapped_column(ForeignKey("students.id"), nullable=False)
+    student_id: Mapped[Optional[int]] = mapped_column(ForeignKey("students.id"))
+    examinee_id: Mapped[Optional[int]] = mapped_column(ForeignKey("examinees.id"))
     submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     score: Mapped[Optional[int]] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(50), default="הוגש")  # הוגש / נבדק / עבר / נכשל
@@ -765,10 +817,12 @@ class ExamSubmission(Base):
     __table_args__ = (
         Index("idx_exam_sub_exam", "exam_id"),
         Index("idx_exam_sub_student", "student_id"),
+        Index("idx_exam_sub_examinee", "examinee_id"),
     )
 
     exam: Mapped["Exam"] = relationship(back_populates="submissions")
-    student: Mapped["Student"] = relationship(back_populates="exam_submissions")
+    student: Mapped[Optional["Student"]] = relationship(back_populates="exam_submissions")
+    examinee: Mapped[Optional["Examinee"]] = relationship(back_populates="exam_submissions")
 
 
 # ============================================================

@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nedarim Demo — Public Exams API</title>
+    <style>
+      :root {
+        --bg: #0b1220;
+        --panel: #121b2e;
+        --muted: #93a4c7;
+        --text: #eaf0ff;
+        --ok: #2dd4bf;
+        --warn: #fbbf24;
+        --err: #fb7185;
+        --border: rgba(255,255,255,0.10);
+        --shadow: 0 10px 30px rgba(0,0,0,0.35);
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        background: radial-gradient(1200px 600px at 70% 0%, rgba(45,212,191,0.12), transparent 60%),
+                    radial-gradient(900px 500px at 10% 20%, rgba(59,130,246,0.12), transparent 50%),
+                    var(--bg);
+        color: var(--text);
+      }
+      .wrap { max-width: 980px; margin: 0 auto; padding: 28px 18px; }
+      h1 { margin: 0 0 8px; font-size: 22px; }
+      .sub { margin: 0 0 18px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+      @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+      .card {
+        background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        box-shadow: var(--shadow);
+        padding: 14px;
+      }
+      label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 6px; }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: rgba(18,27,46,0.65);
+        color: var(--text);
+        outline: none;
+      }
+      input:focus { border-color: rgba(45,212,191,0.45); box-shadow: 0 0 0 4px rgba(45,212,191,0.10); }
+      .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      @media (max-width: 520px) { .row { grid-template-columns: 1fr; } }
+      button {
+        cursor: pointer;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: rgba(45,212,191,0.12);
+        color: var(--text);
+        font-weight: 600;
+      }
+      button:hover { background: rgba(45,212,191,0.18); }
+      button:disabled { cursor: not-allowed; opacity: 0.55; }
+      .btn2 { background: rgba(59,130,246,0.12); }
+      .btn2:hover { background: rgba(59,130,246,0.18); }
+      .btnDanger { background: rgba(251,113,133,0.10); }
+      .btnDanger:hover { background: rgba(251,113,133,0.16); }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(18,27,46,0.55);
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--muted); }
+      .dot.ok { background: var(--ok); }
+      .dot.warn { background: var(--warn); }
+      .dot.err { background: var(--err); }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+      pre {
+        margin: 0;
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: rgba(6,10,18,0.6);
+        overflow: auto;
+        max-height: 420px;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      .sectionTitle { display:flex; align-items:center; justify-content:space-between; gap: 10px; margin-bottom: 10px; }
+      .sectionTitle h2 { margin: 0; font-size: 14px; }
+      .mini { font-size: 12px; color: var(--muted); }
+      .actions { display:flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+      .table {
+        width: 100%;
+        border-collapse: collapse;
+        overflow: hidden;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+      }
+      .table th, .table td {
+        padding: 10px 10px;
+        border-bottom: 1px solid var(--border);
+        font-size: 12px;
+      }
+      .table th { text-align: right; color: var(--muted); background: rgba(18,27,46,0.55); }
+      .table tr:last-child td { border-bottom: none; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>דמו ויזואלי — אימות טלפון + תוצאות מבחנים (נדרים)</h1>
+      <p class="sub">
+        הדף הזה משתמש <b>רק</b> ב-API הציבורי:
+        <span class="mono">POST /public/exams/auth/start</span>
+        ואז
+        <span class="mono">POST /public/exams/auth/verify</span>.
+        <br />
+        אין פה שום גישה ל"בפנים" של המערכת.
+      </p>
+
+      <div class="grid">
+        <div class="card">
+          <div class="sectionTitle">
+            <h2>שלב 1 — התחלת אימות (צינתוק)</h2>
+            <span id="pill1" class="pill"><span id="dot1" class="dot"></span><span id="status1">ממתין</span></span>
+          </div>
+
+          <label>Base URL</label>
+          <input id="baseUrl" class="mono" placeholder="http://localhost:8000" />
+
+          <label>טלפון</label>
+          <input id="phone" class="mono" placeholder="05XXXXXXXX" />
+
+          <div class="actions">
+            <button id="btnStart">שלח צינתוק</button>
+            <button id="btnClear" class="btnDanger" type="button">נקה</button>
+          </div>
+
+          <label>Challenge ID (אוטומטי)</label>
+          <input id="challengeId" class="mono" placeholder="יתמלא לאחר הצלחה" readonly />
+
+          <label class="mini">Debug — Request/Response</label>
+          <pre id="debug1" class="mono"></pre>
+        </div>
+
+        <div class="card">
+          <div class="sectionTitle">
+            <h2>שלב 2 — אימות 4 ספרות והצגת תוצאות</h2>
+            <span id="pill2" class="pill"><span id="dot2" class="dot"></span><span id="status2">ממתין</span></span>
+          </div>
+
+          <label>Challenge ID</label>
+          <input id="challengeId2" class="mono" placeholder="הדבק או יגיע אוטומטית" />
+
+          <label>4 ספרות אחרונות (last4)</label>
+          <input id="last4" class="mono" placeholder="1234" maxlength="4" />
+
+          <div class="actions">
+            <button id="btnVerify" class="btn2">אמת והצג</button>
+          </div>
+
+          <label class="mini">Debug — Request/Response</label>
+          <pre id="debug2" class="mono"></pre>
+
+          <div style="height: 10px"></div>
+          <div class="sectionTitle">
+            <h2>תוצאות</h2>
+            <span class="mini" id="resultsHint">—</span>
+          </div>
+          <div id="results"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 14px">
+        <div class="sectionTitle">
+          <h2>לוג ריצה (אלימינציה — מה עבד ומה לא)</h2>
+          <button id="btnCopy" type="button">העתק לוג</button>
+        </div>
+        <pre id="runlog" class="mono"></pre>
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id)
+
+      const state = {
+        start: null,
+        verify: null,
+      }
+
+      function nowTs() {
+        const d = new Date()
+        return d.toISOString()
+      }
+
+      function setPill(step, kind, text) {
+        const dot = $(step === 1 ? 'dot1' : 'dot2')
+        const status = $(step === 1 ? 'status1' : 'status2')
+        dot.className = 'dot' + (kind ? (' ' + kind) : '')
+        status.textContent = text
+      }
+
+      function logLine(msg, obj) {
+        const pre = $('runlog')
+        const line = obj ? `${nowTs()}  ${msg}\n${JSON.stringify(obj, null, 2)}\n` : `${nowTs()}  ${msg}\n`
+        pre.textContent = pre.textContent + line + '\n'
+      }
+
+      async function callJson(url, payload) {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+
+        const text = await resp.text()
+        let data = null
+        try { data = text ? JSON.parse(text) : null } catch { data = { raw: text } }
+
+        return { ok: resp.ok, status: resp.status, data }
+      }
+
+      function renderResults(exams) {
+        const host = $('results')
+        host.innerHTML = ''
+
+        if (!Array.isArray(exams) || exams.length === 0) {
+          host.innerHTML = `<div class="mini">לא נמצאו מבחנים</div>`
+          return
+        }
+
+        const rows = exams.map(e => `
+          <tr>
+            <td class="mono">${e.course_name ?? '—'}</td>
+            <td class="mono">${e.exam_name ?? '—'}</td>
+            <td class="mono">${e.exam_date ?? '—'}</td>
+            <td class="mono">${e.score ?? '—'}</td>
+            <td class="mono">${e.status ?? '—'}</td>
+          </tr>
+        `).join('')
+
+        host.innerHTML = `
+          <table class="table">
+            <thead>
+              <tr>
+                <th>קורס</th>
+                <th>מבחן</th>
+                <th>תאריך</th>
+                <th>ציון</th>
+                <th>סטטוס</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+            </tbody>
+          </table>
+        `
+      }
+
+      function clearAll() {
+        $('debug1').textContent = ''
+        $('debug2').textContent = ''
+        $('runlog').textContent = ''
+        $('challengeId').value = ''
+        $('challengeId2').value = ''
+        $('last4').value = ''
+        $('results').innerHTML = ''
+        $('resultsHint').textContent = '—'
+        setPill(1, '', 'ממתין')
+        setPill(2, '', 'ממתין')
+        state.start = null
+        state.verify = null
+      }
+
+      $('btnClear').addEventListener('click', () => clearAll())
+
+      $('btnCopy').addEventListener('click', async () => {
+        const text = $('runlog').textContent
+        try {
+          await navigator.clipboard.writeText(text)
+          logLine('✅ לוג הועתק ללוח')
+        } catch {
+          logLine('❌ לא הצלחתי להעתיק (דפדפן חסם clipboard)')
+        }
+      })
+
+      // Default base URL to the current origin (works on Render)
+      $('baseUrl').value = window.location.origin
+
+      $('btnStart').addEventListener('click', async () => {
+        setPill(1, 'warn', 'רץ...')
+        $('debug1').textContent = ''
+
+        const base = $('baseUrl').value.trim().replace(/\/+$/, '')
+        const phone = $('phone').value.trim()
+
+        const url = `${base}/public/exams/auth/start`
+        const payload = { phone }
+
+        logLine('שלב 1: שולח בקשה', { url, payload })
+        $('debug1').textContent = JSON.stringify({ url, payload }, null, 2)
+
+        try {
+          const res = await callJson(url, payload)
+          state.start = res
+
+          $('debug1').textContent = JSON.stringify({ request: { url, payload }, response: res }, null, 2)
+
+          if (!res.ok) {
+            setPill(1, 'err', `נכשל (${res.status})`)
+            logLine('שלב 1: נכשל', res)
+            return
+          }
+
+          const challengeId = res.data?.challenge_id
+          if (!challengeId) {
+            setPill(1, 'err', 'נכשל (אין challenge_id)')
+            logLine('שלב 1: נכשל — אין challenge_id', res)
+            return
+          }
+
+          $('challengeId').value = challengeId
+          $('challengeId2').value = challengeId
+          setPill(1, 'ok', 'הצליח')
+          logLine('שלב 1: הצליח', { challenge_id: challengeId })
+        } catch (e) {
+          setPill(1, 'err', 'נכשל (Exception)')
+          logLine('שלב 1: Exception', { error: String(e) })
+          $('debug1').textContent = JSON.stringify({ request: { url, payload }, error: String(e) }, null, 2)
+        }
+      })
+
+      $('btnVerify').addEventListener('click', async () => {
+        setPill(2, 'warn', 'רץ...')
+        $('debug2').textContent = ''
+        $('results').innerHTML = ''
+        $('resultsHint').textContent = '—'
+
+        const base = $('baseUrl').value.trim().replace(/\/+$/, '')
+        const challenge_id = $('challengeId2').value.trim()
+        const last4 = $('last4').value.trim()
+
+        const url = `${base}/public/exams/auth/verify`
+        const payload = { challenge_id, last4 }
+
+        logLine('שלב 2: שולח בקשה', { url, payload })
+        $('debug2').textContent = JSON.stringify({ url, payload }, null, 2)
+
+        try {
+          const res = await callJson(url, payload)
+          state.verify = res
+
+          $('debug2').textContent = JSON.stringify({ request: { url, payload }, response: res }, null, 2)
+
+          if (!res.ok) {
+            setPill(2, 'err', `נכשל (${res.status})`)
+            logLine('שלב 2: נכשל', res)
+            return
+          }
+
+          const exams = res.data?.exams
+          const message = res.data?.message
+
+          if (message) {
+            $('resultsHint').textContent = message
+          }
+
+          renderResults(exams)
+          setPill(2, 'ok', 'הצליח')
+          logLine('שלב 2: הצליח', { exams_count: Array.isArray(exams) ? exams.length : 0, message })
+        } catch (e) {
+          setPill(2, 'err', 'נכשל (Exception)')
+          logLine('שלב 2: Exception', { error: String(e) })
+          $('debug2').textContent = JSON.stringify({ request: { url, payload }, error: String(e) }, null, 2)
+        }
+      })
+
+      clearAll()
+    </script>
+  </body>
+</html>

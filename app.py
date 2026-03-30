@@ -24,6 +24,8 @@ from api import (
     , course_tracks_api, lecturers_api, messages_api, templates_api, lead_conversion_api
     , import_api, import_generic_api, webhook_logs_api, webhook_queue_api, export_api, topics_api
     , inbound_emails_api, sales_simulator_api, popup_api, table_prefs_api, chat_api
+    , public_exams_api
+    , examinees_api
 )
 from api import tasks_api
 from api import salespeople_api
@@ -32,6 +34,9 @@ from webhooks import regulation_approval
 
 # Frontend build directory
 FRONTEND_DIR = Path(__file__).parent / "frontend" / "dist"
+
+# Public HTML demos (served via FastAPI)
+SCRIPTS_DIR = Path(__file__).parent / "scripts"
 
 
 @asynccontextmanager
@@ -60,6 +65,7 @@ app.add_middleware(
 app.include_router(leads_api.router, prefix="/api/leads", tags=["leads"])
 app.include_router(lead_conversion_api.router)  # Lead conversion endpoints (uses /api/leads prefix)
 app.include_router(students_api.router, prefix="/api/students", tags=["students"])
+app.include_router(examinees_api.router, prefix="/api/examinees", tags=["examinees"])
 app.include_router(courses_api.router, prefix="/api/courses", tags=["courses"])
 app.include_router(course_tracks_api.router)
 app.include_router(lecturers_api.router, prefix="/api/lecturers", tags=["lecturers"])
@@ -73,6 +79,9 @@ app.include_router(dashboard_api.router, prefix="/api/dashboard", tags=["dashboa
 app.include_router(campaigns_api.router, prefix="/api/campaigns", tags=["campaigns"])
 app.include_router(tasks_api.router, prefix="/api/tasks", tags=["tasks"])
 app.include_router(webhooks_api.router, prefix="/webhooks", tags=["webhooks"])
+
+# --- Public (Nedarim integration) ---
+app.include_router(public_exams_api.router, prefix="/public/exams", tags=["public-exams"])
 
 # --- Auth & User Management ---
 app.include_router(auth_api.router, prefix="/api/auth", tags=["auth"])
@@ -112,6 +121,14 @@ async def health():
     return {"status": "healthy"}
 
 
+@app.get("/public/demo/exams", include_in_schema=False)
+async def public_exams_demo():
+    demo_path = SCRIPTS_DIR / "nedarim_public_exams_demo.html"
+    if not demo_path.exists():
+        raise HTTPException(status_code=404, detail="Demo file not found")
+    return FileResponse(demo_path)
+
+
 # API status endpoint
 @app.get("/api/status")
 async def api_status():
@@ -140,7 +157,7 @@ if FRONTEND_DIR.exists():
     async def spa_fallback(request: Request, exc: StarletteHTTPException):
         path = request.url.path
         # API and webhook 404s stay as real 404s
-        if path.startswith("/api/") or path.startswith("/webhooks/"):
+        if path.startswith("/api/") or path.startswith("/webhooks/") or path.startswith("/public/"):
             return JSONResponse(status_code=404, content={"detail": str(exc.detail)})
         # Check if a physical file exists (favicon.ico, manifest.json, etc.)
         file_path = FRONTEND_DIR / path.lstrip("/")
