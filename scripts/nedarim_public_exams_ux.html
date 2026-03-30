@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>תוצאות מבחנים — אימות טלפון</title>
+    <style>
+      :root {
+        --bg: #0a1020;
+        --panel: rgba(255, 255, 255, 0.06);
+        --panel2: rgba(255, 255, 255, 0.045);
+        --border: rgba(255, 255, 255, 0.12);
+        --text: #eaf0ff;
+        --muted: #a7b4d6;
+        --primary: #60a5fa;
+        --primary2: #22c55e;
+        --danger: #fb7185;
+        --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+      }
+
+      body {
+        margin: 0;
+        color: var(--text);
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        background: radial-gradient(1200px 600px at 70% 0%, rgba(96, 165, 250, 0.14), transparent 60%),
+          radial-gradient(900px 500px at 10% 20%, rgba(34, 197, 94, 0.12), transparent 55%),
+          var(--bg);
+      }
+
+      .wrap {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 28px 18px 60px;
+      }
+
+      .top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+        margin-bottom: 18px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 22px;
+        letter-spacing: 0.2px;
+      }
+
+      .sub {
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .card {
+        background: linear-gradient(180deg, var(--panel), var(--panel2));
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+        padding: 16px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 14px;
+      }
+
+      @media (max-width: 920px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      label {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        margin: 12px 0 6px;
+      }
+
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 12px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: rgba(10, 16, 32, 0.35);
+        color: var(--text);
+        outline: none;
+        font-size: 14px;
+      }
+
+      input:focus {
+        border-color: rgba(96, 165, 250, 0.55);
+        box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.12);
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      @media (max-width: 520px) {
+        .row {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      button {
+        cursor: pointer;
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: rgba(96, 165, 250, 0.16);
+        color: var(--text);
+        font-weight: 700;
+        font-size: 14px;
+      }
+
+      button:hover {
+        background: rgba(96, 165, 250, 0.22);
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      .btnGreen {
+        background: rgba(34, 197, 94, 0.14);
+      }
+
+      .btnGreen:hover {
+        background: rgba(34, 197, 94, 0.2);
+      }
+
+      .btnGhost {
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .btnGhost:hover {
+        background: rgba(255, 255, 255, 0.07);
+      }
+
+      .btnDanger {
+        background: rgba(251, 113, 133, 0.08);
+      }
+
+      .btnDanger:hover {
+        background: rgba(251, 113, 133, 0.12);
+      }
+
+      .steps {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 12px 0 4px;
+      }
+
+      .step {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(10, 16, 32, 0.28);
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.3);
+      }
+
+      .dot.ok {
+        background: var(--primary2);
+      }
+
+      .dot.err {
+        background: var(--danger);
+      }
+
+      .dot.run {
+        background: #fbbf24;
+      }
+
+      .msg {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: rgba(10, 16, 32, 0.28);
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .msg.err {
+        border-color: rgba(251, 113, 133, 0.35);
+        color: #ffd7de;
+        background: rgba(251, 113, 133, 0.08);
+      }
+
+      .msg.ok {
+        border-color: rgba(34, 197, 94, 0.35);
+        color: #d9ffe9;
+        background: rgba(34, 197, 94, 0.08);
+      }
+
+      .results {
+        margin-top: 12px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        border-radius: 14px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+      }
+
+      th,
+      td {
+        padding: 10px 10px;
+        border-bottom: 1px solid var(--border);
+        font-size: 13px;
+      }
+
+      th {
+        text-align: right;
+        color: var(--muted);
+        background: rgba(10, 16, 32, 0.35);
+      }
+
+      tr:last-child td {
+        border-bottom: none;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .hide {
+        display: none;
+      }
+
+      .center {
+        text-align: center;
+      }
+
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      }
+
+      .mini {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .divider {
+        height: 1px;
+        background: rgba(255, 255, 255, 0.08);
+        margin: 14px 0;
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      @media (max-width: 520px) {
+        .actions {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="top">
+        <div>
+          <h1>תוצאות מבחנים</h1>
+          <p class="sub">הזדהות באמצעות צינתוק (אימות 4 ספרות) ולאחר מכן צפייה בתוצאות.</p>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <div class="steps">
+            <span class="step"><span id="dotStart" class="dot"></span><span id="lblStart">הזנת טלפון</span></span>
+            <span class="step"><span id="dotVerify" class="dot"></span><span id="lblVerify">אימות קוד</span></span>
+            <span class="step"><span id="dotAction" class="dot"></span><span id="lblAction">בחירה</span></span>
+          </div>
+
+          <div id="panelPhone">
+            <label>הזן מס' טלפון</label>
+            <input id="phone" class="mono" placeholder="05XXXXXXXX" inputmode="tel" autocomplete="tel" />
+            <div style="height: 10px"></div>
+            <button id="btnStart">קבלת קוד אימות</button>
+            <div id="msgStart" class="msg hide"></div>
+          </div>
+
+          <div id="panelVerify" class="hide">
+            <div class="row">
+              <div>
+                <label>קוד אימות (4 ספרות אחרונות)</label>
+                <input id="last4" class="mono" placeholder="1234" maxlength="4" inputmode="numeric" autocomplete="one-time-code" />
+              </div>
+              <div>
+                <label class="mini">&nbsp;</label>
+                <button id="btnVerify" class="btnGreen">אימות</button>
+              </div>
+            </div>
+            <div id="msgVerify" class="msg hide"></div>
+          </div>
+
+          <div id="panelChoice" class="hide">
+            <div class="divider"></div>
+            <div class="actions">
+              <button id="btnShowResults" class="btnGreen">הצג תוצאות</button>
+              <button id="btnRegister" class="btnGhost">הרשמה למבחן</button>
+            </div>
+            <div id="msgChoice" class="msg hide"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <div>
+              <div style="font-weight: 800">התוצאות שלי</div>
+              <div class="mini" id="resultsHint">לא בוצע אימות עדיין</div>
+            </div>
+            <button id="btnReset" class="btnDanger" style="width: auto; padding: 10px 12px;">איפוס</button>
+          </div>
+
+          <div class="results" id="results"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id)
+
+      const state = {
+        baseUrl: window.location.origin,
+        challengeId: null,
+        exams: null,
+      }
+
+      function setDot(dotId, kind) {
+        const el = $(dotId)
+        el.className = 'dot' + (kind ? (' ' + kind) : '')
+      }
+
+      function showMsg(id, kind, text) {
+        const el = $(id)
+        if (!text) {
+          el.classList.add('hide')
+          el.textContent = ''
+          el.className = 'msg hide'
+          return
+        }
+        el.className = 'msg ' + (kind || '')
+        el.textContent = text
+        el.classList.remove('hide')
+      }
+
+      async function postJson(url, payload) {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        const txt = await resp.text()
+        let data = null
+        try {
+          data = txt ? JSON.parse(txt) : null
+        } catch {
+          data = { raw: txt }
+        }
+        return { ok: resp.ok, status: resp.status, data }
+      }
+
+      function renderResults(exams) {
+        const host = $('results')
+        host.innerHTML = ''
+
+        if (!Array.isArray(exams) || exams.length === 0) {
+          host.innerHTML = `<div class="muted">לא נמצאו מבחנים</div>`
+          return
+        }
+
+        const rows = exams.map((e) => {
+          const score = e.score ?? '—'
+          const status = e.status ?? '—'
+          return `
+            <tr>
+              <td>${e.course_name ?? '—'}</td>
+              <td>${e.exam_name ?? '—'}</td>
+              <td class="mono">${e.exam_date ?? '—'}</td>
+              <td class="mono">${score}</td>
+              <td>${status}</td>
+            </tr>
+          `
+        }).join('')
+
+        host.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>קורס</th>
+                <th>מבחן</th>
+                <th>תאריך</th>
+                <th>ציון</th>
+                <th>סטטוס</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+            </tbody>
+          </table>
+        `
+      }
+
+      function resetAll() {
+        state.challengeId = null
+        state.exams = null
+        $('phone').value = ''
+        $('last4').value = ''
+
+        $('panelPhone').classList.remove('hide')
+        $('panelVerify').classList.add('hide')
+        $('panelChoice').classList.add('hide')
+
+        $('results').innerHTML = ''
+        $('resultsHint').textContent = 'לא בוצע אימות עדיין'
+
+        setDot('dotStart', '')
+        setDot('dotVerify', '')
+        setDot('dotAction', '')
+
+        showMsg('msgStart', '', '')
+        showMsg('msgVerify', '', '')
+        showMsg('msgChoice', '', '')
+      }
+
+      $('btnReset').addEventListener('click', resetAll)
+
+      $('btnStart').addEventListener('click', async () => {
+        showMsg('msgStart', '', '')
+        showMsg('msgVerify', '', '')
+        showMsg('msgChoice', '', '')
+
+        const phone = $('phone').value.trim()
+        if (!phone) {
+          showMsg('msgStart', 'err', 'נא להזין מספר טלפון')
+          return
+        }
+
+        setDot('dotStart', 'run')
+        $('btnStart').disabled = true
+
+        try {
+          const url = `${state.baseUrl}/public/exams/auth/start`
+          const res = await postJson(url, { phone })
+          if (!res.ok) {
+            setDot('dotStart', 'err')
+            showMsg('msgStart', 'err', res.data?.detail || `שגיאה (${res.status})`)
+            return
+          }
+
+          const cid = res.data?.challenge_id
+          if (!cid) {
+            setDot('dotStart', 'err')
+            showMsg('msgStart', 'err', 'השרת לא החזיר challenge_id')
+            return
+          }
+
+          state.challengeId = cid
+          setDot('dotStart', 'ok')
+          setDot('dotVerify', '')
+
+          $('panelPhone').classList.add('hide')
+          $('panelVerify').classList.remove('hide')
+          showMsg('msgVerify', '', 'נשלח אליך צינתוק. הזן את 4 הספרות האחרונות שקיבלת בשיחה.')
+        } catch (e) {
+          setDot('dotStart', 'err')
+          showMsg('msgStart', 'err', 'שגיאה בלתי צפויה. נסה שוב.')
+        } finally {
+          $('btnStart').disabled = false
+        }
+      })
+
+      $('btnVerify').addEventListener('click', async () => {
+        showMsg('msgVerify', '', '')
+        showMsg('msgChoice', '', '')
+
+        const last4 = $('last4').value.trim()
+        if (!last4 || last4.length !== 4) {
+          showMsg('msgVerify', 'err', 'נא להזין 4 ספרות')
+          return
+        }
+
+        if (!state.challengeId) {
+          showMsg('msgVerify', 'err', 'חסר challenge. חזור להתחלה.')
+          return
+        }
+
+        setDot('dotVerify', 'run')
+        $('btnVerify').disabled = true
+
+        try {
+          const url = `${state.baseUrl}/public/exams/auth/verify`
+          const res = await postJson(url, { challenge_id: state.challengeId, last4 })
+          if (!res.ok) {
+            setDot('dotVerify', 'err')
+            showMsg('msgVerify', 'err', res.data?.detail || 'קוד שגוי / פג תוקף')
+            return
+          }
+
+          state.exams = res.data?.exams || []
+
+          setDot('dotVerify', 'ok')
+          setDot('dotAction', 'ok')
+
+          $('panelVerify').classList.add('hide')
+          $('panelChoice').classList.remove('hide')
+
+          $('resultsHint').textContent = `התחברת בהצלחה. נמצאו ${Array.isArray(state.exams) ? state.exams.length : 0} מבחנים.`
+        } catch {
+          setDot('dotVerify', 'err')
+          showMsg('msgVerify', 'err', 'שגיאה בלתי צפויה. נסה שוב.')
+        } finally {
+          $('btnVerify').disabled = false
+        }
+      })
+
+      $('btnShowResults').addEventListener('click', () => {
+        renderResults(state.exams)
+      })
+
+      $('btnRegister').addEventListener('click', () => {
+        showMsg('msgChoice', '', '')
+        showMsg('msgChoice', 'ok', 'הרשמה למבחן: הדגמה ויזואלית בלבד. אם תרצה, נוסיף endpoint ציבורי ייעודי להרשמה ונחבר אותו כאן.')
+      })
+
+      resetAll()
+    </script>
+  </body>
+</html>

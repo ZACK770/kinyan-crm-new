@@ -129,6 +129,14 @@ async def public_exams_demo():
     return FileResponse(demo_path)
 
 
+@app.get("/public/demo/exams-ux", include_in_schema=False)
+async def public_exams_demo_ux():
+    demo_path = SCRIPTS_DIR / "nedarim_public_exams_ux.html"
+    if not demo_path.exists():
+        raise HTTPException(status_code=404, detail="Demo file not found")
+    return FileResponse(demo_path)
+
+
 # API status endpoint
 @app.get("/api/status")
 async def api_status():
