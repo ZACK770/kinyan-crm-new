@@ -206,81 +206,81 @@ async def seed_data():
         # 1. יצירת מרצים
         print("📚 יוצר מרצים...")
         lecturers = {}
-            for lec_data in LECTURERS_DATA:
-                # בדיקה אם המרצה כבר קיים
+        for lec_data in LECTURERS_DATA:
+            # בדיקה אם המרצה כבר קיים
+            result = await session.execute(
+                select(Lecturer).where(Lecturer.name == lec_data["name"])
+            )
+            lecturer = result.scalar_one_or_none()
+            
+            if not lecturer:
+                lecturer = Lecturer(**lec_data)
+                session.add(lecturer)
+                await session.flush()
+                print(f"  ✅ נוצר: {lecturer.name}")
+            else:
+                print(f"  ⏭️  קיים: {lecturer.name}")
+            
+            lecturers[lecturer.name] = lecturer
+        
+        await session.commit()
+        print(f"\n✅ נוצרו {len(lecturers)} מרצים\n")
+        
+        # 2. יצירת קורסים
+        print("📖 יוצר קורסים...")
+        courses = {}
+        for course_data in COURSES_DATA:
+            result = await session.execute(
+                select(Course).where(Course.name == course_data["name"])
+            )
+            course = result.scalar_one_or_none()
+            
+            if not course:
+                course = Course(**course_data)
+                session.add(course)
+                await session.flush()
+                print(f"  ✅ נוצר: {course.name}")
+            else:
+                print(f"  ⏭️  קיים: {course.name}")
+            
+            courses[course.name] = course
+        
+        await session.commit()
+        print(f"\n✅ נוצרו {len(courses)} קורסים\n")
+        
+        # 3. יצירת מודולים
+        print("📑 יוצר מודולים...")
+        modules = {}
+        total_modules = 0
+        
+        for course_name, modules_list in MODULES_DATA.items():
+            course = courses[course_name]
+            modules[course_name] = {}
+            
+            for module_data in modules_list:
                 result = await session.execute(
-                    select(Lecturer).where(Lecturer.name == lec_data["name"])
-                )
-                lecturer = result.scalar_one_or_none()
-                
-                if not lecturer:
-                    lecturer = Lecturer(**lec_data)
-                    session.add(lecturer)
-                    await session.flush()
-                    print(f"  ✅ נוצר: {lecturer.name}")
-                else:
-                    print(f"  ⏭️  קיים: {lecturer.name}")
-                
-                lecturers[lecturer.name] = lecturer
-            
-            await session.commit()
-            print(f"\n✅ נוצרו {len(lecturers)} מרצים\n")
-            
-            # 2. יצירת קורסים
-            print("📖 יוצר קורסים...")
-            courses = {}
-            for course_data in COURSES_DATA:
-                result = await session.execute(
-                    select(Course).where(Course.name == course_data["name"])
-                )
-                course = result.scalar_one_or_none()
-                
-                if not course:
-                    course = Course(**course_data)
-                    session.add(course)
-                    await session.flush()
-                    print(f"  ✅ נוצר: {course.name}")
-                else:
-                    print(f"  ⏭️  קיים: {course.name}")
-                
-                courses[course.name] = course
-            
-            await session.commit()
-            print(f"\n✅ נוצרו {len(courses)} קורסים\n")
-            
-            # 3. יצירת מודולים
-            print("📑 יוצר מודולים...")
-            modules = {}
-            total_modules = 0
-            
-            for course_name, modules_list in MODULES_DATA.items():
-                course = courses[course_name]
-                modules[course_name] = {}
-                
-                for module_data in modules_list:
-                    result = await session.execute(
-                        select(CourseModule).where(
-                            CourseModule.course_id == course.id,
-                            CourseModule.module_order == module_data["module_order"]
-                        )
+                    select(CourseModule).where(
+                        CourseModule.course_id == course.id,
+                        CourseModule.module_order == module_data["module_order"]
                     )
-                    module = result.scalar_one_or_none()
-                    
-                    if not module:
-                        module = CourseModule(
-                            course_id=course.id,
-                            name=module_data["name"],
-                            sessions_count=module_data["sessions_count"],
-                            module_order=module_data["module_order"]
-                        )
-                        session.add(module)
-                        await session.flush()
-                        print(f"  ✅ {course_name} - {module.name} ({module.sessions_count} מפגשים)")
-                        total_modules += 1
-                    else:
-                        print(f"  ⏭️  {course_name} - {module.name}")
-                    
-                    modules[course_name][module.name] = module
+                )
+                module = result.scalar_one_or_none()
+                
+                if not module:
+                    module = CourseModule(
+                        course_id=course.id,
+                        name=module_data["name"],
+                        sessions_count=module_data["sessions_count"],
+                        module_order=module_data["module_order"]
+                    )
+                    session.add(module)
+                    await session.flush()
+                    print(f"  ✅ {course_name} - {module.name} ({module.sessions_count} מפגשים)")
+                    total_modules += 1
+                else:
+                    print(f"  ⏭️  {course_name} - {module.name}")
+                
+                modules[course_name][module.name] = module
             
             await session.commit()
             print(f"\n✅ נוצרו {total_modules} מודולים\n")
