@@ -800,6 +800,69 @@ class Exam(Base):
 
 
 # ============================================================
+# ExamDate (תאריכי בחינה) — entity for managing exam schedules
+# ============================================================
+class ExamDate(Base):
+    __tablename__ = "exam_dates"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    date: Mapped[date] = mapped_column(Date, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(String(500))
+    is_active: Mapped[bool] = mapped_column(default=True)
+    max_registrations: Mapped[Optional[int]] = mapped_column()
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_exam_dates_date", "date"),
+        Index("idx_exam_dates_is_active", "is_active"),
+    )
+
+    exams: Mapped[List["Exam"]] = relationship(secondary="exam_date_exams", back_populates="exam_dates")
+    registrations: Mapped[List["ExamRegistration"]] = relationship(back_populates="exam_date", cascade="all, delete-orphan")
+
+
+# ============================================================
+# ExamDateExam (קישור רבים לרבים בין תאריכי בחינה למבחנים)
+# ============================================================
+class ExamDateExam(Base):
+    __tablename__ = "exam_date_exams"
+
+    exam_date_id: Mapped[int] = mapped_column(ForeignKey("exam_dates.id"), primary_key=True)
+    exam_id: Mapped[int] = mapped_column(ForeignKey("exams.id"), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    exam_date: Mapped["ExamDate"] = relationship()
+    exam: Mapped["Exam"] = relationship()
+
+
+# ============================================================
+# ExamRegistration (רישומים לבחינות)
+# ============================================================
+class ExamRegistration(Base):
+    __tablename__ = "exam_registrations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    exam_date_id: Mapped[int] = mapped_column(ForeignKey("exam_dates.id"), nullable=False)
+    exam_id: Mapped[int] = mapped_column(ForeignKey("exams.id"), nullable=False)
+    examinee_id: Mapped[int] = mapped_column(ForeignKey("examinees.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="registered")  # registered, cancelled, completed
+    registration_code: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
+    notes: Mapped[Optional[str]] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_exam_registrations_exam_date_id", "exam_date_id"),
+        Index("idx_exam_registrations_exam_id", "exam_id"),
+        Index("idx_exam_registrations_examinee_id", "examinee_id"),
+        Index("idx_exam_registrations_status", "status"),
+    )
+
+    exam_date: Mapped["ExamDate"] = relationship()
+    exam: Mapped["Exam"] = relationship()
+    examinee: Mapped["Examinee"] = relationship()
+
+
+# ============================================================
 # ExamSubmission (הגשות מבחנים) — child of Exam
 # ============================================================
 class ExamSubmission(Base):
