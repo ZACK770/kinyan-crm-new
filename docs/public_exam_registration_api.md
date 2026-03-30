@@ -50,7 +50,6 @@ None.
     "date": "2026-04-06",
     "description": "מועד א",
     "max_registrations": 30,
-    "is_active": true,
     "exams": [
       {
         "exam_id": 10,
@@ -99,20 +98,19 @@ Creates a registration for an examinee to a specific exam on a specific exam dat
   "registration_code": "4Y143LHB",
   "status": "registered",
   "exam_date": "2026-04-06",
-  "exam_id": 10,
   "exam_name": "מבחן דמו 1",
   "exam_type": "בכתב",
   "course_id": 3,
   "course_name": "קורס לדוגמה",
+  "examinee_name": "ישראל ישראלי",
   "examinee_phone": "0501234567",
   "created_at": "2026-03-30T14:21:52.870798+03:00"
 }
 ```
 
 ### Errors
-- `404` — if exam date or exam not found / not active
-- `409` — if already registered for the same (exam_date_id + exam_id + phone)
-- `400` — validation errors
+- `400` — validation / business rule errors (e.g. already registered, inactive date, exam not linked to date, capacity)
+- `500` — unexpected server error
 
 ---
 

@@ -27,6 +27,9 @@ class ExamRegistrationResponse(BaseModel):
     registration_code: str
     exam_date: str
     exam_name: str
+    exam_type: str
+    course_id: int
+    course_name: Optional[str]
     examinee_name: str
     examinee_phone: str
     status: str

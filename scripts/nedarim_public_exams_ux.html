@@ -300,6 +300,99 @@
         background: rgba(255, 255, 255, 0.15);
       }
 
+      .h3 {
+        margin: 0 0 10px;
+        font-size: 16px;
+        letter-spacing: 0.2px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(10, 16, 32, 0.22);
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .cards {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .dateCard {
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.04);
+        border-radius: 14px;
+        padding: 12px;
+      }
+
+      .dateHeader {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+
+      .dateTitle {
+        font-weight: 800;
+        font-size: 14px;
+      }
+
+      .dateSubtitle {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .examGrid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+
+      .examItem {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: rgba(10, 16, 32, 0.22);
+      }
+
+      .examMeta {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+
+      .examName {
+        font-weight: 800;
+        font-size: 13px;
+      }
+
+      .examCourse {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .btnInline {
+        width: auto;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(34, 197, 94, 0.14);
+      }
+
+      .btnInline:hover {
+        background: rgba(34, 197, 94, 0.2);
+      }
+
       .exam-date-card {
         background: rgba(255, 255, 255, 0.05);
         border: 1px solid rgba(255, 255, 255, 0.1);
@@ -517,6 +610,165 @@
         return { ok: resp.ok, status: resp.status, data }
       }
 
+      async function getJson(url) {
+        const resp = await fetch(url)
+        const txt = await resp.text()
+        let data = null
+        try {
+          data = txt ? JSON.parse(txt) : null
+        } catch {
+          data = { raw: txt }
+        }
+        return { ok: resp.ok, status: resp.status, data }
+      }
+
+      function showPanel(name) {
+        $('panelRegister').classList.toggle('hide', name !== 'register')
+        $('panelRegistrations').classList.toggle('hide', name !== 'registrations')
+        $('panelChoice').classList.toggle('hide', name !== 'choice')
+      }
+
+      function esc(s) {
+        return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;'
+        }[c]))
+      }
+
+      async function showRegistration() {
+        showMsg('msgChoice', '', '')
+        showPanel('register')
+        $('registerContent').innerHTML = `<div class="muted">טוען תאריכי בחינה...</div>`
+
+        const res = await getJson(`${state.baseUrl}/public/exam-registration/exam-dates/upcoming`)
+        if (!res.ok) {
+          $('registerContent').innerHTML = `<div class="msg err">${esc(res.data?.detail || `שגיאה (${res.status})`)}</div>`
+          return
+        }
+
+        const items = Array.isArray(res.data) ? res.data : []
+        if (!items.length) {
+          $('registerContent').innerHTML = `<div class="msg">אין תאריכי בחינה פעילים כרגע.</div>`
+          return
+        }
+
+        const html = items.map((d) => {
+          const exams = Array.isArray(d.exams) ? d.exams : []
+          const examsHtml = exams.map((e) => {
+            const title = e.course_name ? `${e.course_name} • ${e.exam_name}` : e.exam_name
+            const meta = e.exam_type ? `סוג: ${e.exam_type}` : ''
+            return `
+              <div class="examItem">
+                <div class="examMeta">
+                  <div class="examName">${esc(title)}</div>
+                  <div class="examCourse">${esc(meta)}</div>
+                </div>
+                <button class="btnInline" data-action="register" data-exam-date-id="${d.exam_date_id}" data-exam-id="${e.exam_id}">רישום</button>
+              </div>
+            `
+          }).join('')
+
+          return `
+            <div class="dateCard">
+              <div class="dateHeader">
+                <div>
+                  <div class="dateTitle">${esc(d.date)}${d.description ? ` — ${esc(d.description)}` : ''}</div>
+                  <div class="dateSubtitle">${d.max_registrations ? `מקס׳ נרשמים: ${esc(d.max_registrations)}` : 'ללא מגבלת קיבולת'}</div>
+                </div>
+                <span class="pill">בחינות: ${exams.length}</span>
+              </div>
+              <div class="examGrid">${examsHtml || '<div class="muted">אין מבחנים משויכים</div>'}</div>
+            </div>
+          `
+        }).join('')
+
+        $('registerContent').innerHTML = `<div class="cards">${html}</div>`
+
+        $('registerContent').querySelectorAll('[data-action="register"]').forEach((btn) => {
+          btn.addEventListener('click', async (ev) => {
+            const b = ev.currentTarget
+            const exam_date_id = Number(b.getAttribute('data-exam-date-id'))
+            const exam_id = Number(b.getAttribute('data-exam-id'))
+            const phone = $('phone').value.trim()
+            if (!phone) {
+              showMsg('msgChoice', 'err', 'נא להזין טלפון בתחילת התהליך')
+              return
+            }
+            b.disabled = true
+            b.textContent = 'נרשם...'
+            const rr = await postJson(`${state.baseUrl}/public/exam-registration/register`, {
+              exam_date_id,
+              exam_id,
+              phone,
+            })
+            if (!rr.ok) {
+              b.disabled = false
+              b.textContent = 'רישום'
+              $('registerContent').insertAdjacentHTML('afterbegin', `<div class="msg err">${esc(rr.data?.detail || `שגיאה (${rr.status})`)}</div>`)
+              return
+            }
+            const code = rr.data?.registration_code
+            $('registerContent').insertAdjacentHTML('afterbegin', `<div class="msg ok">נרשמת בהצלחה. קוד רישום: <span class="mono">${esc(code || '—')}</span></div>`)
+            b.textContent = 'נרשם'
+          })
+        })
+      }
+
+      async function showRegistrations() {
+        showMsg('msgChoice', '', '')
+        showPanel('registrations')
+        $('registrationsContent').innerHTML = `<div class="muted">טוען הרשמות...</div>`
+
+        const phone = $('phone').value.trim()
+        if (!phone) {
+          $('registrationsContent').innerHTML = `<div class="msg err">נא להזין טלפון בתחילת התהליך</div>`
+          return
+        }
+
+        const res = await getJson(`${state.baseUrl}/public/exam-registration/registrations/${encodeURIComponent(phone)}`)
+        if (!res.ok) {
+          $('registrationsContent').innerHTML = `<div class="msg err">${esc(res.data?.detail || `שגיאה (${res.status})`)}</div>`
+          return
+        }
+
+        const items = Array.isArray(res.data) ? res.data : []
+        if (!items.length) {
+          $('registrationsContent').innerHTML = `<div class="msg">לא נמצאו הרשמות עבור מספר זה.</div>`
+          return
+        }
+
+        const rows = items.map((r) => {
+          const title = r.course_name ? `${r.course_name} • ${r.exam_name}` : r.exam_name
+          return `
+            <tr>
+              <td>${esc(r.exam_date || '—')}</td>
+              <td>${esc(title || '—')}</td>
+              <td class="mono">${esc(r.registration_code || '—')}</td>
+              <td>${esc(r.status || '—')}</td>
+            </tr>
+          `
+        }).join('')
+
+        $('registrationsContent').innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>תאריך</th>
+                <th>בחינה</th>
+                <th>קוד</th>
+                <th>סטטוס</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+            </tbody>
+          </table>
+        `
+      }
+
       function renderResults(exams) {
         const host = $('results')
         host.innerHTML = ''
@@ -679,11 +931,6 @@
 
       $('btnShowResults').addEventListener('click', () => {
         renderResults(state.exams)
-      })
-
-      $('btnRegister').addEventListener('click', () => {
-        showMsg('msgChoice', '', '')
-        showMsg('msgChoice', 'ok', 'הרשמה למבחן: הדגמה ויזואלית בלבד. אם תרצה, נוסיף endpoint ציבורי ייעודי להרשמה ונחבר אותו כאן.')
       })
 
       resetAll()
