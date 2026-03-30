@@ -145,24 +145,38 @@ async def create_exam_registration(
     )
     
     db.add(registration)
+
+    await db.flush()
+
+    # Eager-load relationships needed for response (avoid lazy-load in async context)
+    stmt = (
+        select(ExamRegistration)
+        .options(
+            selectinload(ExamRegistration.exam_date),
+            selectinload(ExamRegistration.exam).selectinload(Exam.course),
+            selectinload(ExamRegistration.examinee),
+        )
+        .where(ExamRegistration.id == registration.id)
+    )
+    loaded = await db.scalar(stmt)
+    if not loaded:
+        raise ValueError("Registration not created")
+
+    # Commit only after we have everything loaded for response
     await db.commit()
-    await db.refresh(registration)
-    
-    # Load related data for response
-    await db.refresh(registration, ["exam_date", "exam", "examinee"])
-    
+
     return {
-        "registration_id": registration.id,
-        "registration_code": registration.registration_code,
-        "exam_date": str(registration.exam_date.date),
-        "exam_name": registration.exam.name,
-        "exam_type": registration.exam.exam_type,
-        "course_id": registration.exam.course_id,
-        "course_name": registration.exam.course.name if registration.exam.course else None,
-        "examinee_name": getattr(registration.examinee, "full_name", None) or registration.examinee.phone,
-        "examinee_phone": registration.examinee.phone,
-        "status": registration.status,
-        "created_at": str(registration.created_at),
+        "registration_id": loaded.id,
+        "registration_code": loaded.registration_code,
+        "exam_date": str(loaded.exam_date.date),
+        "exam_name": loaded.exam.name,
+        "exam_type": loaded.exam.exam_type,
+        "course_id": loaded.exam.course_id,
+        "course_name": loaded.exam.course.name if loaded.exam.course else None,
+        "examinee_name": getattr(loaded.examinee, "full_name", None) or loaded.examinee.phone,
+        "examinee_phone": loaded.examinee.phone,
+        "status": loaded.status,
+        "created_at": str(loaded.created_at),
     }
 
 
