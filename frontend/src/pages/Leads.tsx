@@ -827,6 +827,7 @@ export function LeadsPage() {
       {/* Card with SmartTable */}
       <div className={s.card}>
         <SmartTable
+          key="leads-table-main"
           columns={columns as SmartColumn<Lead>[]}
           data={leads}
           loading={loading}
