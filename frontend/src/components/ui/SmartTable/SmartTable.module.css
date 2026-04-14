@@ -112,6 +112,32 @@
   margin-bottom: 12px;
 }
 
+.filterFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.filterModeToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.filterModeCheckbox {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--color-primary);
+}
+
+.filterModeLabel {
+  font-weight: 500;
+}
+
 .filterRow {
   display: flex;
   align-items: center;
@@ -164,6 +190,89 @@
   transform: translateY(-50%);
   color: var(--color-text-muted);
   pointer-events: none;
+}
+
+.multiValueSelect {
+  position: relative;
+  min-width: 200px;
+}
+
+.multiValueDisplay {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.multiValuePlaceholder {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.multiValueChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: var(--color-bg-accent);
+  color: var(--color-primary);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.multiValueChipRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.multiValueDropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 150;
+}
+
+.multiValueOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: right;
+}
+
+.multiValueOption:hover {
+  background: var(--color-bg-hover);
+}
+
+.multiValueOptionSelected {
+  background: var(--color-bg-accent);
 }
 
 /* --- Saved Filters --- */

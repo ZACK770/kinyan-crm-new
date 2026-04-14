@@ -19,6 +19,9 @@ export type FilterOperator = TextOperator | NumberOperator | DateOperator | Sele
 // Column field types
 export type FieldType = 'text' | 'number' | 'date' | 'datetime' | 'select' | 'boolean' | 'currency'
 
+// Filter combination mode
+export type FilterMode = 'and' | 'or'
+
 // Filter definition
 export interface Filter {
   id: string
@@ -26,6 +29,7 @@ export interface Filter {
   operator: FilterOperator
   value: string | number | boolean | null
   value2?: string | number | null // For 'between' operator
+  values?: (string | number)[] // For multi-value equals/notEquals
 }
 
 // Saved filter preset
@@ -106,6 +110,7 @@ export interface SmartTableProps<T> {
   searchFields?: SearchFieldConfig[] // Fields to search in (defaults to all text/select)
   searchPlaceholder?: string
   onSearchSelect?: (row: T) => void // Called when a search result is clicked
+  onServerSearch?: (query: string) => Promise<T[]> // Server-side search (searches ALL data, not just loaded)
 
   // Pagination
   defaultPageSize?: number // Default items per page (default: 100)
@@ -114,6 +119,7 @@ export interface SmartTableProps<T> {
   // UI customization
   className?: string
   toolbarExtra?: ReactNode // Extra toolbar content
+  rowClassName?: (row: T) => string // Dynamic row class based on data
 }
 
 // Search field configuration
@@ -142,8 +148,10 @@ export interface ColumnManagerState {
 // Table state (for persistence)
 export interface TableState {
   filters: Filter[]
+  filterMode: FilterMode
   visibleColumns: string[]
   columnOrder: string[]
   sortBy: string | null
   sortDir: 'asc' | 'desc'
+  pageSize?: number
 }

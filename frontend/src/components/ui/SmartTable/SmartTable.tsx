@@ -11,9 +11,10 @@
    - Pagination (optional)
    ============================================================ */
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Inbox, ChevronUp, ChevronDown } from 'lucide-react'
-import type { SmartTableProps, SmartColumn, Filter, SavedFilter, TableState } from './types'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { Inbox, ChevronUp, ChevronDown, Download } from 'lucide-react'
+import * as XLSX from 'xlsx'
+import type { SmartTableProps, SmartColumn, Filter, FilterMode, SavedFilter, TableState } from './types'
 import { FilterPanel } from './FilterPanel'
 import { ColumnManager } from './ColumnManager'
 import { BulkActions } from './BulkActions'
@@ -47,17 +48,23 @@ export function SmartTable<T>({
   searchFields,
   searchPlaceholder,
   onSearchSelect,
+  onServerSearch,
   defaultPageSize,
   pageSizeOptions,
   className,
   toolbarExtra,
+  rowClassName,
 }: SmartTableProps<T>) {
   // Search & Pagination props with defaults
   const searchSelect = onSearchSelect ?? onRowClick
   const defaultPgSize = defaultPageSize ?? 100
   const pgSizeOpts = pageSizeOptions ?? [50, 100, 200]
+
+  // Shift-click selection tracking
+  const lastSelectedIndexRef = useRef<number | null>(null)
   // State
   const [filters, setFilters] = useState<Filter[]>([])
+  const [filterMode, setFilterMode] = useState<FilterMode>('and')
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([])
   const [activeSavedFilterId, setActiveSavedFilterId] = useState<string | null>(null)
   const [visibleColumns, setVisibleColumns] = useState<string[]>([])
@@ -83,10 +90,12 @@ export function SmartTable<T>({
       const savedState = loadTableState(storageKey)
       if (savedState) {
         setFilters(savedState.filters || [])
+        setFilterMode(savedState.filterMode || 'and')
         setVisibleColumns(savedState.visibleColumns?.length ? savedState.visibleColumns : defaultVisible)
         setColumnOrder(savedState.columnOrder?.length ? savedState.columnOrder : defaultOrder)
         setSortBy(savedState.sortBy || null)
         setSortDir(savedState.sortDir || 'asc')
+        if (savedState.pageSize) setPageSize(savedState.pageSize)
       } else {
         setVisibleColumns(defaultVisible)
         setColumnOrder(defaultOrder)
@@ -99,7 +108,7 @@ export function SmartTable<T>({
       setVisibleColumns(defaultVisible)
       setColumnOrder(defaultOrder)
     }
-  }, [columns, storageKey])
+  }, [columns, storageKey, defaultPgSize])
 
   // Save state to storage
   useEffect(() => {
@@ -107,13 +116,15 @@ export function SmartTable<T>({
 
     const state: TableState = {
       filters,
+      filterMode,
       visibleColumns,
       columnOrder,
       sortBy,
       sortDir,
+      pageSize,
     }
     saveTableState(storageKey, state)
-  }, [filters, visibleColumns, columnOrder, sortBy, sortDir, storageKey])
+  }, [filters, filterMode, visibleColumns, columnOrder, sortBy, sortDir, pageSize, storageKey])
 
   // Get ordered and visible columns
   const displayColumns = useMemo(() => {
@@ -132,8 +143,8 @@ export function SmartTable<T>({
   // Apply filters to data
   const filteredData = useMemo(() => {
     const columnsInfo = columns.map(c => ({ key: c.key, type: c.type }))
-    return applyFilters(data, filters, columnsInfo)
-  }, [data, filters, columns])
+    return applyFilters(data, filters, columnsInfo, filterMode)
+  }, [data, filters, filterMode, columns])
 
   // Apply sorting
   const sortedData = useMemo(() => {
@@ -232,15 +243,27 @@ export function SmartTable<T>({
   }
 
   // Handle row selection
-  const toggleRowSelection = (rowKey: string | number) => {
+  const toggleRowSelection = (rowKey: string | number, event?: React.MouseEvent) => {
+    const currentIndex = paginatedData.findIndex(row => keyExtractor(row) === rowKey)
     const newSelected = new Set(selectedRows)
-    if (newSelected.has(rowKey)) {
-      newSelected.delete(rowKey)
+
+    if (event?.shiftKey && lastSelectedIndexRef.current !== null && currentIndex !== -1) {
+      const start = Math.min(lastSelectedIndexRef.current, currentIndex)
+      const end = Math.max(lastSelectedIndexRef.current, currentIndex)
+      for (let index = start; index <= end; index++) {
+        newSelected.add(keyExtractor(paginatedData[index]))
+      }
     } else {
-      newSelected.add(rowKey)
+      if (newSelected.has(rowKey)) {
+        newSelected.delete(rowKey)
+      } else {
+        newSelected.add(rowKey)
+      }
     }
+
+    lastSelectedIndexRef.current = currentIndex
     setSelectedRows(newSelected)
-    setIsAllSelected(newSelected.size === sortedData.length && sortedData.length > 0)
+    setIsAllSelected(newSelected.size === paginatedData.length && paginatedData.length > 0)
   }
 
   const toggleSelectAll = () => {
@@ -275,13 +298,11 @@ export function SmartTable<T>({
     await onBulkUpdate(rows, field, value)
   }
 
-  // Loading state
-  if (loading) {
-    return <div className={shared.loading}>טוען נתונים...</div>
-  }
+  // Skeleton row count for loading state
+  const skeletonRowCount = Math.min(pageSize, 15)
 
-  // Empty state
-  if (!data.length) {
+  // Empty state (only when NOT loading)
+  if (!loading && !data.length) {
     return (
       <div className={shared.empty}>
         <span className={shared['empty-icon']}>
@@ -294,7 +315,7 @@ export function SmartTable<T>({
 
   return (
     <div className={`${s.smartTable} ${className || ''}`}>
-      {/* Toolbar */}
+      {/* Toolbar — always visible */}
       <div className={s.toolbar}>
         <div className={s.toolbarLeft}>
           <SmartSearch
@@ -303,13 +324,16 @@ export function SmartTable<T>({
             searchFields={searchFields}
             onSelect={(row) => searchSelect?.(row)}
             placeholder={searchPlaceholder ?? 'חיפוש...'}
+            onServerSearch={onServerSearch}
           />
           <FilterPanel
             columns={columns}
             filters={filters}
+            filterMode={filterMode}
             savedFilters={savedFilters}
             activeSavedFilterId={activeSavedFilterId}
             onFiltersChange={setFilters}
+            onFilterModeChange={setFilterMode}
             onSaveFilter={handleSaveFilter}
             onLoadFilter={handleLoadFilter}
             onDeleteSavedFilter={handleDeleteSavedFilter}
@@ -323,11 +347,24 @@ export function SmartTable<T>({
           />
         </div>
         <div className={s.toolbarRight}>
+          <button
+            className={`${shared.btn} ${shared['btn-secondary']} ${shared['btn-sm']}`}
+            onClick={() => exportToExcel(sortedData, displayColumns, storageKey)}
+            disabled={loading || sortedData.length === 0}
+            title="ייצוא לאקסל"
+          >
+            <Download size={14} />
+            <span>Excel</span>
+          </button>
           {toolbarExtra}
-          <span className={s.resultCount}>
-            {sortedData.length !== data.length && <>{sortedData.length} מתוך </>}
-            {data.length} תוצאות
-          </span>
+          {loading ? (
+            <span className={s.resultCount}>טוען...</span>
+          ) : (
+            <span className={s.resultCount}>
+              {sortedData.length !== data.length && <>{sortedData.length} מתוך </>}
+              {data.length} תוצאות
+            </span>
+          )}
         </div>
       </div>
 
@@ -383,53 +420,74 @@ export function SmartTable<T>({
             </tr>
           </thead>
           <tbody>
-            {paginatedData.map(row => {
-              const rowKey = keyExtractor(row)
-              const isSelected = selectedRows.has(rowKey)
-
-              return (
-                <tr
-                  key={rowKey}
-                  className={`${onRowClick ? shared.clickable : ''} ${isSelected ? s.selectedRow : ''}`}
-                  onClick={() => onRowClick?.(row)}
-                >
-                  {/* Selection checkbox */}
+            {loading ? (
+              Array.from({ length: skeletonRowCount }).map((_, rowIdx) => (
+                <tr key={`skeleton-${rowIdx}`}>
                   {(onDelete || onBulkUpdate || bulkActions.length > 0) && (
-                    <td className={s.checkboxCell} onClick={e => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleRowSelection(rowKey)}
-                        className={s.checkbox}
-                      />
+                    <td className={s.checkboxCell}>
+                      <div className={s.skeletonBox} style={{ width: 16, height: 16, borderRadius: 3 }} />
                     </td>
                   )}
-                  {displayColumns.map(col => (
-                    <td
-                      key={col.key}
-                      className={col.className}
-                      onClick={e => {
-                        // Stop propagation for editable cells
-                        if (col.editable !== false && onUpdate) {
-                          e.stopPropagation()
-                        }
-                      }}
-                    >
-                      {renderCell(row, col, onUpdate ? (v) => handleCellUpdate(row, col.key, v) : undefined)}
+                  {displayColumns.map((col, colIdx) => (
+                    <td key={col.key}>
+                      <div
+                        className={s.skeleton}
+                        style={{
+                          width: col.type === 'select'
+                            ? '70%'
+                            : col.type === 'datetime' || col.type === 'date'
+                              ? '60%'
+                              : `${55 + ((rowIdx + colIdx) % 4) * 12}%`,
+                          animationDelay: `${(rowIdx * 0.05) + (colIdx * 0.03)}s`,
+                        }}
+                      />
                     </td>
                   ))}
                 </tr>
-              )
-            })}
+              ))
+            ) : (
+              paginatedData.map(row => {
+                const rowKey = keyExtractor(row)
+                const isSelected = selectedRows.has(rowKey)
+
+                return (
+                  <tr
+                    key={rowKey}
+                    className={`${onRowClick ? shared.clickable : ''} ${isSelected ? s.selectedRow : ''} ${rowClassName ? rowClassName(row) : ''}`}
+                    onClick={() => onRowClick?.(row)}
+                  >
+                    {(onDelete || onBulkUpdate || bulkActions.length > 0) && (
+                      <td className={s.checkboxCell} onClick={e => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {}}
+                          onClick={(e) => toggleRowSelection(rowKey, e as unknown as React.MouseEvent)}
+                          className={s.checkbox}
+                        />
+                      </td>
+                    )}
+                    {displayColumns.map(col => (
+                      <td
+                        key={col.key}
+                        className={col.className}
+                      >
+                        {renderCell(row, col, onUpdate ? (v) => handleCellUpdate(row, col.key, v) : undefined)}
+                      </td>
+                    ))}
+                  </tr>
+                )
+              })
+            )}
           </tbody>
         </table>
       </div>
 
-      {/* Pagination */}
-      {totalItems > 0 && (
+      {/* Pagination — always show during loading for consistent layout */}
+      {(totalItems > 0 || loading) && (
         <TablePagination
-          totalItems={totalItems}
-          currentPage={safePage}
+          totalItems={loading ? 0 : totalItems}
+          currentPage={loading ? 1 : safePage}
           pageSize={pageSize}
           pageSizeOptions={pgSizeOpts}
           onPageChange={setCurrentPage}
@@ -451,6 +509,25 @@ export function SmartTable<T>({
       )}
     </div>
   )
+}
+
+// Export data to Excel
+function exportToExcel<T>(data: T[], columns: SmartColumn<T>[], storageKey?: string) {
+  const rows = data.map(row => {
+    const result: Record<string, unknown> = {}
+    for (const col of columns) {
+      if (col.key === '_actions') continue
+      const rawValue = (row as Record<string, unknown>)[col.key]
+      result[col.header] = formatDisplayValue(rawValue, col)
+    }
+    return result
+  })
+
+  const worksheet = XLSX.utils.json_to_sheet(rows)
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Data')
+  const fileName = `${storageKey || 'table'}-${new Date().toISOString().slice(0, 10)}.xlsx`
+  XLSX.writeFile(workbook, fileName)
 }
 
 // Render a single cell

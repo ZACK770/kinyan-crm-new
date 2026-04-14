@@ -2,7 +2,7 @@
    SmartTable Filter Utilities
    ============================================================ */
 
-import type { Filter, FilterOperator, FieldType, SavedFilter, TableState } from './types'
+import type { Filter, FilterOperator, FieldType, FilterMode, SavedFilter, TableState } from './types'
 
 // Generate unique ID
 export const generateId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -216,10 +216,13 @@ export function applyFilter<T>(row: T, filter: Filter, type: FieldType): boolean
   if (type === 'select') {
     const strValue = String(value ?? '')
     const strFilter = String(filterValue ?? '')
+    const filterValues = filter.values?.map(v => String(v)) ?? []
 
     switch (filter.operator) {
-      case 'equals': return strValue === strFilter
-      case 'notEquals': return strValue !== strFilter
+      case 'equals':
+        return filterValues.length > 0 ? filterValues.includes(strValue) : strValue === strFilter
+      case 'notEquals':
+        return filterValues.length > 0 ? !filterValues.includes(strValue) : strValue !== strFilter
       case 'in': {
         const values = strFilter.split(',').map(v => v.trim())
         return values.includes(strValue)
@@ -235,12 +238,14 @@ export function applyFilter<T>(row: T, filter: Filter, type: FieldType): boolean
 export function applyFilters<T>(
   data: T[],
   filters: Filter[],
-  columns: { key: string; type: FieldType }[]
+  columns: { key: string; type: FieldType }[],
+  filterMode: FilterMode = 'and'
 ): T[] {
   if (!filters.length) return data
 
   return data.filter(row => {
-    return filters.every(filter => {
+    const matcher = filterMode === 'or' ? filters.some.bind(filters) : filters.every.bind(filters)
+    return matcher(filter => {
       const column = columns.find(c => c.key === filter.field)
       if (!column) return true
       return applyFilter(row, filter, column.type)
