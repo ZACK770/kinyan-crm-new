@@ -57,7 +57,7 @@ export function FilterPanel<T>({
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  const filterableColumns = columns.filter(c => c.filterable !== false)
+  const filterableColumns = columns
 
   const addFilter = () => {
     const firstCol = filterableColumns[0]

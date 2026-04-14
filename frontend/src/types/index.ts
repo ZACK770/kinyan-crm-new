@@ -38,6 +38,44 @@ export interface Lead {
   selected_payment_day?: number
   first_payment_id?: number
   nedarim_payment_link?: string
+  // Lead response and follow-up tracking
+  lead_response?: string
+  follow_up_count?: number
+  last_contact_date?: string
+  // Discount tracking
+  discount_notes?: string
+  // Terms approval tracking
+  approval_method?: string
+  approval_date?: string
+  // Payment completion tracking
+  payment_completed?: boolean
+  payment_completed_amount?: number
+  payment_completed_date?: string
+  payment_completed_method?: string
+  payment_reference?: string
+  payment_verified?: boolean
+  // Kinyan/Terms approval tracking
+  kinyan_signed?: boolean
+  kinyan_signed_date?: string
+  kinyan_method?: string
+  kinyan_file_url?: string
+  kinyan_notes?: string
+  // Shipping details
+  shipping_full_address?: string
+  shipping_city?: string
+  shipping_postal_code?: string
+  shipping_phone?: string
+  shipping_notes?: string
+  // Student chat integration
+  student_chat_link?: string
+  student_chat_platform?: string
+  student_chat_added_date?: string
+  // Handoff to class manager
+  handoff_to_manager?: boolean
+  handoff_date?: string
+  handoff_manager_id?: number
+  handoff_completed?: boolean
+  handoff_completed_date?: string
   // Conversion checklist fields
   shipping_details_complete?: boolean
   student_chat_added?: boolean
@@ -46,6 +84,7 @@ export interface Lead {
   personal_course_update_notes?: string
   conversion_checklist_complete?: boolean
   conversion_completed_at?: string
+  conversion_completed_by_id?: number
   created_at: string
   updated_at?: string
   last_edited_at?: string
