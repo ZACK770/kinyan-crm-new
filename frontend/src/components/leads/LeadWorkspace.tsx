@@ -49,13 +49,13 @@ function Badge({ entity, value }: { entity: string; value?: string }) {
 
 // Status options (Hebrew per SPEC)
 const STATUS_OPTIONS: SelectOption[] = [
-  { value: 'new', label: 'ליד חדש' },
-  { value: 'first_call', label: 'חיוג ראשון' },
-  { value: 'follow_up', label: 'במעקב' },
-  { value: 'interested', label: 'מתעניין' },
-  { value: 'payment_done', label: 'נסלק' },
-  { value: 'converted', label: 'ליד סגור-לקוח' },
-  { value: 'not_relevant', label: 'ליד סגור-לא רלוונטי' },
+  { value: 'ליד חדש', label: 'ליד חדש' },
+  { value: 'ליד בתהליך', label: 'ליד בתהליך' },
+  { value: 'חיוג ראשון', label: 'חיוג ראשון' },
+  { value: 'ליד ישן', label: 'ליד ישן' },
+  { value: 'נסלק', label: 'נסלק' },
+  { value: 'תלמיד פעיל', label: 'תלמיד פעיל' },
+  { value: 'לא רלוונטי', label: 'לא רלוונטי' },
 ]
 
 const SOURCE_OPTIONS: SelectOption[] = [
@@ -63,6 +63,7 @@ const SOURCE_OPTIONS: SelectOption[] = [
   { value: 'elementor', label: 'אלמנטור' },
   { value: 'manual', label: 'ידני' },
   { value: 'referral', label: 'הפניה' },
+  { value: 'ייבוא ממערכת ישנה', label: 'ייבוא ממערכת ישנה' },
   { value: 'other', label: 'אחר' },
 ]
 
@@ -83,7 +84,7 @@ const INITIAL_FORM = {
   course_id: '',
   notes: '',
   salesperson_id: '',
-  status: 'new',
+  status: 'ליד חדש',
 }
 
 interface LeadWorkspaceProps {

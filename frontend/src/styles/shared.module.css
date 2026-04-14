@@ -89,36 +89,55 @@
   border-radius: var(--radius-full);
   letter-spacing: 0.02em;
   white-space: nowrap;
+  border: 1px solid transparent;
 }
 
 .badge-blue {
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #dbeafe;
+  color: #1e40af;
+  border-color: #bfdbfe;
 }
 
 .badge-green {
-  background: #f0fdf4;
-  color: #15803d;
+  background: #dcfce7;
+  color: #166534;
+  border-color: #bbf7d0;
 }
 
 .badge-yellow {
-  background: #fefce8;
-  color: #a16207;
+  background: #fef9c3;
+  color: #854d0e;
+  border-color: #fde68a;
 }
 
 .badge-red {
-  background: #fef2f2;
-  color: #b91c1c;
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fecaca;
 }
 
 .badge-gray {
   background: #f1f5f9;
   color: #475569;
+  border-color: #e2e8f0;
 }
 
 .badge-orange {
-  background: #fff7ed;
-  color: #c2410c;
+  background: #ffedd5;
+  color: #9a3412;
+  border-color: #fed7aa;
+}
+
+.badge-purple {
+  background: #f3e8ff;
+  color: #6b21a8;
+  border-color: #e9d5ff;
+}
+
+.badge-teal {
+  background: #ccfbf1;
+  color: #115e59;
+  border-color: #99f6e4;
 }
 
 /* --- Page header --- */
@@ -250,6 +269,22 @@
 
 .table tr.clickable {
   cursor: pointer;
+}
+
+.table tr.row-closed-won td {
+  background: rgba(22, 163, 74, 0.05);
+}
+
+.table tr.row-closed-won:hover td {
+  background: rgba(22, 163, 74, 0.09);
+}
+
+.table tr.row-closed-lost td {
+  background: rgba(220, 38, 38, 0.05);
+}
+
+.table tr.row-closed-lost:hover td {
+  background: rgba(220, 38, 38, 0.09);
 }
 
 .table td.mono {

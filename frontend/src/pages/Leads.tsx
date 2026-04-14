@@ -51,7 +51,7 @@ function LeadForm({
     course_id: initial?.course_id ?? '',
     notes: initial?.notes ?? '',
     salesperson_id: initial?.salesperson_id ?? '',
-    status: initial?.status ?? 'new',
+    status: initial?.status ?? 'ליד חדש',
   })
 
   // Get selected course for price display
@@ -118,6 +118,7 @@ function LeadForm({
             <option value="elementor">אלמנטור</option>
             <option value="manual">ידני</option>
             <option value="referral">הפניה</option>
+            <option value="ייבוא ממערכת ישנה">ייבוא ממערכת ישנה</option>
             <option value="other">אחר</option>
           </select>
         </div>
@@ -198,11 +199,13 @@ function LeadForm({
         <div className={s['form-group']}>
           <label className={s['form-label']}>סטטוס</label>
           <select className={s.select} value={form.status} onChange={set('status')}>
-            <option value="new">חדש</option>
-            <option value="contacted">נוצר קשר</option>
-            <option value="interested">מעוניין</option>
-            <option value="converted">הומר</option>
-            <option value="irrelevant">לא רלוונטי</option>
+            <option value="ליד חדש">ליד חדש</option>
+            <option value="ליד בתהליך">ליד בתהליך</option>
+            <option value="חיוג ראשון">חיוג ראשון</option>
+            <option value="ליד ישן">ליד ישן</option>
+            <option value="נסלק">נסלק</option>
+            <option value="תלמיד פעיל">תלמיד פעיל</option>
+            <option value="לא רלוונטי">לא רלוונטי</option>
           </select>
         </div>
       </div>
@@ -491,9 +494,18 @@ export function LeadsPage() {
   const fetchLeads = useCallback(async () => {
     setLoading(true)
     try {
-      // Fetch leads (API max limit is 200)
-      const data = await api.get<Lead[]>('leads?limit=200')
-      setLeads(data)
+      const all: Lead[] = []
+      let offset = 0
+      const batchSize = 1000
+
+      while (true) {
+        const batch = await api.get<Lead[]>(`leads?limit=${batchSize}&offset=${offset}`)
+        all.push(...batch)
+        if (batch.length < batchSize) break
+        offset += batchSize
+      }
+
+      setLeads(all)
     } catch (err: unknown) {
       toast.error((err as { message?: string }).message ?? 'שגיאה בטעינת לידים')
     } finally {
@@ -512,7 +524,12 @@ export function LeadsPage() {
       toast.success('עודכן בהצלחה')
 
       // Update local state to avoid full reload
-      setLeads(prev => prev.map(p => p.id === lead.id ? { ...p, ...payload } : p))
+      setLeads(prev => prev.map(p => p.id === lead.id ? {
+        ...p,
+        ...payload,
+        updated_at: new Date().toISOString(),
+        last_edited_at: new Date().toISOString(),
+      } : p))
     } catch (err) {
       toast.error('שגיאה בעדכון')
       throw err // SmartTable will catch this to revert/show error
@@ -712,12 +729,15 @@ export function LeadsPage() {
       key: 'status',
       header: 'סטטוס',
       type: 'select',
+      renderView: r => <Badge entity="lead" value={r.status} />,
       options: [
-        { value: 'new', label: 'חדש' },
-        { value: 'contacted', label: 'נוצר קשר' },
-        { value: 'interested', label: 'מעוניין' },
-        { value: 'converted', label: 'הומר' },
-        { value: 'irrelevant', label: 'לא רלוונטי' },
+        { value: 'ליד חדש', label: 'ליד חדש' },
+        { value: 'ליד בתהליך', label: 'ליד בתהליך' },
+        { value: 'חיוג ראשון', label: 'חיוג ראשון' },
+        { value: 'ליד ישן', label: 'ליד ישן' },
+        { value: 'נסלק', label: 'נסלק' },
+        { value: 'תלמיד פעיל', label: 'תלמיד פעיל' },
+        { value: 'לא רלוונטי', label: 'לא רלוונטי' },
       ],
     },
     {
@@ -735,6 +755,7 @@ export function LeadsPage() {
         { value: 'elementor', label: 'אלמנטור' },
         { value: 'manual', label: 'ידני' },
         { value: 'referral', label: 'הפניה' },
+        { value: 'ייבוא ממערכת ישנה', label: 'ייבוא ממערכת ישנה' },
         { value: 'other', label: 'אחר' },
       ],
     },
@@ -745,6 +766,33 @@ export function LeadsPage() {
       className: s.muted,
       editable: false,
       renderView: r => formatDate(r.created_at)
+    },
+    {
+      key: 'updated_at',
+      header: 'תאריך עדכון',
+      type: 'datetime',
+      className: s.muted,
+      editable: false,
+      hiddenByDefault: true,
+      renderView: r => r.updated_at ? formatDate(r.updated_at) : '—'
+    },
+    {
+      key: 'last_edited_at',
+      header: 'עריכה אחרונה',
+      type: 'datetime',
+      className: s.muted,
+      editable: false,
+      sortable: true,
+      renderView: r => r.last_edited_at ? formatDate(r.last_edited_at) : '—'
+    },
+    {
+      key: 'conversion_date',
+      header: 'תאריך המרה',
+      type: 'datetime',
+      className: s.muted,
+      editable: false,
+      hiddenByDefault: true,
+      renderView: r => r.conversion_date ? formatDate(r.conversion_date) : '—'
     },
     {
       key: '_actions',
@@ -846,6 +894,19 @@ export function LeadsPage() {
           ]}
           defaultPageSize={100}
           pageSizeOptions={[50, 100, 200]}
+          rowClassName={(row) => {
+            if (
+              row.status === 'נסלק' ||
+              row.status === 'ליד סגור - לקוח' ||
+              row.status === 'converted' ||
+              row.status === 'תלמיד פעיל'
+            ) return 'row-closed-won'
+            if (
+              row.status === 'לא רלוונטי' ||
+              row.status === 'ליד סגור - לא רלוונטי'
+            ) return 'row-closed-lost'
+            return ''
+          }}
           onUpdate={handleInlineUpdate}
           onDelete={handleBulkDelete}
           onBulkUpdate={handleBulkUpdate}

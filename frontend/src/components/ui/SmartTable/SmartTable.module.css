@@ -9,7 +9,8 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  margin-bottom: 12px;
+  overflow: visible;
 }
 
 /* --- Toolbar --- */
@@ -74,11 +75,12 @@
   right: 0;
   margin-top: 8px;
   min-width: 500px;
+  max-width: calc(100vw - 32px);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
-  z-index: 100;
+  z-index: 1000;
   padding: 16px;
 }
 
@@ -110,6 +112,7 @@
   flex-direction: column;
   gap: 8px;
   margin-bottom: 12px;
+  overflow: visible;
 }
 
 .filterFooter {
@@ -143,6 +146,8 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  position: relative;
+  z-index: 1;
 }
 
 .filterAnd {
@@ -195,6 +200,7 @@
 .multiValueSelect {
   position: relative;
   min-width: 200px;
+  z-index: 1;
 }
 
 .multiValueDisplay {
@@ -251,7 +257,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
-  z-index: 150;
+  z-index: 100001;
 }
 
 .multiValueOption {
@@ -290,7 +296,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
-  z-index: 100;
+  z-index: 1000;
   overflow: hidden;
 }
 
@@ -719,7 +725,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
-  z-index: 200;
+  z-index: 1000;
 }
 
 .searchResultsHeader {

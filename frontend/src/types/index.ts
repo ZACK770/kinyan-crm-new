@@ -28,6 +28,7 @@ export interface Lead {
   student_id?: number
   campaign_id?: number
   course_id?: number  // Interested course
+  requested_course?: string  // Free text - what the lead asked for
   interested_track_id?: number
   active_task_id?: number
   // Payment tracking (selected course for sale)
@@ -47,6 +48,7 @@ export interface Lead {
   conversion_completed_at?: string
   created_at: string
   updated_at?: string
+  last_edited_at?: string
   created_by?: string
   interactions?: LeadInteraction[]
   payments?: Payment[]
