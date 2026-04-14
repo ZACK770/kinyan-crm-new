@@ -21,6 +21,8 @@ from api import leads_api, students_api, courses_api, dashboard_api, webhooks_ap
 from api import inquiries_api, exams_api, payments_api, expenses_api, attendance_api, collections_api
 from api import auth_api, users_api, audit_logs_api, campaigns_api, files_api, sales_assignment_api
 from api import course_tracks_api, lecturers_api, messages_api, templates_api, lead_conversion_api, chat_api
+from api import salespeople_api, examinees_api, table_prefs_api, popup_api, webhook_logs_api, tasks_api
+from api import exam_registration_api, export_api, import_api, topics_api
 
 # Frontend build directory
 FRONTEND_DIR = Path(__file__).parent / "frontend" / "dist"
@@ -76,6 +78,16 @@ app.include_router(sales_assignment_api.router, prefix="/api/sales-assignment-ru
 app.include_router(messages_api.router, prefix="/api/messages", tags=["messages"])
 app.include_router(templates_api.router, prefix="/api/templates", tags=["templates"])
 app.include_router(chat_api.router, prefix="/api/chat", tags=["chat"])
+app.include_router(salespeople_api.router, prefix="/api/salespeople", tags=["salespeople"])
+app.include_router(examinees_api.router, prefix="/api/examinees", tags=["examinees"])
+app.include_router(table_prefs_api.router, prefix="/api/table-prefs", tags=["table-prefs"])
+app.include_router(popup_api.router, prefix="/api/popups", tags=["popups"])
+app.include_router(webhook_logs_api.router, prefix="/api/webhook-logs", tags=["webhook-logs"])
+app.include_router(tasks_api.router, prefix="/api/tasks", tags=["tasks"])
+app.include_router(exam_registration_api.router, prefix="/api/exam-registration", tags=["exam-registration"])
+app.include_router(export_api.router, prefix="/api/export", tags=["export"])
+app.include_router(import_api.router, prefix="/api/import", tags=["import"])
+app.include_router(topics_api.router, prefix="/api/topics", tags=["topics"])
 
 
 # Health check endpoint (for Render and monitoring)
