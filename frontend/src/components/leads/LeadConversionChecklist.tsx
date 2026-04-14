@@ -92,52 +92,47 @@ const LeadConversionChecklist: React.FC<Props> = ({ lead, onUpdate }) => {
     <div className={styles.container}>
       {/* Header */}
       <div className={styles.header}>
-        <div className={styles.headerBg}>
-          <div className={styles.headerBgCircle1} />
-          <div className={styles.headerBgCircle2} />
-        </div>
-        
         <div className={styles.headerContent}>
           <div className={styles.headerLeft}>
             <div className={styles.headerIcon}>
-              <Sparkles size={32} color="white" strokeWidth={2} />
+              <Sparkles size={20} strokeWidth={2} />
             </div>
             <div className={styles.headerText}>
               <h3>רשימת משימות להמרה לתלמיד</h3>
               <p>
                 {allStepsCompleted 
-                  ? '✨ כל המשימות הושלמו! הליד יומר לתלמיד אוטומטית'
+                  ? 'כל המשימות הושלמו! הליד יומר לתלמיד אוטומטית'
                   : 'השלם את כל המשימות והליד יומר לתלמיד באופן אוטומטי'}
               </p>
             </div>
           </div>
           {lead.student_id && (
             <div className={styles.completeBadge}>
-              <UserCheck size={24} strokeWidth={2.5} />
+              <UserCheck size={16} strokeWidth={2} />
               <span>הומר לתלמיד!</span>
             </div>
           )}
         </div>
-        
-        {/* Progress Bar */}
-        <div className={styles.progressSection}>
-          <div className={styles.progressHeader}>
-            <div className={styles.progressLeft}>
-              <span>התקדמות:</span>
-              <span className={styles.progressCount}>
-                {completedCount}/4
-              </span>
-            </div>
-            <div>
-              <span className={styles.progressPercentage}>{percentage}%</span>
-            </div>
+      </div>
+
+      {/* Progress Bar */}
+      <div className={styles.progressSection}>
+        <div className={styles.progressHeader}>
+          <div className={styles.progressLeft}>
+            <span>התקדמות:</span>
+            <span className={styles.progressCount}>
+              {completedCount}/4
+            </span>
           </div>
-          <div className={styles.progressBarContainer}>
-            <div 
-              className={styles.progressBar}
-              style={{ width: `${percentage}%` }}
-            />
+          <div>
+            <span className={styles.progressPercentage}>{percentage}%</span>
           </div>
+        </div>
+        <div className={styles.progressBarContainer}>
+          <div 
+            className={styles.progressBar}
+            style={{ width: `${percentage}%` }}
+          />
         </div>
       </div>
 
