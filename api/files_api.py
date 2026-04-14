@@ -193,11 +193,16 @@ async def download_file(
     # Case 2: File stored in database
     elif file.file_data:
         from fastapi.responses import Response
+        from urllib.parse import quote
+        
+        # Encode filename to handle Unicode characters
+        encoded_filename = quote(file.filename.encode('utf-8'))
+        
         return Response(
             content=file.file_data,
             media_type=file.content_type or 'application/octet-stream',
             headers={
-                'Content-Disposition': f'attachment; filename="{file.filename}"'
+                'Content-Disposition': f'attachment; filename*=UTF-8\'\'{encoded_filename}'
             }
         )
     
