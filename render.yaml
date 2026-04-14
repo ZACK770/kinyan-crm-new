@@ -25,6 +25,7 @@ services:
     runtime: python
     region: frankfurt
     plan: starter  # Change to 'standard' for production
+    branch: fitchers  # Deploy from fitchers branch
     
     # Build: Install Python deps, build frontend, run migrations
     buildCommand: |
