@@ -518,9 +518,11 @@ export function LeadsPage() {
   /* ── Inline Update ── */
   const handleInlineUpdate = async (lead: Lead, field: string, value: unknown) => {
     try {
+      console.log('handleInlineUpdate:', { leadId: lead.id, field, value })
       const payload: Record<string, unknown> = { [field]: value }
       // Handle special fields conversions if needed
-      await api.patch(`leads/${lead.id}`, payload)
+      const result = await api.patch(`leads/${lead.id}`, payload)
+      console.log('API response:', result)
       toast.success('עודכן בהצלחה')
 
       // Update local state to avoid full reload
@@ -531,6 +533,7 @@ export function LeadsPage() {
         last_edited_at: new Date().toISOString(),
       } : p))
     } catch (err) {
+      console.error('Error updating:', err)
       toast.error('שגיאה בעדכון')
       throw err // SmartTable will catch this to revert/show error
     }
