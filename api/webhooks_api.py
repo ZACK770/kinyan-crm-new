@@ -87,15 +87,74 @@ async def generic_webhook(request: Request):
 
 
 @router.get("/lead")
-async def unified_lead_webhook_status():
-    """Public diagnostic endpoint for verifying the unified lead webhook is deployed."""
+async def unified_lead_webhook_status(request: Request):
+    """
+    Public diagnostic endpoint for verifying the unified lead webhook is deployed.
+    Also processes webhooks if query parameters are present (for systems like Yemot that use GET).
+    """
+    # If query params present, process as webhook
+    if request.query_params:
+        timer = WebhookTimer()
+        data = None
+
+        try:
+            with timer:
+                data = dict(request.query_params)
+                logger.info(f"Unified lead webhook (GET with params): received {len(data)} query params")
+
+                source = detect_source(data)
+                logger.info(f"Unified lead webhook (GET with params): detected source={source}")
+                result = await handle_unified_lead_webhook(data)
+
+            async for db in get_db():
+                await log_webhook(
+                    db,
+                    webhook_type=f"lead-unified:{result.get('source_detected', 'unknown')}",
+                    raw_payload=data,
+                    source_ip=_get_client_ip(request),
+                    success=result.get("success", False),
+                    action=result.get("action"),
+                    result_data=result,
+                    entity_type="lead" if result.get("lead_id") else None,
+                    entity_id=result.get("lead_id"),
+                    processing_time_ms=timer.elapsed_ms,
+                )
+                await db.commit()
+
+            return result
+        except Exception as e:
+            logger.error(f"Unified lead webhook (GET with params) error: {e}")
+            async for db in get_db():
+                webhook_log = await log_webhook(
+                    db,
+                    webhook_type="lead-unified",
+                    raw_payload=data,
+                    source_ip=_get_client_ip(request),
+                    success=False,
+                    error_message=str(e),
+                    processing_time_ms=timer.elapsed_ms,
+                )
+                if webhook_log:
+                    await save_failed_webhook(
+                        db,
+                        webhook_log.id,
+                        "lead-unified",
+                        data,
+                        _get_client_ip(request),
+                        str(e),
+                    )
+                await db.commit()
+
+            return {"success": False, "error": str(e)}
+
+    # No query params - return diagnostic info
     return {
         "success": True,
         "endpoint": "/webhooks/lead",
         "methods": ["GET", "POST"],
         "status": "registered",
         "supports": ["elementor", "yemot", "generic"],
-        "message": "Unified lead webhook is deployed. Use POST to submit lead payloads.",
+        "message": "Unified lead webhook is deployed. Use POST to submit lead payloads, or GET with query params for Yemot.",
     }
 
 
