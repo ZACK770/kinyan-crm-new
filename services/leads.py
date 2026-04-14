@@ -2,28 +2,12 @@
 Lead management service.
 Replaces unified_make_module.js (575 lines JS → ~150 lines Python)
 """
-from sqlalchemy import select, or_, func
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from db.models import Lead, LeadInteraction, LeadMessage, LeadProduct, SalesTask, Inquiry, HistoryEntry, Salesperson
+from db.models import Lead, LeadInteraction, Salesperson
 from utils.phone import normalize_phone, is_valid_phone
-
-# Allowed lead statuses — only these can be set via API/import
-ALLOWED_LEAD_STATUSES = {
-    "ליד חדש",
-    "ליד בתהליך",
-    "חיוג ראשון",
-    "ליד ישן",
-    "במעקב",
-    "מתעניין",
-    "נסלק",
-    "תלמיד פעיל",
-    "לא רלוונטי",
-    "ליד סגור - לקוח",
-    "ליד סגור - לא רלוונטי",
-    "converted",  # set by convert_lead_to_student
-}
 
 
 # ============================================================
@@ -59,20 +43,12 @@ async def search_by_phone(db: AsyncSession, phone: str) -> Lead | None:
 # ============================================================
 async def create_lead(db: AsyncSession, **kwargs) -> Lead:
     """Create a new lead."""
-    from datetime import datetime, timezone
-    
     # Support both 'name' (from webhooks) and 'full_name' (from frontend)
     full_name = kwargs.get("full_name") or kwargs.get("name", "")
-    # Validate status if provided
-    status = kwargs.get("status")
-    if status and status not in ALLOWED_LEAD_STATUSES:
-        raise ValueError(f"סטטוס לא חוקי: {status}")
-
     lead = Lead(
         full_name=full_name,
         family_name=kwargs.get("family_name"),
         phone=normalize_phone(kwargs.get("phone", "")),
-        status=status or "ליד חדש",
         phone2=kwargs.get("phone2"),
         email=kwargs.get("email"),
         address=kwargs.get("address"),
@@ -87,8 +63,6 @@ async def create_lead(db: AsyncSession, **kwargs) -> Lead:
         salesperson_id=kwargs.get("salesperson_id"),
         campaign_id=kwargs.get("campaign_id"),
         course_id=kwargs.get("course_id"),
-        requested_course=kwargs.get("form_product") or kwargs.get("requested_course"),
-        created_at=kwargs.get("created_at", datetime.now(timezone.utc)),
     )
     db.add(lead)
     await db.flush()
@@ -98,68 +72,20 @@ async def create_lead(db: AsyncSession, **kwargs) -> Lead:
 # ============================================================
 # Update
 # ============================================================
-async def update_lead(db: AsyncSession, lead_id: int, manual_edit: bool = False, **kwargs) -> Lead | None:
-    """Update lead fields. If manual_edit=True, also sets last_edited_at."""
-    from datetime import datetime, timezone
+async def update_lead(db: AsyncSession, lead_id: int, **kwargs) -> Lead | None:
+    """Update lead fields."""
     stmt = select(Lead).where(Lead.id == lead_id)
     result = await db.execute(stmt)
     lead = result.scalar_one_or_none()
     if not lead:
         return None
 
-    # Validate status if being changed
-    if "status" in kwargs and kwargs["status"] is not None:
-        if kwargs["status"] not in ALLOWED_LEAD_STATUSES:
-            raise ValueError(f"סטטוס לא חוקי: {kwargs['status']}")
-
     for key, value in kwargs.items():
         if value is not None and hasattr(lead, key):
             setattr(lead, key, value)
 
-    if manual_edit:
-        lead.last_edited_at = datetime.now(timezone.utc)
-
     await db.flush()
     return lead
-
-
-# ============================================================
-# Bulk Operations
-# ============================================================
-async def bulk_update_leads(db: AsyncSession, lead_ids: list[int], field: str, value) -> int:
-    """Update a single field on multiple leads. Returns count of updated leads."""
-    from datetime import datetime, timezone
-    if not lead_ids:
-        return 0
-    if field == "status" and value is not None and value not in ALLOWED_LEAD_STATUSES:
-        raise ValueError(f"סטטוס לא חוקי: {value}")
-    stmt = select(Lead).where(Lead.id.in_(lead_ids))
-    result = await db.execute(stmt)
-    leads = list(result.scalars().all())
-    for lead in leads:
-        if hasattr(lead, field):
-            setattr(lead, field, value)
-            lead.last_edited_at = datetime.now(timezone.utc)
-    await db.flush()
-    return len(leads)
-
-
-async def bulk_delete_leads(db: AsyncSession, lead_ids: list[int]) -> int:
-    """Delete multiple leads by ID. Returns count of deleted leads."""
-    from sqlalchemy import delete as sa_delete
-    if not lead_ids:
-        return 0
-    # Delete related data first (respecting foreign key constraints)
-    # Order matters: delete dependent records before parent records
-    await db.execute(sa_delete(LeadInteraction).where(LeadInteraction.lead_id.in_(lead_ids)))
-    await db.execute(sa_delete(LeadMessage).where(LeadMessage.lead_id.in_(lead_ids)))
-    await db.execute(sa_delete(LeadProduct).where(LeadProduct.lead_id.in_(lead_ids)))
-    await db.execute(sa_delete(SalesTask).where(SalesTask.lead_id.in_(lead_ids)))
-    await db.execute(sa_delete(Inquiry).where(Inquiry.lead_id.in_(lead_ids)))
-    await db.execute(sa_delete(HistoryEntry).where(HistoryEntry.lead_id.in_(lead_ids)))
-    result = await db.execute(sa_delete(Lead).where(Lead.id.in_(lead_ids)))
-    await db.flush()
-    return result.rowcount
 
 
 # ============================================================
@@ -248,7 +174,7 @@ async def assign_salesperson(db: AsyncSession, lead_id: int, phone: str) -> Sale
         
         # Check workload limit (count open leads)
         if rules.max_open_leads is not None:
-            status_filters = rules.status_filters or ["ליד חדש", "ליד בתהליך", "חיוג ראשון"]
+            status_filters = rules.status_filters or ["ליד חדש", "במעקב", "מתעניין"]
             open_leads_stmt = (
                 select(func.count(Lead.id))
                 .where(Lead.salesperson_id == salesperson.id)
@@ -288,31 +214,6 @@ async def assign_salesperson(db: AsyncSession, lead_id: int, phone: str) -> Sale
         await db.flush()
     
     return chosen
-
-
-async def _find_salesperson_by_phone(db: AsyncSession, phone: str) -> Salesperson | None:
-    """Find a salesperson by their phone number (for answered-call attribution)."""
-    clean = normalize_phone(phone)
-    if not clean:
-        return None
-    
-    # Exact match
-    stmt = select(Salesperson).where(Salesperson.phone == clean, Salesperson.is_active == True)  # noqa: E712
-    result = await db.execute(stmt)
-    sp = result.scalar_one_or_none()
-    if sp:
-        return sp
-    
-    # Try without leading zero
-    if clean.startswith("0"):
-        short = clean[1:]
-        stmt = select(Salesperson).where(Salesperson.phone.contains(short), Salesperson.is_active == True)  # noqa: E712
-        result = await db.execute(stmt)
-        sp = result.scalar_one_or_none()
-        if sp:
-            return sp
-    
-    return None
 
 
 async def _assign_salesperson_simple(db: AsyncSession, lead_id: int, phone: str, salespeople: list) -> Salesperson | None:
@@ -417,83 +318,34 @@ async def process_incoming_lead(db: AsyncSession, **kwargs) -> dict:
     """
     Handle an incoming lead from any source.
     This is the core function that replaces the entire unified_make_module.js.
-    
-    Flow:
-    1. Validate phone
-    2. Search for existing lead by phone
-       - Found → add interaction
-       - Not found → create lead + assign salesperson + add interaction + notify
     """
-    from services.lead_notifications import notify_salesperson_new_lead
-    
     phone = kwargs.get("phone", "")
     if not is_valid_phone(phone):
         return {"success": False, "error": "Invalid phone number"}
 
     phone = normalize_phone(phone)
     existing = await search_by_phone(db, phone)
-    
-    # If call was answered, try to find the answering salesperson
-    answered_by_phone = kwargs.get("answered_by_phone", "")
-    answered_sp = None
-    if answered_by_phone:
-        answered_sp = await _find_salesperson_by_phone(db, answered_by_phone)
 
     if existing:
-        # Existing lead → add interaction + attribute to answering agent if applicable
+        # Existing lead → add interaction
         await add_interaction(db, existing.id, **kwargs)
-        
-        # Only update salesperson on the SECOND interaction (first with AnswerNumber)
-        # This ensures the first answered call assigns the lead, subsequent calls don't reassign
-        from sqlalchemy import select, func
-        interaction_count_stmt = select(func.count(LeadInteraction.id)).where(LeadInteraction.lead_id == existing.id)
-        interaction_count_result = await db.execute(interaction_count_stmt)
-        interaction_count = interaction_count_result.scalar()
-        
-        # If this is the second interaction AND we have an answering salesperson, update assignment
-        if answered_sp and interaction_count == 2:
-            existing.salesperson_id = answered_sp.id
         await db.commit()
         return {
             "success": True,
             "action": "updated",
             "lead_id": existing.id,
-            "salesperson": answered_sp.name if answered_sp else None,
         }
     else:
-        # New lead → create + assign + interaction + notify
+        # New lead → create + assign + interaction
         lead = await create_lead(db, **kwargs)
-        # If answered by a known salesperson, assign to them; otherwise use smart assignment
-        if answered_sp:
-            lead.salesperson_id = answered_sp.id
-            await db.flush()
-            sp = answered_sp
-        else:
-            sp = await assign_salesperson(db, lead.id, phone)
+        sp = await assign_salesperson(db, lead.id, phone)
         await add_interaction(db, lead.id, **kwargs)
         await db.commit()
-        
-        # Post-hook: notify assigned salesperson
-        notification_result = None
-        if sp:
-            try:
-                notification_result = await notify_salesperson_new_lead(
-                    db,
-                    lead_id=lead.id,
-                    salesperson_id=sp.id,
-                    source=kwargs.get("source_type", "webhook"),
-                )
-            except Exception as e:
-                # Notification failure should never break lead creation
-                import logging
-                logging.getLogger(__name__).error(f"Notification error for lead {lead.id}: {e}")
-        
         return {
             "success": True,
             "action": "created",
             "lead_id": lead.id,
             "salesperson": sp.name if sp else None,
-            "notification": notification_result,
         }
 
 
@@ -519,29 +371,16 @@ async def list_leads(
     db: AsyncSession,
     status: str | None = None,
     salesperson_id: int | None = None,
-    search: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> list[Lead]:
-    """List leads with optional filters and server-side search."""
+    """List leads with optional filters."""
     stmt = select(Lead).order_by(Lead.created_at.desc()).limit(limit).offset(offset)
 
     if status:
         stmt = stmt.where(Lead.status == status)
     if salesperson_id:
         stmt = stmt.where(Lead.salesperson_id == salesperson_id)
-    if search:
-        q = f"%{search.strip()}%"
-        stmt = stmt.where(
-            or_(
-                Lead.full_name.ilike(q),
-                Lead.family_name.ilike(q),
-                Lead.phone.ilike(q),
-                Lead.phone2.ilike(q),
-                Lead.email.ilike(q),
-                Lead.city.ilike(q),
-            )
-        )
 
     result = await db.execute(stmt)
     return list(result.scalars().all())

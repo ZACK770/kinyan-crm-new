@@ -1,6 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Plus, CreditCard, Search } from 'lucide-react'
-import { BackButton } from '@/components/ui/BackButton'
+import { Plus, CreditCard, Search, ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, formatDate, formatCurrency } from '@/lib/status'
 import { useToast } from '@/components/ui/Toast'
@@ -133,13 +132,12 @@ export function PaymentsPage() {
   const columns: SmartColumn<Payment>[] = [
     { key: 'id', header: '#', type: 'number', width: 60, editable: false },
     { key: 'amount', header: 'סכום', type: 'currency', renderView: r => formatCurrency(r.amount) },
-    { 
-      key: 'payment_method', 
-      header: 'אמצעי', 
+    {
+      key: 'payment_method',
+      header: 'אמצעי',
       type: 'select',
       options: [
         { value: 'credit_card', label: 'כרטיס אשראי' },
-        { value: 'כרטיס אשראי', label: 'כרטיס אשראי' },
         { value: 'bank_transfer', label: 'העברה בנקאית' },
         { value: 'cash', label: 'מזומן' },
         { value: 'check', label: 'צ\'ק' },
@@ -147,19 +145,16 @@ export function PaymentsPage() {
       ],
       renderView: r => r.payment_method ?? '—'
     },
-    { 
-      key: 'status', 
-      header: 'סטטוס', 
+    {
+      key: 'status',
+      header: 'סטטוס',
       type: 'select',
       options: [
         { value: 'paid', label: 'שולם' },
-        { value: 'שולם', label: 'שולם' },
         { value: 'pending', label: 'ממתין' },
-        { value: 'ממתין', label: 'ממתין' },
-        { value: 'failed', label: 'נכשל' },
-        { value: 'refunded', label: 'הוחזר' },
+        { value: 'partial', label: 'חלקי' },
       ],
-      renderView: r => <Badge entity="payment" value={r.status} /> 
+      renderView: r => <Badge entity="payment" value={r.status} />
     },
     { key: 'reference', header: 'אסמכתא', type: 'text', className: s.mono, renderView: r => r.reference ?? '—' },
     { key: 'payment_date', header: 'תאריך', type: 'date', className: s.muted, renderView: r => formatDate(r.payment_date ?? r.created_at) },
@@ -171,7 +166,9 @@ export function PaymentsPage() {
       <div>
         <div className={s['page-header']}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <BackButton onClick={backToList} label="חזרה לתשלומים" />
+            <button className={`${s.btn} ${s['btn-ghost']}`} onClick={backToList} style={{ padding: '6px 10px' }}>
+              <ArrowRight size={18} /> חזרה לרשימה
+            </button>
             <h1 className={s['page-title']} style={{ fontSize: '1.2rem' }}>תשלום חדש</h1>
           </div>
         </div>

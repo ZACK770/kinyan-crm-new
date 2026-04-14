@@ -7,7 +7,6 @@ import {
   Pencil,
   MessageSquarePlus,
   UserCheck,
-  Trash2,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, getSourceLabel, formatDate, formatDateTime } from '@/lib/status'
@@ -52,7 +51,7 @@ function LeadForm({
     course_id: initial?.course_id ?? '',
     notes: initial?.notes ?? '',
     salesperson_id: initial?.salesperson_id ?? '',
-    status: initial?.status ?? 'ליד חדש',
+    status: initial?.status ?? 'new',
   })
 
   // Get selected course for price display
@@ -119,7 +118,6 @@ function LeadForm({
             <option value="elementor">אלמנטור</option>
             <option value="manual">ידני</option>
             <option value="referral">הפניה</option>
-            <option value="ייבוא ממערכת ישנה">ייבוא ממערכת ישנה</option>
             <option value="other">אחר</option>
           </select>
         </div>
@@ -200,17 +198,11 @@ function LeadForm({
         <div className={s['form-group']}>
           <label className={s['form-label']}>סטטוס</label>
           <select className={s.select} value={form.status} onChange={set('status')}>
-            <option value="ליד חדש">ליד חדש</option>
-            <option value="ליד בתהליך">ליד בתהליך</option>
-            <option value="חיוג ראשון">חיוג ראשון</option>
-            <option value="ליד ישן">ליד ישן</option>
-            <option value="במעקב">במעקב</option>
-            <option value="מתעניין">מתעניין</option>
-            <option value="נסלק">נסלק</option>
-            <option value="תלמיד פעיל">תלמיד פעיל</option>
-            <option value="לא רלוונטי">לא רלוונטי</option>
-            <option value="ליד סגור - לקוח">ליד סגור - לקוח</option>
-            <option value="ליד סגור - לא רלוונטי">ליד סגור - לא רלוונטי</option>
+            <option value="new">חדש</option>
+            <option value="contacted">נוצר קשר</option>
+            <option value="interested">מעוניין</option>
+            <option value="converted">הומר</option>
+            <option value="irrelevant">לא רלוונטי</option>
           </select>
         </div>
       </div>
@@ -293,7 +285,7 @@ function ConvertLeadForm({
   onSubmit: (courseId: number | null) => void
 }) {
   const [courseId, setCourseId] = useState('')
-  
+
   const handle = (e: FormEvent) => {
     e.preventDefault()
     onSubmit(courseId ? Number(courseId) : null)
@@ -306,7 +298,7 @@ function ConvertLeadForm({
       <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: 14 }}>
         המרה לתלמיד תיצור רשומת תלמיד חדשה עם כל הפרטים מהליד.
       </p>
-      
+
       <div className={s['form-group']}>
         <label className={s['form-label']}>קורס להרשמה (אופציונלי)</label>
         <select className={s.select} value={courseId} onChange={e => setCourseId(e.target.value)}>
@@ -465,39 +457,21 @@ export function LeadsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
-  
+
   // Workspace view state: 'list' | 'create' | Lead object (edit mode)
   type ViewMode = 'list' | 'create'
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
-  const [loadingWorkspace, setLoadingWorkspace] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
 
-  // Auto-open create form when ?create=true or load workspace when ?lead=ID
+  // Auto-open create form when ?create=true (from entity '+' button)
   useEffect(() => {
     if (searchParams.get('create') === 'true') {
       setViewMode('create')
       setSelectedLead(null)
       setSearchParams({}, { replace: true })
-    } else if (searchParams.get('lead')) {
-      const leadId = Number(searchParams.get('lead'))
-      if (leadId && !isNaN(leadId) && selectedLead?.id !== leadId) {
-        setLoadingWorkspace(true)
-        // Load the lead workspace
-        api.get<Lead>(`leads/${leadId}`)
-          .then(lead => {
-            setSelectedLead(lead)
-            setViewMode('list')
-          })
-          .catch(() => {
-            toast.error('ליד לא נמצא')
-            setSearchParams({}, { replace: true })
-          })
-          .finally(() => setLoadingWorkspace(false))
-      }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams])
+  }, [searchParams, setSearchParams])
 
   /* ── Fetch Reference Data ── */
   useEffect(() => {
@@ -517,17 +491,8 @@ export function LeadsPage() {
   const fetchLeads = useCallback(async () => {
     setLoading(true)
     try {
-      // Fetch all leads in batches
-      const all: Lead[] = []
-      let offset = 0
-      const batchSize = 1000
-      while (true) {
-        const batch = await api.get<Lead[]>(`leads?limit=${batchSize}&offset=${offset}`)
-        all.push(...batch)
-        if (batch.length < batchSize) break
-        offset += batchSize
-      }
-      const data = all
+      // Fetch leads (API max limit is 200)
+      const data = await api.get<Lead[]>('leads?limit=200')
       setLeads(data)
     } catch (err: unknown) {
       toast.error((err as { message?: string }).message ?? 'שגיאה בטעינת לידים')
@@ -536,12 +501,6 @@ export function LeadsPage() {
     }
   }, [toast])
 
-  /* ── Server-side search (searches ALL leads in DB, not just loaded 200) ── */
-  const serverSearch = useCallback(async (query: string): Promise<Lead[]> => {
-    const results = await api.get<Lead[]>(`leads?search=${encodeURIComponent(query)}&limit=20`)
-    return results
-  }, [])
-
   useEffect(() => { fetchLeads() }, [fetchLeads])
 
   /* ── Inline Update ── */
@@ -549,35 +508,14 @@ export function LeadsPage() {
     try {
       const payload: Record<string, unknown> = { [field]: value }
       // Handle special fields conversions if needed
-      const result = await api.patch<{ id: number; status: string; last_edited_at?: string; updated_at?: string }>(`leads/${lead.id}`, payload)
+      await api.patch(`leads/${lead.id}`, payload)
       toast.success('עודכן בהצלחה')
-      
-      // Update local state with changed field + timestamps from server
-      const serverUpdates: Record<string, unknown> = { ...payload }
-      if (result?.last_edited_at) serverUpdates.last_edited_at = result.last_edited_at
-      if (result?.updated_at) serverUpdates.updated_at = result.updated_at
-      setLeads(prev => prev.map(p => p.id === lead.id ? { ...p, ...serverUpdates } : p))
+
+      // Update local state to avoid full reload
+      setLeads(prev => prev.map(p => p.id === lead.id ? { ...p, ...payload } : p))
     } catch (err) {
       toast.error('שגיאה בעדכון')
       throw err // SmartTable will catch this to revert/show error
-    }
-  }
-
-  /* ── Delete Lead ── */
-  const handleDelete = async (lead: Lead) => {
-    const shouldDelete = window.confirm(`האם אתה בטוח שברצונך למחוק את הליד ${lead.full_name}? פעולה זו בלתי הפיכה.`)
-    if (!shouldDelete) return
-
-    try {
-      await api.delete(`leads/${lead.id}`)
-      toast.success('ליד נמחק בהצלחה')
-      fetchLeads()
-      // If we're in workspace view of this lead, go back to list
-      if (selectedLead?.id === lead.id) {
-        backToList()
-      }
-    } catch (err: unknown) {
-      toast.error((err as { message?: string }).message ?? 'שגיאה במחיקה')
     }
   }
 
@@ -616,8 +554,6 @@ export function LeadsPage() {
       const full = await api.get<Lead>(`leads/${lead.id}`)
       setSelectedLead(full)
       setViewMode('list')  // Not 'create' — we have a selected lead
-      // Update URL to include lead ID
-      setSearchParams({ lead: String(lead.id) }, { replace: true })
     } catch {
       toast.error('שגיאה בטעינת פרטי ליד')
     }
@@ -627,8 +563,6 @@ export function LeadsPage() {
   const backToList = () => {
     setSelectedLead(null)
     setViewMode('list')
-    // Clear URL params
-    setSearchParams({}, { replace: true })
   }
 
   const refreshSelectedLead = async () => {
@@ -751,236 +685,72 @@ export function LeadsPage() {
 
   /* ── Columns (SmartTable) ── */
   const columns: SmartColumn<Lead>[] = [
-    { 
-      key: 'full_name', 
-      header: 'שם מלא', 
+    {
+      key: 'full_name',
+      header: 'שם מלא',
       type: 'text',
       sortable: true,
       filterable: true,
-      editable: false,
-      renderView: (r) => (
-        <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>
+      render: (r) => (
+        <span
+          style={{ fontWeight: 600, color: 'var(--color-primary)', cursor: 'pointer' }}
+          onClick={() => openDetail(r)}
+        >
           {r.full_name} {r.family_name ?? ''}
         </span>
       )
     },
-    { 
-      key: 'phone', 
-      header: 'טלפון', 
+    {
+      key: 'phone',
+      header: 'טלפון',
       type: 'text',
-      filterable: true,
-      sortable: true,
-      className: s.mono, 
+      className: s.mono,
       renderView: r => <span dir="ltr">{r.phone}</span>,
       editable: false // Phone usually shouldn't be edited inline easily
     },
-    { 
-      key: 'phone2', 
-      header: 'טלפון 2', 
-      type: 'text',
-      filterable: true,
-      sortable: true,
-      hiddenByDefault: true,
-      className: s.mono,
-      renderView: r => r.phone2 ? <span dir="ltr">{r.phone2}</span> : <span style={{ color: 'var(--color-text-muted)' }}>—</span>,
-    },
-    { 
-      key: 'email', 
-      header: 'אימייל', 
-      type: 'text',
-      filterable: true,
-      sortable: true,
-      hiddenByDefault: true,
-      renderView: r => r.email ? <span dir="ltr" style={{ fontSize: 13 }}>{r.email}</span> : <span style={{ color: 'var(--color-text-muted)' }}>—</span>,
-    },
-    { 
-      key: 'city', 
-      header: 'עיר', 
-      type: 'text',
-      filterable: true,
-      sortable: true,
-      hiddenByDefault: true,
-      renderView: r => r.city || <span style={{ color: 'var(--color-text-muted)' }}>—</span>,
-    },
-    { 
-      key: 'status', 
-      header: 'סטטוס', 
+    {
+      key: 'status',
+      header: 'סטטוס',
       type: 'select',
       options: [
-        { value: 'ליד חדש', label: 'ליד חדש' },
-        { value: 'ליד בתהליך', label: 'ליד בתהליך' },
-        { value: 'חיוג ראשון', label: 'חיוג ראשון' },
-        { value: 'ליד ישן', label: 'ליד ישן' },
-        { value: 'במעקב', label: 'במעקב' },
-        { value: 'מתעניין', label: 'מתעניין' },
-        { value: 'נסלק', label: 'נסלק' },
-        { value: 'converted', label: 'הומר לתלמיד' },
-        { value: 'תלמיד פעיל', label: 'תלמיד פעיל' },
-        { value: 'לא רלוונטי', label: 'לא רלוונטי' },
-        { value: 'ליד סגור - לקוח', label: 'ליד סגור - לקוח' },
-        { value: 'ליד סגור - לא רלוונטי', label: 'ליד סגור - לא רלוונטי' },
+        { value: 'new', label: 'חדש' },
+        { value: 'contacted', label: 'נוצר קשר' },
+        { value: 'interested', label: 'מעוניין' },
+        { value: 'converted', label: 'הומר' },
+        { value: 'irrelevant', label: 'לא רלוונטי' },
       ],
-      renderView: (r) => <Badge entity="lead" value={r.status} />,
     },
-    { 
-      key: 'salesperson_id', 
-      header: 'איש מכירות', 
+    {
+      key: 'salesperson_id',
+      header: 'איש מכירות',
       type: 'select',
-      filterable: true,
-      sortable: true,
       options: salespersons.map(sp => ({ value: sp.id, label: sp.name })),
     },
-    { 
-      key: 'source_type', 
-      header: 'מקור', 
+    {
+      key: 'source_type',
+      header: 'מקור',
       type: 'select',
-      filterable: true,
-      sortable: true,
       options: [
         { value: 'yemot', label: 'ימות המשיח' },
         { value: 'elementor', label: 'אלמנטור' },
         { value: 'manual', label: 'ידני' },
         { value: 'referral', label: 'הפניה' },
-        { value: 'ייבוא ממערכת ישנה', label: 'ייבוא ממערכת ישנה' },
         { value: 'other', label: 'אחר' },
       ],
     },
-    { 
-      key: 'source_name', 
-      header: 'שם מקור', 
-      type: 'text',
-      filterable: true,
-      sortable: true,
-      hiddenByDefault: true,
-      renderView: r => r.source_name || <span style={{ color: 'var(--color-text-muted)' }}>—</span>,
-    },
-    { 
-      key: 'campaign_name', 
-      header: 'שם קמפיין', 
-      type: 'text',
-      filterable: true,
-      sortable: true,
-      hiddenByDefault: true,
-      renderView: r => r.campaign_name || <span style={{ color: 'var(--color-text-muted)' }}>—</span>,
-    },
-    { 
-      key: 'family_name', 
-      header: 'שם משפחה', 
-      type: 'text',
-      filterable: true,
-      sortable: true,
-      hiddenByDefault: true,
-      renderView: r => r.family_name || <span style={{ color: 'var(--color-text-muted)' }}>—</span>,
-    },
-    { 
-      key: 'address', 
-      header: 'כתובת', 
-      type: 'text',
-      filterable: true,
-      sortable: true,
-      hiddenByDefault: true,
-      renderView: r => {
-        if (!r.address) return <span style={{ color: 'var(--color-text-muted)' }}>—</span>
-        const short = r.address.length > 30 ? r.address.slice(0, 30) + '…' : r.address
-        return <span title={r.address} style={{ fontSize: 12 }}>{short}</span>
-      },
-    },
-    { 
-      key: 'id_number', 
-      header: 'תעודת זהות', 
-      type: 'text',
-      filterable: true,
-      sortable: true,
-      hiddenByDefault: true,
-      className: s.mono,
-      renderView: r => r.id_number || <span style={{ color: 'var(--color-text-muted)' }}>—</span>,
-    },
-    { 
-      key: 'notes', 
-      header: 'הערות', 
-      type: 'text',
-      sortable: false,
-      filterable: true,
-      renderView: r => {
-        if (!r.notes) return <span style={{ color: 'var(--color-text-muted)' }}>—</span>
-        const short = r.notes.length > 40 ? r.notes.slice(0, 40) + '…' : r.notes
-        return <span title={r.notes} style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{short}</span>
-      },
-    },
-    { 
-      key: 'created_at', 
-      header: 'תאריך יצירה', 
+    {
+      key: 'created_at',
+      header: 'תאריך יצירה',
       type: 'datetime',
       className: s.muted,
       editable: false,
       renderView: r => formatDate(r.created_at)
     },
-    { 
-      key: 'updated_at', 
-      header: 'תאריך עדכון', 
-      type: 'datetime',
-      className: s.muted,
-      editable: false,
-      hiddenByDefault: true,
-      renderView: r => r.updated_at ? formatDate(r.updated_at) : '—'
-    },
-    { 
-      key: 'last_edited_at', 
-      header: 'עריכה אחרונה', 
-      type: 'datetime',
-      className: s.muted,
-      editable: false,
-      sortable: true,
-      renderView: r => r.last_edited_at ? formatDate(r.last_edited_at) : '—'
-    },
-    { 
-      key: 'conversion_date', 
-      header: 'תאריך המרה', 
-      type: 'datetime',
-      className: s.muted,
-      editable: false,
-      hiddenByDefault: true,
-      renderView: r => r.conversion_date ? formatDate(r.conversion_date) : '—'
-    },
-    { 
-      key: 'lead_response', 
-      header: 'תגובת ליד', 
-      type: 'select',
-      filterable: true,
-      sortable: true,
-      hiddenByDefault: true,
-      options: [
-        { value: 'מעוניין', label: 'מעוניין' },
-        { value: 'צריך לחשוב', label: 'צריך לחשוב' },
-        { value: 'לא זמין', label: 'לא זמין' },
-        { value: 'לא מעוניין', label: 'לא מעוניין' },
-      ],
-      renderView: r => r.lead_response || <span style={{ color: 'var(--color-text-muted)' }}>—</span>,
-    },
-    { 
-      key: 'follow_up_count', 
-      header: 'מספר מעקבים', 
-      type: 'number',
-      filterable: true,
-      sortable: true,
-      hiddenByDefault: true,
-      renderView: r => r.follow_up_count ?? 0,
-    },
-    { 
-      key: 'last_contact_date', 
-      header: 'תאריך שיחה אחרונה', 
-      type: 'datetime',
-      filterable: true,
-      sortable: true,
-      hiddenByDefault: true,
-      className: s.muted,
-      renderView: r => r.last_contact_date ? formatDateTime(r.last_contact_date) : <span style={{ color: 'var(--color-text-muted)' }}>—</span>,
-    },
     {
       key: '_actions',
       header: '',
       type: 'text',
-      width: 110,
+      width: 80,
       render: r => (
         <div style={{ display: 'flex', gap: 4 }}>
           <button
@@ -996,14 +766,6 @@ export function LeadsPage() {
             title="ערוך"
           >
             <Pencil size={14} strokeWidth={1.5} />
-          </button>
-          <button
-            className={`${s.btn} ${s['btn-ghost']} ${s['btn-xs']}`}
-            onClick={e => { e.stopPropagation(); handleDelete(r) }}
-            title="מחק"
-            style={{ color: 'var(--color-danger, #dc2626)' }}
-          >
-            <Trash2 size={14} strokeWidth={1.5} />
           </button>
         </div>
       ),
@@ -1028,7 +790,7 @@ export function LeadsPage() {
         campaigns={campaigns}
         courses={courses}
         onClose={backToList}
-        onUpdate={() => {}}
+        onUpdate={() => { }}
         onCreate={handleCreatedLead}
       />
     )
@@ -1044,19 +806,9 @@ export function LeadsPage() {
         courses={courses}
         onClose={backToList}
         onUpdate={refreshSelectedLead}
-        onAddInteraction={() => openAddInteraction(selectedLead!.id)}
-        onConvert={() => openConvert(selectedLead!)}
-        onDelete={() => handleDelete(selectedLead!)}
+        onAddInteraction={() => openAddInteraction(selectedLead.id)}
+        onConvert={() => openConvert(selectedLead)}
       />
-    )
-  }
-
-  // Loading workspace from URL — show placeholder instead of flashing the table
-  if (loadingWorkspace) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 80, color: 'var(--color-text-muted)' }}>
-        טוען מרחב עבודה...
-      </div>
     )
   }
 
@@ -1086,25 +838,17 @@ export function LeadsPage() {
           onBulkUpdate={handleBulkUpdate}
           keyExtractor={(row) => row.id}
           storageKey="leads_table_v1"
-          searchPlaceholder="חיפוש ליד לפי שם, טלפון, אימייל..."
-          searchFields={[
-            { key: 'full_name', label: 'שם פרטי', weight: 3 },
-            { key: 'family_name', label: 'שם משפחה', weight: 3 },
-            { key: 'phone', label: 'טלפון', weight: 2 },
-            { key: 'email', label: 'אימייל', weight: 1 },
-            { key: 'city', label: 'עיר', weight: 1 },
-            { key: 'status', label: 'סטטוס', weight: 1 },
+          bulkActions={[
+            {
+              id: 'assign_sp',
+              label: 'שיוך לאיש מכירות',
+              icon: <UserCheck size={14} />,
+              action: (selected) => {
+                // TODO: Open modal to select SP
+                toast.success(`נבחרו ${selected.length} לידים לשיוך`)
+              }
+            }
           ]}
-          onSearchSelect={openLeadWorkspace}
-          onServerSearch={serverSearch}
-          defaultPageSize={100}
-          pageSizeOptions={[50, 100, 200]}
-          rowClassName={(row) => {
-            if (row.status === 'נסלק' || row.status === 'ליד סגור - לקוח' || row.status === 'converted' || row.status === 'תלמיד פעיל') return 'row-closed-won'
-            if (row.status === 'לא רלוונטי' || row.status === 'ליד סגור - לא רלוונטי') return 'row-closed-lost'
-            return ''
-          }}
-          bulkActions={[]}
         />
       </div>
     </div>

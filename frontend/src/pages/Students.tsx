@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Plus, GraduationCap, Eye, BookOpen } from 'lucide-react'
-import { BackButton } from '@/components/ui/BackButton'
+import { Plus, GraduationCap, Eye, ArrowRight, BookOpen } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, formatDate, formatCurrency } from '@/lib/status'
 import { useModal } from '@/components/ui/Modal'
@@ -196,7 +195,7 @@ export function StudentsPage() {
   }, [toast])
 
   useEffect(() => { fetchStudents() }, [fetchStudents])
-  useEffect(() => { api.get<Course[]>('courses').then(setCourses).catch(() => {}) }, [])
+  useEffect(() => { api.get<Course[]>('courses').then(setCourses).catch(() => { }) }, [])
 
   /* Detail */
   const openDetail = async (stu: Student) => {
@@ -255,9 +254,9 @@ export function StudentsPage() {
   }
 
   const columns: SmartColumn<Student>[] = [
-    { 
-      key: 'full_name', 
-      header: 'שם מלא', 
+    {
+      key: 'full_name',
+      header: 'שם מלא',
       type: 'text',
       sortable: true,
       filterable: true,
@@ -267,28 +266,29 @@ export function StudentsPage() {
         </span>
       )
     },
-    { 
-      key: 'phone', 
-      header: 'טלפון', 
+    {
+      key: 'phone',
+      header: 'טלפון',
       type: 'text',
-      className: s.mono, 
+      className: s.mono,
       renderView: r => <span dir="ltr">{r.phone}</span>,
       editable: false
     },
-    { 
-      key: 'status', 
-      header: 'סטטוס', 
+    {
+      key: 'status',
+      header: 'סטטוס',
       type: 'select',
       options: [
         { value: 'active', label: 'פעיל' },
         { value: 'inactive', label: 'לא פעיל' },
         { value: 'graduated', label: 'סיים' },
+        { value: 'suspended', label: 'מושהה' },
       ],
       renderView: r => <Badge entity="student" value={r.status} />
     },
-    { 
-      key: 'payment_status', 
-      header: 'תשלום', 
+    {
+      key: 'payment_status',
+      header: 'תשלום',
       type: 'select',
       options: [
         { value: 'paid', label: 'שולם' },
@@ -298,16 +298,16 @@ export function StudentsPage() {
       ],
       renderView: r => <Badge entity="payment" value={r.payment_status} />
     },
-    { 
-      key: 'total_paid', 
-      header: 'שולם', 
+    {
+      key: 'total_paid',
+      header: 'שולם',
       type: 'currency',
       renderView: r => formatCurrency(r.total_paid),
       editable: false
     },
-    { 
-      key: 'created_at', 
-      header: 'הצטרפות', 
+    {
+      key: 'created_at',
+      header: 'הצטרפות',
       type: 'date',
       className: s.muted,
       renderView: r => formatDate(r.created_at),
@@ -332,7 +332,9 @@ export function StudentsPage() {
       <div>
         <div className={s['page-header']}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <BackButton onClick={backToList} label="חזרה לתלמידים" />
+            <button className={`${s.btn} ${s['btn-ghost']}`} onClick={backToList} style={{ padding: '6px 10px' }}>
+              <ArrowRight size={18} /> חזרה לרשימה
+            </button>
             <h1 className={s['page-title']} style={{ fontSize: '1.2rem' }}>המרת ליד לתלמיד</h1>
           </div>
         </div>

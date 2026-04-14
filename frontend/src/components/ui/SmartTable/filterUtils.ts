@@ -2,7 +2,7 @@
    SmartTable Filter Utilities
    ============================================================ */
 
-import type { Filter, FilterOperator, FilterMode, FieldType, SavedFilter, TableState } from './types'
+import type { Filter, FilterOperator, FieldType, SavedFilter, TableState } from './types'
 
 // Generate unique ID
 export const generateId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -68,9 +68,9 @@ export function getOperatorsForType(type: FieldType): FilterOperator[] {
 
 // Check if operator needs a value input
 export function operatorNeedsValue(operator: FilterOperator): boolean {
-  return !['isEmpty', 'isNotEmpty', 'today', 'yesterday', 'thisWeek', 'lastWeek', 
-           'thisMonth', 'lastMonth', 'last7Days', 'last30Days', 'thisYear',
-           'isTrue', 'isFalse'].includes(operator)
+  return !['isEmpty', 'isNotEmpty', 'today', 'yesterday', 'thisWeek', 'lastWeek',
+    'thisMonth', 'lastMonth', 'last7Days', 'last30Days', 'thisYear',
+    'isTrue', 'isFalse'].includes(operator)
 }
 
 // Check if operator needs second value (between)
@@ -82,7 +82,7 @@ export function operatorNeedsSecondValue(operator: FilterOperator): boolean {
 function getDateRange(operator: FilterOperator): { start: Date; end: Date } | null {
   const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  
+
   switch (operator) {
     case 'today':
       return { start: today, end: new Date(today.getTime() + 86400000 - 1) }
@@ -132,7 +132,7 @@ export function applyFilter<T>(row: T, filter: Filter, type: FieldType): boolean
   const value = (row as Record<string, unknown>)[filter.field]
   const filterValue = filter.value
   const filterValue2 = filter.value2
-  
+
   // Handle empty checks
   if (filter.operator === 'isEmpty') {
     return value === null || value === undefined || value === ''
@@ -140,43 +140,35 @@ export function applyFilter<T>(row: T, filter: Filter, type: FieldType): boolean
   if (filter.operator === 'isNotEmpty') {
     return value !== null && value !== undefined && value !== ''
   }
-  
+
   // Handle boolean
   if (type === 'boolean') {
     if (filter.operator === 'isTrue') return value === true
     if (filter.operator === 'isFalse') return value === false
   }
-  
+
   // Handle text
   if (type === 'text') {
     const strValue = String(value ?? '').toLowerCase()
     const strFilter = String(filterValue ?? '').toLowerCase()
-    const multiValues = filter.values?.length ? filter.values.map(v => String(v).toLowerCase()) : null
-    
+
     switch (filter.operator) {
       case 'contains': return strValue.includes(strFilter)
-      case 'equals': {
-        if (multiValues) return multiValues.includes(strValue)
-        return strValue === strFilter
-      }
-      case 'notEquals': {
-        if (multiValues) return !multiValues.includes(strValue)
-        return strValue !== strFilter
-      }
+      case 'equals': return strValue === strFilter
       case 'startsWith': return strValue.startsWith(strFilter)
       case 'endsWith': return strValue.endsWith(strFilter)
       default: return true
     }
   }
-  
+
   // Handle number/currency
   if (type === 'number' || type === 'currency') {
     const numValue = Number(value)
     const numFilter = Number(filterValue)
     const numFilter2 = Number(filterValue2)
-    
+
     if (isNaN(numValue)) return String(filter.operator) === 'isEmpty'
-    
+
     switch (filter.operator) {
       case 'equals': return numValue === numFilter
       case 'gt': return numValue > numFilter
@@ -187,30 +179,30 @@ export function applyFilter<T>(row: T, filter: Filter, type: FieldType): boolean
       default: return true
     }
   }
-  
+
   // Handle date/datetime
   if (type === 'date' || type === 'datetime') {
     const dateValue = value ? new Date(value as string) : null
-    
+
     // Check preset date ranges
     const dateRange = getDateRange(filter.operator)
     if (dateRange && dateValue) {
       return dateValue >= dateRange.start && dateValue <= dateRange.end
     }
-    
+
     const filterDate = filterValue ? new Date(filterValue as string) : null
     const filterDate2 = filterValue2 ? new Date(filterValue2 as string) : null
-    
+
     if (!dateValue) return false
-    
+
     switch (filter.operator) {
-      case 'equals': 
+      case 'equals':
         if (!filterDate) return false
         return dateValue.toDateString() === filterDate.toDateString()
-      case 'before': 
+      case 'before':
         if (!filterDate) return false
         return dateValue < filterDate
-      case 'after': 
+      case 'after':
         if (!filterDate) return false
         return dateValue > filterDate
       case 'between':
@@ -219,33 +211,23 @@ export function applyFilter<T>(row: T, filter: Filter, type: FieldType): boolean
       default: return true
     }
   }
-  
+
   // Handle select
   if (type === 'select') {
     const strValue = String(value ?? '')
     const strFilter = String(filterValue ?? '')
-    
-    // Multi-value support for equals/notEquals
-    const multiValues = filter.values?.length ? filter.values.map(v => String(v)) : null
-    
+
     switch (filter.operator) {
-      case 'equals': {
-        if (multiValues) return multiValues.includes(strValue)
-        return strValue === strFilter
-      }
-      case 'notEquals': {
-        if (multiValues) return !multiValues.includes(strValue)
-        return strValue !== strFilter
-      }
+      case 'equals': return strValue === strFilter
+      case 'notEquals': return strValue !== strFilter
       case 'in': {
-        if (multiValues) return multiValues.includes(strValue)
         const values = strFilter.split(',').map(v => v.trim())
         return values.includes(strValue)
       }
       default: return true
     }
   }
-  
+
   return true
 }
 
@@ -253,37 +235,16 @@ export function applyFilter<T>(row: T, filter: Filter, type: FieldType): boolean
 export function applyFilters<T>(
   data: T[],
   filters: Filter[],
-  columns: { key: string; type: FieldType }[],
-  filterMode: FilterMode = 'and'
+  columns: { key: string; type: FieldType }[]
 ): T[] {
-  // Filter out incomplete filters before applying.
-  // Important: some operators intentionally don't need a value (e.g. today/thisWeek/last7Days).
-  const validFilters = filters.filter(filter => {
-    // Operators that don't require a value are always valid
-    if (!operatorNeedsValue(filter.operator)) return true
+  if (!filters.length) return data
 
-    // Operators that require a value must have one
-    if (filter.value === null || filter.value === undefined || filter.value === '') {
-      return false
-    }
-
-    // For 'between' operator, ensure second value is present
-    if (operatorNeedsSecondValue(filter.operator)) {
-      return !(filter.value2 === null || filter.value2 === undefined || filter.value2 === '')
-    }
-
-    return true
-  })
-  
-  if (!validFilters.length) return data
-  
   return data.filter(row => {
-    const results = validFilters.map(filter => {
+    return filters.every(filter => {
       const column = columns.find(c => c.key === filter.field)
       if (!column) return true
       return applyFilter(row, filter, column.type)
     })
-    return filterMode === 'and' ? results.every(Boolean) : results.some(Boolean)
   })
 }
 

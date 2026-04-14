@@ -182,10 +182,9 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
 
 # ── Google OAuth ─────────────────────────────────────
 @router.get("/google/login-url")
-async def google_login_url(request: Request):
+async def google_login_url():
     """Get the Google OAuth consent URL. Frontend redirects the user here."""
-    origin = str(request.base_url).rstrip("/")
-    url = get_google_login_url(request_origin=origin)
+    url = get_google_login_url()
     return {"url": url}
 
 
@@ -196,8 +195,7 @@ async def google_callback(body: GoogleCallbackRequest, request: Request, db: Asy
     get user info, and create/login the user.
     """
     try:
-        origin = str(request.base_url).rstrip("/")
-        tokens = await exchange_code_for_tokens(body.code, request_origin=origin)
+        tokens = await exchange_code_for_tokens(body.code)
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

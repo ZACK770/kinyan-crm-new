@@ -4,13 +4,13 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { Filter as FilterIcon, X, Plus, Save, Trash2, ChevronDown, Calendar } from 'lucide-react'
-import type { Filter, FilterMode, SmartColumn, SavedFilter, FilterOperator, FieldType } from './types'
-import { 
-  generateId, 
-  getOperatorsForType, 
-  operatorLabels, 
-  operatorNeedsValue, 
-  operatorNeedsSecondValue 
+import type { Filter, SmartColumn, SavedFilter, FilterOperator, FieldType } from './types'
+import {
+  generateId,
+  getOperatorsForType,
+  operatorLabels,
+  operatorNeedsValue,
+  operatorNeedsSecondValue
 } from './filterUtils'
 import s from './SmartTable.module.css'
 import shared from '@/styles/shared.module.css'
@@ -18,33 +18,23 @@ import shared from '@/styles/shared.module.css'
 interface Props<T> {
   columns: SmartColumn<T>[]
   filters: Filter[]
-  filterMode: FilterMode
   savedFilters: SavedFilter[]
   activeSavedFilterId: string | null
   onFiltersChange: (filters: Filter[]) => void
-  onFilterModeChange: (mode: FilterMode) => void
   onSaveFilter: (name: string, filters: Filter[]) => void
   onLoadFilter: (savedFilter: SavedFilter) => void
   onDeleteSavedFilter: (id: string) => void
-  canPublishGlobal?: boolean
-  onPublishGlobal?: (savedFilterId: string) => void
-  isPublishingGlobal?: boolean
 }
 
 export function FilterPanel<T>({
   columns,
   filters,
-  filterMode,
   savedFilters,
   activeSavedFilterId,
   onFiltersChange,
-  onFilterModeChange,
   onSaveFilter,
   onLoadFilter,
   onDeleteSavedFilter,
-  canPublishGlobal = false,
-  onPublishGlobal,
-  isPublishingGlobal = false,
 }: Props<T>) {
   const [isOpen, setIsOpen] = useState(false)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
@@ -68,7 +58,7 @@ export function FilterPanel<T>({
   const addFilter = () => {
     const firstCol = filterableColumns[0]
     if (!firstCol) return
-    
+
     const operators = getOperatorsForType(firstCol.type)
     const newFilter: Filter = {
       id: generateId(),
@@ -101,10 +91,10 @@ export function FilterPanel<T>({
   const handleFieldChange = (filterId: string, fieldKey: string) => {
     const column = columns.find(c => c.key === fieldKey)
     if (!column) return
-    
+
     const operators = column.filterOperators || getOperatorsForType(column.type)
-    updateFilter(filterId, { 
-      field: fieldKey, 
+    updateFilter(filterId, {
+      field: fieldKey,
       operator: operators[0],
       value: null,
       value2: undefined,
@@ -125,17 +115,11 @@ export function FilterPanel<T>({
   }
 
   const activeSavedFilter = savedFilters.find(f => f.id === activeSavedFilterId)
-  const canPublishSelectedSavedFilter = Boolean(
-    canPublishGlobal &&
-    onPublishGlobal &&
-    activeSavedFilterId &&
-    !String(activeSavedFilterId).startsWith('g_')
-  )
 
   return (
     <div className={s.filterPanel}>
       {/* Toggle button */}
-      <button 
+      <button
         className={`${shared.btn} ${shared['btn-secondary']} ${shared['btn-sm']} ${filters.length ? s.filterActive : ''}`}
         onClick={() => setIsOpen(!isOpen)}
       >
@@ -149,19 +133,19 @@ export function FilterPanel<T>({
       {/* Saved filters dropdown */}
       {savedFilters.length > 0 && (
         <div className={s.savedFiltersWrapper} ref={dropdownRef}>
-          <button 
+          <button
             className={`${shared.btn} ${shared['btn-ghost']} ${shared['btn-sm']}`}
             onClick={() => setShowSavedDropdown(!showSavedDropdown)}
           >
             {activeSavedFilter ? activeSavedFilter.name : 'פילטרים שמורים'}
             <ChevronDown size={14} />
           </button>
-          
+
           {showSavedDropdown && (
             <div className={s.savedFiltersDropdown}>
               {savedFilters.map(sf => (
                 <div key={sf.id} className={s.savedFilterItem}>
-                  <button 
+                  <button
                     className={`${s.savedFilterBtn} ${sf.id === activeSavedFilterId ? s.active : ''}`}
                     onClick={() => {
                       onLoadFilter(sf)
@@ -170,17 +154,15 @@ export function FilterPanel<T>({
                   >
                     {sf.name}
                   </button>
-                  {!String(sf.id).startsWith('g_') && (
-                    <button 
-                      className={s.savedFilterDelete}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onDeleteSavedFilter(sf.id)
-                      }}
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  )}
+                  <button
+                    className={s.savedFilterDelete}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onDeleteSavedFilter(sf.id)
+                    }}
+                  >
+                    <Trash2 size={12} />
+                  </button>
                 </div>
               ))}
             </div>
@@ -196,32 +178,13 @@ export function FilterPanel<T>({
             <div className={s.filterPanelActions}>
               {filters.length > 0 && (
                 <>
-                  {canPublishGlobal && onPublishGlobal && (
-                    <button 
-                      className={`${shared.btn} ${shared['btn-ghost']} ${shared['btn-xs']}`}
-                      onClick={() => {
-                        if (!activeSavedFilterId) return
-                        onPublishGlobal(activeSavedFilterId)
-                      }}
-                      title={
-                        !activeSavedFilterId
-                          ? 'בחר פילטר שמור כדי לפרסם'
-                          : String(activeSavedFilterId).startsWith('g_')
-                            ? 'זה כבר פילטר גלובלי'
-                            : 'פרסום גלובלי לכל המשתמשים'
-                      }
-                      disabled={!canPublishSelectedSavedFilter || isPublishingGlobal}
-                    >
-                      <Save size={12} /> {isPublishingGlobal ? 'מפרסם...' : 'פרסם לכולם'}
-                    </button>
-                  )}
-                  <button 
+                  <button
                     className={`${shared.btn} ${shared['btn-ghost']} ${shared['btn-xs']}`}
                     onClick={() => setShowSaveDialog(true)}
                   >
                     <Save size={12} /> שמור
                   </button>
-                  <button 
+                  <button
                     className={`${shared.btn} ${shared['btn-ghost']} ${shared['btn-xs']}`}
                     onClick={clearAllFilters}
                   >
@@ -229,7 +192,7 @@ export function FilterPanel<T>({
                   </button>
                 </>
               )}
-              <button 
+              <button
                 className={`${shared.btn} ${shared['btn-ghost']} ${shared['btn-xs']}`}
                 onClick={() => setIsOpen(false)}
               >
@@ -249,14 +212,14 @@ export function FilterPanel<T>({
                 onKeyDown={e => e.key === 'Enter' && handleSaveFilter()}
                 autoFocus
               />
-              <button 
+              <button
                 className={`${shared.btn} ${shared['btn-primary']} ${shared['btn-sm']}`}
                 onClick={handleSaveFilter}
                 disabled={!saveFilterName.trim()}
               >
                 שמור
               </button>
-              <button 
+              <button
                 className={`${shared.btn} ${shared['btn-ghost']} ${shared['btn-sm']}`}
                 onClick={() => setShowSaveDialog(false)}
               >
@@ -276,14 +239,10 @@ export function FilterPanel<T>({
 
               return (
                 <div key={filter.id} className={s.filterRow}>
-                  {index > 0 && (
-                    <span className={s.filterAnd}>
-                      {filterMode === 'and' ? 'וגם' : 'או'}
-                    </span>
-                  )}
-                  
+                  {index > 0 && <span className={s.filterAnd}>וגם</span>}
+
                   {/* Field selector */}
-                  <select 
+                  <select
                     className={`${shared.select} ${shared['select-sm']}`}
                     value={filter.field}
                     onChange={e => handleFieldChange(filter.id, e.target.value)}
@@ -294,10 +253,10 @@ export function FilterPanel<T>({
                   </select>
 
                   {/* Operator selector */}
-                  <select 
+                  <select
                     className={`${shared.select} ${shared['select-sm']}`}
                     value={filter.operator}
-                    onChange={e => updateFilter(filter.id, { 
+                    onChange={e => updateFilter(filter.id, {
                       operator: e.target.value as FilterOperator,
                       value: operatorNeedsValue(e.target.value as FilterOperator) ? filter.value : null,
                     })}
@@ -309,23 +268,12 @@ export function FilterPanel<T>({
 
                   {/* Value input */}
                   {needsValue && (
-                    (fieldType === 'select' && (filter.operator === 'equals' || filter.operator === 'notEquals') && options.length > 0) ? (
-                      <MultiValueSelect
-                        options={options}
-                        values={filter.values || (filter.value != null ? [filter.value as string | number] : [])}
-                        onChange={(vals) => updateFilter(filter.id, { 
-                          values: vals,
-                          value: vals.length === 1 ? vals[0] : vals[0] ?? null 
-                        })}
-                      />
-                    ) : (
-                      <FilterValueInput
-                        type={fieldType}
-                        value={filter.value}
-                        options={options}
-                        onChange={v => updateFilter(filter.id, { value: v })}
-                      />
-                    )
+                    <FilterValueInput
+                      type={fieldType}
+                      value={filter.value}
+                      options={options}
+                      onChange={v => updateFilter(filter.id, { value: v })}
+                    />
                   )}
 
                   {/* Second value for "between" */}
@@ -342,7 +290,7 @@ export function FilterPanel<T>({
                   )}
 
                   {/* Remove button */}
-                  <button 
+                  <button
                     className={s.filterRemove}
                     onClick={() => removeFilter(filter.id)}
                   >
@@ -353,28 +301,13 @@ export function FilterPanel<T>({
             })}
           </div>
 
-          {/* AND/OR toggle + Add filter button */}
-          <div className={s.filterFooter}>
-            <button 
-              className={`${shared.btn} ${shared['btn-ghost']} ${shared['btn-sm']}`}
-              onClick={addFilter}
-            >
-              <Plus size={14} /> הוסף תנאי
-            </button>
-            {filters.length > 1 && (
-              <label className={s.filterModeToggle}>
-                <input
-                  type="checkbox"
-                  checked={filterMode === 'or'}
-                  onChange={e => onFilterModeChange(e.target.checked ? 'or' : 'and')}
-                  className={s.filterModeCheckbox}
-                />
-                <span className={s.filterModeLabel}>
-                  {filterMode === 'and' ? 'AND — כל התנאים' : 'OR — לפחות תנאי אחד'}
-                </span>
-              </label>
-            )}
-          </div>
+          {/* Add filter button */}
+          <button
+            className={`${shared.btn} ${shared['btn-ghost']} ${shared['btn-sm']}`}
+            onClick={addFilter}
+          >
+            <Plus size={14} /> הוסף תנאי
+          </button>
         </div>
       )}
     </div>
@@ -392,7 +325,7 @@ interface FilterValueInputProps {
 function FilterValueInput({ type, value, options, onChange }: FilterValueInputProps) {
   if (type === 'select' && options?.length) {
     return (
-      <select 
+      <select
         className={`${shared.select} ${shared['select-sm']}`}
         value={String(value ?? '')}
         onChange={e => onChange(e.target.value || null)}
@@ -442,124 +375,5 @@ function FilterValueInput({ type, value, options, onChange }: FilterValueInputPr
       placeholder="ערך..."
       style={{ minWidth: 120 }}
     />
-  )
-}
-
-/* ── Multi Value Select Component (chips) ── */
-interface MultiValueSelectProps {
-  options: { value: string | number; label: string }[]
-  values: (string | number)[]
-  onChange: (values: (string | number)[]) => void
-}
-
-function MultiValueSelect({ options, values, onChange }: MultiValueSelectProps) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
-  const wrapperRef = useRef<HTMLDivElement>(null)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
-
-  useEffect(() => {
-    if (isOpen && wrapperRef.current) {
-      const updatePosition = () => {
-        const rect = wrapperRef.current!.getBoundingClientRect()
-        const viewportHeight = window.innerHeight
-        const dropdownHeight = Math.min(200, options.length * 32) // Approximate height
-        
-        // Check if dropdown fits below, otherwise show above
-        const spaceBelow = viewportHeight - rect.bottom - 8
-        const showAbove = spaceBelow < dropdownHeight && rect.top > dropdownHeight
-        
-        setDropdownStyle({
-          top: showAbove ? rect.top - dropdownHeight - 4 : rect.bottom + 4,
-          left: rect.left,
-          width: rect.width,
-          minWidth: Math.max(200, rect.width),
-        })
-      }
-
-      updatePosition()
-      window.addEventListener('scroll', updatePosition, true)
-      window.addEventListener('resize', updatePosition)
-      
-      return () => {
-        window.removeEventListener('scroll', updatePosition, true)
-        window.removeEventListener('resize', updatePosition)
-      }
-    }
-  }, [isOpen, options.length])
-
-  const toggleValue = (val: string | number) => {
-    const strVal = String(val)
-    const exists = values.some(v => String(v) === strVal)
-    if (exists) {
-      onChange(values.filter(v => String(v) !== strVal))
-    } else {
-      onChange([...values, val])
-    }
-  }
-
-  const removeValue = (val: string | number) => {
-    onChange(values.filter(v => String(v) !== String(val)))
-  }
-
-  const getLabel = (val: string | number) => {
-    const opt = options.find(o => String(o.value) === String(val))
-    return opt?.label ?? String(val)
-  }
-
-  return (
-    <div className={s.multiValueSelect} ref={wrapperRef}>
-      <div 
-        className={s.multiValueDisplay}
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        {values.length === 0 && (
-          <span className={s.multiValuePlaceholder}>— בחר —</span>
-        )}
-        {values.map(val => (
-          <span key={String(val)} className={s.multiValueChip}>
-            {getLabel(val)}
-            <button
-              className={s.multiValueChipRemove}
-              onClick={(e) => { e.stopPropagation(); removeValue(val) }}
-            >
-              <X size={10} />
-            </button>
-          </span>
-        ))}
-      </div>
-      {isOpen && (
-        <div className={s.multiValueDropdown} ref={dropdownRef} style={dropdownStyle}>
-          {options.map(opt => {
-            const isSelected = values.some(v => String(v) === String(opt.value))
-            return (
-              <button
-                key={String(opt.value)}
-                className={`${s.multiValueOption} ${isSelected ? s.multiValueOptionSelected : ''}`}
-                onClick={() => toggleValue(opt.value)}
-              >
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  onChange={() => {}}
-                  className={s.filterModeCheckbox}
-                />
-                {opt.label}
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
   )
 }

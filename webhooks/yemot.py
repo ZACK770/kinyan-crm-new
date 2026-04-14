@@ -26,8 +26,8 @@ from services.leads import process_incoming_lead
 # Key is the extension number (after the /)
 FOLDER_TO_PRODUCT = {
     "1": "שבת",
-    "2": "טהרה",
-    "3": "איסור והיתר",
+    "2": "איסור והיתר",
+    "3": "טהרה",
     "4": "ממונות",
     "5": "נזיקין",
     "6": "סמיכה",
@@ -85,8 +85,6 @@ def parse_yemot_payload(data: dict) -> dict:
     # Determine if call was answered
     if answer_number or queue_status in ("CONTINUE", "ANSWERED"):
         parsed["call_status"] = "נענה"
-        if answer_number:
-            parsed["answered_by_phone"] = answer_number
     else:
         parsed["call_status"] = _map_hangup_cause(queue_status)
 

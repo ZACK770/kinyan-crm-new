@@ -44,41 +44,6 @@ FIELD_MAP = {
 }
 
 
-def _unflatten_elementor_data(data: dict) -> dict:
-    """
-    Convert flat Elementor format to nested format.
-    
-    Input: {"fields[name][value]": "John", "fields[name][title]": "Name", "form[id]": "123"}
-    Output: {"fields": {"name": {"value": "John", "title": "Name"}}, "form": {"id": "123"}}
-    """
-    # Check if data is already in flat format
-    has_flat_keys = any(k.startswith(("fields[", "form[", "meta[")) for k in data.keys())
-    if not has_flat_keys:
-        return data
-    
-    nested = {}
-    
-    for key, value in data.items():
-        # Parse keys like "fields[name][value]" or "form[id]"
-        if "[" not in key:
-            nested[key] = value
-            continue
-        
-        parts = key.replace("]", "").split("[")
-        
-        # Build nested structure
-        current = nested
-        for i, part in enumerate(parts[:-1]):
-            if part not in current:
-                current[part] = {}
-            current = current[part]
-        
-        # Set the final value
-        current[parts[-1]] = value
-    
-    return nested
-
-
 def parse_elementor_payload(data: dict) -> dict:
     """
     Parse Elementor form submission into normalized lead data.
@@ -87,7 +52,6 @@ def parse_elementor_payload(data: dict) -> dict:
     Format 1: fields as dict of objects (new Elementor format)
     Format 2: fields as array of {id, value} objects
     Format 3: flat key-value pairs
-    Format 4: flat format with keys like "fields[name][value]", "form[id]"
     """
     parsed = {
         "source_type": "elementor",
@@ -97,9 +61,6 @@ def parse_elementor_payload(data: dict) -> dict:
     # Handle array wrapper (webhook might send as array with single item)
     if isinstance(data, list) and len(data) > 0:
         data = data[0]
-
-    # Convert flat format to nested if needed
-    data = _unflatten_elementor_data(data)
 
     # Extract form metadata
     form_info = data.get("form", {})
@@ -176,17 +137,6 @@ def parse_elementor_payload(data: dict) -> dict:
         parsed["source_details"] = (parsed.get("source_details", "") + f" UTM: {utm_data}").strip()
     if marketing_product:
         parsed["form_product"] = parsed.get("form_product") or marketing_product
-
-    # Build rich form_content for interaction history
-    content_parts = []
-    if parsed.get("form_product"):
-        content_parts.append(f"מסלול: {parsed['form_product']}")
-    if parsed.get("source_message"):
-        content_parts.append(f"הודעה: {parsed['source_message']}")
-    if parsed.get("form_content"):
-        content_parts.append(parsed["form_content"])
-    if content_parts:
-        parsed["form_content"] = " | ".join(content_parts)
 
     return parsed
 

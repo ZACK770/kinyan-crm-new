@@ -9,7 +9,7 @@ from db import get_db
 from services import courses as course_svc
 from services import lecturers as lecturer_svc
 from services import audit_logs
-from .dependencies import require_entity_access, require_permission
+from .dependencies import require_entity_access
 
 router = APIRouter(tags=["courses"])
 
@@ -169,7 +169,7 @@ async def update_course(
 async def delete_course(
     course_id: int,
     request: Request,
-    user = Depends(require_permission("admin")),
+    user = Depends(require_entity_access("courses", "delete")),
     db: AsyncSession = Depends(get_db)
 ):
     success = await course_svc.delete_course(db, course_id)

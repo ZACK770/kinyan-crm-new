@@ -1,8 +1,6 @@
 """
-Storage Service - supports both Database and Cloudflare R2
-Switch between backends using STORAGE_BACKEND env var:
-- 'db' (default): Store files in PostgreSQL
-- 'r2': Store files in Cloudflare R2
+Cloudflare R2 Storage Service
+S3-compatible object storage with zero egress costs
 """
 import os
 import uuid
@@ -18,25 +16,14 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class StorageService:
-    """Service for managing file uploads - supports DB and R2 backends"""
+    """Service for managing file uploads to Cloudflare R2"""
     
     def __init__(self):
-        # Storage backend: 'db' or 'r2'
-        self.backend = os.getenv("STORAGE_BACKEND", "db").lower()
-        
-        # R2 configuration (only needed if backend='r2')
         self.account_id = os.getenv("R2_ACCOUNT_ID")
         self.access_key = os.getenv("R2_ACCESS_KEY_ID")
         self.secret_key = os.getenv("R2_SECRET_ACCESS_KEY")
         self.bucket_name = os.getenv("R2_BUCKET_NAME", "crm-files")
         self.public_url = os.getenv("R2_PUBLIC_URL", "")  # e.g., https://files.yourdomain.com
-        
-        # Jurisdiction-specific endpoint (e.g., 'eu' for European Union)
-        jurisdiction = os.getenv("R2_JURISDICTION", "").lower()
-        if jurisdiction:
-            self.endpoint_url = f'https://{self.account_id}.{jurisdiction}.r2.cloudflarestorage.com'
-        else:
-            self.endpoint_url = f'https://{self.account_id}.r2.cloudflarestorage.com'
         
         # SSL verification - disable only for NetFree (local dev)
         self.verify_ssl = os.getenv("R2_VERIFY_SSL", "true").lower() != "false"
@@ -55,7 +42,7 @@ class StorageService:
             
             self._client = boto3.client(
                 's3',
-                endpoint_url=self.endpoint_url,
+                endpoint_url=f'https://{self.account_id}.r2.cloudflarestorage.com',
                 aws_access_key_id=self.access_key,
                 aws_secret_access_key=self.secret_key,
                 config=Config(
@@ -85,7 +72,7 @@ class StorageService:
         content_type: Optional[str] = None
     ) -> dict:
         """
-        Upload a file to storage backend (DB or R2)
+        Upload a file to R2
         
         Args:
             file_data: File-like object to upload
@@ -94,8 +81,10 @@ class StorageService:
             content_type: MIME type (auto-detected if not provided)
         
         Returns:
-            dict with 'key', 'url', 'size', 'content_type', 'data' (if DB backend)
+            dict with 'key', 'url', 'size'
         """
+        key = self._generate_key(folder, filename)
+        
         # Auto-detect content type if not provided
         if not content_type:
             content_type = self._guess_content_type(filename)
@@ -105,87 +94,66 @@ class StorageService:
         size = file_data.tell()
         file_data.seek(0)  # Reset to beginning
         
-        if self.backend == 'r2':
-            # Upload to R2
-            key = self._generate_key(folder, filename)
-            extra_args = {'ContentType': content_type} if content_type else {}
-            
-            self.client.upload_fileobj(
-                file_data,
-                self.bucket_name,
-                key,
-                ExtraArgs=extra_args
-            )
-            
-            # Build public URL
-            url = f"{self.public_url}/{key}" if self.public_url else None
-            
-            return {
-                'key': key,
-                'url': url,
-                'size': size,
-                'content_type': content_type
-            }
-        else:
-            # Store in DB - return binary data
-            data = file_data.read()
-            return {
-                'key': None,  # No R2 key for DB storage
-                'url': None,  # URL will be generated via API endpoint
-                'size': size,
-                'content_type': content_type,
-                'data': data  # Binary data to store in DB
-            }
+        # Upload to R2
+        extra_args = {'ContentType': content_type} if content_type else {}
+        
+        self.client.upload_fileobj(
+            file_data,
+            self.bucket_name,
+            key,
+            ExtraArgs=extra_args
+        )
+        
+        # Build public URL
+        url = f"{self.public_url}/{key}" if self.public_url else None
+        
+        return {
+            'key': key,
+            'url': url,
+            'size': size,
+            'content_type': content_type
+        }
     
-    async def delete_file(self, key: Optional[str]) -> bool:
+    async def delete_file(self, key: str) -> bool:
         """
-        Delete a file from storage backend
+        Delete a file from R2
         
         Args:
-            key: The object key in R2 (None for DB storage)
+            key: The object key in the bucket
             
         Returns:
             True if deleted successfully
         """
-        if self.backend == 'r2' and key:
-            try:
-                self.client.delete_object(Bucket=self.bucket_name, Key=key)
-                return True
-            except ClientError:
-                return False
-        # For DB storage, deletion is handled by the API
-        return True
+        try:
+            self.client.delete_object(Bucket=self.bucket_name, Key=key)
+            return True
+        except ClientError:
+            return False
     
-    async def get_presigned_url(self, key: Optional[str], expires_in: int = 3600) -> Optional[str]:
+    async def get_presigned_url(self, key: str, expires_in: int = 3600) -> str:
         """
-        Generate a presigned URL for private file access (R2 only)
+        Generate a presigned URL for private file access
         
         Args:
-            key: The object key (None for DB storage)
+            key: The object key
             expires_in: URL expiration time in seconds (default 1 hour)
             
         Returns:
-            Presigned URL string or None for DB storage
+            Presigned URL string
         """
-        if self.backend == 'r2' and key:
-            return self.client.generate_presigned_url(
-                'get_object',
-                Params={'Bucket': self.bucket_name, 'Key': key},
-                ExpiresIn=expires_in
-            )
-        # For DB storage, return None (file served via API)
-        return None
+        return self.client.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': self.bucket_name, 'Key': key},
+            ExpiresIn=expires_in
+        )
     
-    async def file_exists(self, key: Optional[str]) -> bool:
-        """Check if a file exists in storage backend"""
-        if self.backend == 'r2' and key:
-            try:
-                self.client.head_object(Bucket=self.bucket_name, Key=key)
-                return True
-            except ClientError:
-                return False
-        # For DB storage, check is done via database query
-        return True
+    async def file_exists(self, key: str) -> bool:
+        """Check if a file exists in the bucket"""
+        try:
+            self.client.head_object(Bucket=self.bucket_name, Key=key)
+            return True
+        except ClientError:
+            return False
     
     def _guess_content_type(self, filename: str) -> str:
         """Guess content type from filename extension"""

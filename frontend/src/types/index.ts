@@ -28,7 +28,6 @@ export interface Lead {
   student_id?: number
   campaign_id?: number
   course_id?: number  // Interested course
-  requested_course?: string  // Free text - what the lead asked for
   interested_track_id?: number
   active_task_id?: number
   // Payment tracking (selected course for sale)
@@ -38,18 +37,8 @@ export interface Lead {
   selected_payment_day?: number
   first_payment_id?: number
   nedarim_payment_link?: string
-  // Lead response and follow-up tracking
-  lead_response?: string  // תגובת הליד: מעוניין / צריך לחשוב / לא זמין / לא מעוניין
-  follow_up_count?: number  // מספר ניסיונות מעקב
-  last_contact_date?: string  // תאריך שיחה אחרונה
-  // Discount tracking
-  discount_notes?: string  // הערות על ההנחה שניתנה
-  // Terms approval tracking
-  approval_method?: string  // שיטת אישור: טלפון / מייל / חתימה דיגיטלית / SMS
-  approval_date?: string  // תאריך אישור תקנון
   created_at: string
   updated_at?: string
-  last_edited_at?: string
   created_by?: string
   interactions?: LeadInteraction[]
   payments?: Payment[]
@@ -99,18 +88,6 @@ export interface Student {
   commitments?: Commitment[]
 }
 
-export interface Examinee {
-  id: number
-  full_name?: string
-  phone: string
-  id_number?: string
-  email?: string
-  source?: string
-  student_id?: number
-  created_at?: string
-  updated_at?: string
-}
-
 export interface Course {
   id: number
   name: string
@@ -122,30 +99,6 @@ export interface Course {
   payments_count: number
   is_active: boolean
   total_sessions?: number
-  created_at: string
-}
-
-export interface Exam {
-  id: number
-  name: string
-  course_id: number
-  lecturer_id?: number | null
-  exam_type: string
-  exam_date?: string | null
-  questionnaire_url?: string | null
-  answers_url?: string | null
-  material?: string | null
-  registration_price?: number | null
-  registration_url?: string | null
-  is_registration_open?: boolean | null
-}
-
-export interface ExamDate {
-  id: number
-  date: string
-  description?: string | null
-  is_active: boolean
-  max_registrations?: number | null
   created_at: string
 }
 
@@ -174,26 +127,16 @@ export interface Enrollment {
 
 export interface Salesperson {
   id: number
-  user_id?: number
   name: string
   email?: string
   phone?: string
   ref_code?: string
-  notes?: string
   is_active: boolean
-  notification_webhook_url?: string
-  notify_on_new_lead?: boolean
-  created_at?: string
-  // Stats (from /api/salespeople)
-  total_leads?: number
-  open_leads?: number
-  converted_leads?: number
 }
 
 export interface SalesTask {
   id: number
   salesperson_id: number
-  assigned_to_user_id?: number
   lead_id?: number
   student_id?: number
   title: string
@@ -201,12 +144,8 @@ export interface SalesTask {
   due_date?: string
   status: string
   priority: number
-  task_type?: string
-  auto_created?: boolean
-  parent_lead_conversion?: boolean
   created_at: string
   completed_at?: string
-  reports?: { id: number; description: string | null; duration: string | null; created_at: string | null }[]
 }
 
 export interface Payment {

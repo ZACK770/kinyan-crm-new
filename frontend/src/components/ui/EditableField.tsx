@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react'
-import { Loader2, Plus, Check } from 'lucide-react'
+import { Loader2, Pencil, Plus, Check } from 'lucide-react'
 import s from '@/styles/shared.module.css'
 
 /* ══════════════════════════════════════════════════════════════
@@ -55,15 +55,12 @@ export function EditableField({
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const savingViaChangeRef = useRef(false)
 
-  // Focus input when entering edit mode — for selects, auto-open dropdown
+  // Focus input when entering edit mode
   useEffect(() => {
     if (isEditing && inputRef.current) {
       inputRef.current.focus()
-      if (inputRef.current instanceof HTMLSelectElement) {
-        try { inputRef.current.showPicker() } catch { /* not supported in all browsers */ }
-      } else if (inputRef.current instanceof HTMLInputElement || inputRef.current instanceof HTMLTextAreaElement) {
+      if (inputRef.current instanceof HTMLInputElement || inputRef.current instanceof HTMLTextAreaElement) {
         inputRef.current.select()
       }
     }
@@ -101,29 +98,20 @@ export function EditableField({
       setIsEditing(false)
       return
     }
-    await saveDirect(editValue)
-  }
-
-  // Save with an explicit value (avoids stale closure issues with selects)
-  const saveDirect = async (rawValue: string) => {
-    if (rawValue === String(value ?? '')) {
-      setIsEditing(false)
-      return
-    }
 
     setSaveStatus('saving')
     try {
       // Convert to appropriate type
-      let finalValue: string | number | null = rawValue
-      if (rawValue === '' || rawValue === undefined) {
+      let finalValue: string | number | null = editValue
+      if (editValue === '' || editValue === undefined) {
         finalValue = null
-      } else if (type === 'entity-select' && rawValue) {
-        finalValue = Number(rawValue)
+      } else if (type === 'entity-select' && editValue) {
+        finalValue = Number(editValue)
       }
-      
+
       await onSave(finalValue)
       setIsEditing(false)
-      
+
       // Show saved indicator briefly
       setSaveStatus('saved')
       savedTimerRef.current = setTimeout(() => {
@@ -140,11 +128,6 @@ export function EditableField({
     // Don't save if clicking the "create new" button
     const relatedTarget = e.relatedTarget as HTMLElement
     if (relatedTarget?.closest('[data-create-entity]')) {
-      return
-    }
-    // Skip if select already triggered save via onChange
-    if (savingViaChangeRef.current) {
-      savingViaChangeRef.current = false
       return
     }
     // Auto-save on blur
@@ -165,9 +148,11 @@ export function EditableField({
   const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newValue = e.target.value
     setEditValue(newValue)
-    // Save directly with the new value to avoid stale closure
-    savingViaChangeRef.current = true
-    saveDirect(newValue)
+    // For selects, auto-save on selection (no need to blur)
+    setTimeout(() => {
+      if (!isEditing) return
+      save()
+    }, 50)
   }
 
   // Displayed value (when not editing)
@@ -187,7 +172,7 @@ export function EditableField({
   // Editing UI — simplified, no save/cancel buttons
   if (isEditing) {
     return (
-      <div 
+      <div
         ref={containerRef}
         className={`${s['editable-field']} ${s['editable-field--editing']} ${className}`}
       >
@@ -271,6 +256,9 @@ export function EditableField({
       </span>
       <span className={s['editable-field__value']}>
         {display}
+        {!disabled && (
+          <Pencil size={12} className={s['editable-field__icon']} />
+        )}
       </span>
     </div>
   )

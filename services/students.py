@@ -33,7 +33,7 @@ async def create_from_lead(db: AsyncSession, lead_id: int) -> Student:
 
     # Update lead
     lead.student_id = student.id
-    lead.status = "נסלק"
+    lead.status = "ליד סגור - לקוח"
     lead.conversion_date = func.now()
     await db.flush()
 

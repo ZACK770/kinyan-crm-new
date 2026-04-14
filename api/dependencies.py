@@ -106,6 +106,61 @@ async def get_current_user(
     return user
 
 
+async def get_current_user_with_token_param(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """
+    Like get_current_user but also accepts token as query parameter.
+    Useful for file downloads where browser can't send Authorization header.
+    """
+    # DEV MODE: Skip auth and return fake admin user
+    if DEV_SKIP_AUTH:
+        return _get_fake_dev_user()
+    
+    token = None
+    
+    # First try to get token from Authorization header
+    if credentials:
+        token = credentials.credentials
+    # If no header, try query parameter
+    elif "token" in request.query_params:
+        token = request.query_params["token"]
+    
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="לא נשלח טוקן הזדהות",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    payload = decode_access_token(token)
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="טוקן לא תקין או שפג תוקפו",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id = int(payload.get("sub", 0))
+    user = await get_user_by_id(db, user_id)
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="משתמש לא נמצא",
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="חשבון המשתמש אינו פעיל",
+        )
+
+    return user
+
+
 async def get_current_user_optional(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),

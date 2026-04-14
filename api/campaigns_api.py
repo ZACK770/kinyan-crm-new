@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db import get_db
 from services import campaigns as campaign_svc
 from services import audit_logs
-from .dependencies import require_entity_access, require_permission
+from .dependencies import require_entity_access
 
 router = APIRouter(tags=["campaigns"])
 
@@ -142,7 +142,7 @@ async def update_campaign(
 async def delete_campaign(
     campaign_id: int,
     request: Request,
-    user = Depends(require_permission("admin")),
+    user = Depends(require_entity_access("campaigns", "delete")),
     db: AsyncSession = Depends(get_db)
 ):
     success = await campaign_svc.delete_campaign(db, campaign_id)

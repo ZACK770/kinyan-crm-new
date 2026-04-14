@@ -5,7 +5,6 @@ import {
   Users,
   GraduationCap,
   BookOpen,
-  ScrollText,
   CreditCard,
   Receipt,
   FileText,
@@ -18,16 +17,9 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Shield,
+  ScrollText,
   Calendar,
   MapPin,
-  Upload,
-  UserCog,
-  Activity,
-  AlertCircle,
-  Mail,
-  Lock,
-  Zap,
-  ClipboardList,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import clsx from 'clsx'
@@ -52,7 +44,6 @@ const NAV_SECTIONS: { items: NavItem[] }[] = [
       { to: '/', label: 'דשבורד', icon: LayoutDashboard },
       { to: '/leads', label: 'לידים', icon: Users },
       { to: '/students', label: 'תלמידים', icon: GraduationCap },
-      { to: '/examinees', label: 'נבחנים', icon: ScrollText },
       { to: '/courses', label: 'קורסים', icon: BookOpen },
       { to: '/tracks', label: 'מסלולים', icon: Calendar },
       { to: '/entry-points', label: 'נקודות כניסה', icon: MapPin },
@@ -71,7 +62,6 @@ const NAV_SECTIONS: { items: NavItem[] }[] = [
       { to: '/tasks', label: 'משימות', icon: CheckSquare },
       { to: '/inquiries', label: 'פניות', icon: Inbox },
       { to: '/messages', label: 'הודעות', icon: Send },
-      { to: '/email-templates', label: 'תבניות מייל', icon: Mail },
     ],
   },
   {
@@ -84,18 +74,11 @@ const NAV_SECTIONS: { items: NavItem[] }[] = [
 
 // Admin-only navigation items
 const ADMIN_NAV_ITEMS: NavItem[] = [
-  { to: '/email-inbox', label: 'תיבת מייל', icon: Mail },
   { to: '/admin/users', label: 'ניהול משתמשים', icon: Shield },
-  { to: '/admin/webhook-queue', label: 'תור וובהוקים', icon: AlertCircle },
-  { to: '/admin/import-leads', label: 'ייבוא לידים', icon: Upload },
 ]
 
 // Manager+ navigation items
 const MANAGER_NAV_ITEMS: NavItem[] = [
-  { to: '/admin/exams', label: 'מבחנים', icon: ClipboardList },
-  { to: '/admin/popups', label: 'הודעות פופ-אפ', icon: Zap },
-  { to: '/admin/sales-assignment', label: 'אנשי מכירות ושיוך', icon: UserCog },
-  { to: '/admin/webhook-logs', label: 'לוגים Webhooks', icon: Activity },
   { to: '/admin/audit-logs', label: 'יומן פעילות', icon: ScrollText },
 ]
 
@@ -161,62 +144,16 @@ export const Sidebar: FC<SidebarProps> = ({
               </div>
             </div>
           ))}
-          
-          {/* Admin section - visible to all, but locked for non-admins */}
-          <>
-            <div className={styles.sidebar__divider} />
-            <div className={styles.sidebar__section}>
-              <div className={styles.sidebar__section_title}>
-                {!collapsed && <span>ניהול מערכת</span>}
-              </div>
-              {ADMIN_NAV_ITEMS.map((item) => {
-                const Icon = item.icon
-                const isActive = location.pathname.startsWith(item.to)
-                const isLocked = user?.role_name !== 'admin'
 
-                return (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    className={clsx(
-                      styles.sidebar__item,
-                      isActive && styles.active,
-                      isLocked && styles.locked,
-                    )}
-                    onClick={(e) => {
-                      if (isLocked) {
-                        e.preventDefault()
-                      } else {
-                        onCloseMobile()
-                      }
-                    }}
-                  >
-                    <span className={styles.sidebar__icon}>
-                      <Icon size={20} strokeWidth={1.5} />
-                    </span>
-                    <span className={styles.sidebar__label}>
-                      {item.label}
-                      {isLocked && (
-                        <Lock size={14} strokeWidth={2} style={{ marginLeft: 6, opacity: 0.6 }} />
-                      )}
-                    </span>
-                    {collapsed && (
-                      <span className={styles.sidebar__tooltip}>
-                        {item.label}
-                        {isLocked && ' 🔒'}
-                      </span>
-                    )}
-                  </NavLink>
-                )
-              })}
-            </div>
-          </>
-
-          {/* Manager+ section - visible to all, but locked for non-managers */}
+          {/* Admin section - only for admin users */}
           {user?.role_name === 'admin' && (
             <>
+              <div className={styles.sidebar__divider} />
               <div className={styles.sidebar__section}>
-                {MANAGER_NAV_ITEMS.map((item) => {
+                <div className={styles.sidebar__section_title}>
+                  {!collapsed && <span>ניהול מערכת</span>}
+                </div>
+                {ADMIN_NAV_ITEMS.map((item) => {
                   const Icon = item.icon
                   const isActive = location.pathname.startsWith(item.to)
 
@@ -247,9 +184,17 @@ export const Sidebar: FC<SidebarProps> = ({
               </div>
             </>
           )}
-          {user?.role_name === 'manager' && (
+
+          {/* Manager+ section - for manager and admin */}
+          {(user?.role_name === 'admin' || user?.role_name === 'manager') && (
             <>
+              {user?.role_name !== 'admin' && <div className={styles.sidebar__divider} />}
               <div className={styles.sidebar__section}>
+                {user?.role_name !== 'admin' && (
+                  <div className={styles.sidebar__section_title}>
+                    {!collapsed && <span>ניהול מערכת</span>}
+                  </div>
+                )}
                 {MANAGER_NAV_ITEMS.map((item) => {
                   const Icon = item.icon
                   const isActive = location.pathname.startsWith(item.to)

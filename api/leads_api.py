@@ -1,18 +1,15 @@
 """
 Leads API endpoints.
 """
-import logging
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-logger = logging.getLogger(__name__)
-
 from db import get_db
 from services import leads as lead_svc
 from services import audit_logs
-from .dependencies import require_entity_access, require_permission
+from .dependencies import require_entity_access
 from .schemas import LeadCreate, LeadUpdate, SalespersonResponse
 
 router = APIRouter(tags=["leads"])
@@ -26,86 +23,28 @@ class InteractionCreate(BaseModel):
     next_call_date: datetime | None = None
 
 
-class BulkUpdateRequest(BaseModel):
-    ids: list[int]
-    field: str
-    value: str | int | float | bool | None = None
-
-
-class BulkDeleteRequest(BaseModel):
-    ids: list[int]
-
-
 # ── Endpoints ────────────────────────────────────────
 @router.get("/")
 async def list_leads(
     status: str | None = Query(None),
     salesperson_id: int | None = Query(None),
-    search: str | None = Query(None),
-    limit: int = Query(50, le=5000),
+    limit: int = Query(50, le=200),
     offset: int = Query(0),
     user = Depends(require_entity_access("leads", "view")),
     db: AsyncSession = Depends(get_db),
 ):
-    items = await lead_svc.list_leads(db, status=status, salesperson_id=salesperson_id, search=search, limit=limit, offset=offset)
+    items = await lead_svc.list_leads(db, status=status, salesperson_id=salesperson_id, limit=limit, offset=offset)
     return [
         {
             "id": l.id,
             "full_name": l.full_name,
-            "family_name": l.family_name,
             "phone": l.phone,
-            "email": l.email,
-            "city": l.city,
             "status": l.status,
-            "source_type": l.source_type,
             "salesperson_id": l.salesperson_id,
-            "notes": l.notes,
             "created_at": str(l.created_at),
-            "updated_at": str(l.updated_at) if l.updated_at else None,
-            "last_edited_at": str(l.last_edited_at) if l.last_edited_at else None,
-            "conversion_date": str(l.conversion_date) if l.conversion_date else None,
         }
         for l in items
     ]
-
-
-@router.post("/bulk-update")
-async def bulk_update_leads(
-    data: BulkUpdateRequest,
-    request: Request,
-    user = Depends(require_entity_access("leads", "edit")),
-    db: AsyncSession = Depends(get_db),
-):
-    try:
-        count = await lead_svc.bulk_update_leads(db, data.ids, data.field, data.value)
-        await audit_logs.log_update(
-            db=db, user=user, entity_type="leads", entity_id=0,
-            description=f"עדכון גורף: {data.field}={data.value} ל-{count} לידים",
-            changes={"ids": data.ids, "field": data.field, "value": data.value},
-            request=request,
-        )
-        await db.commit()
-        return {"updated": count}
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-
-
-@router.post("/bulk-delete")
-async def bulk_delete_leads(
-    data: BulkDeleteRequest,
-    request: Request,
-    user = Depends(require_permission("manager")),
-    db: AsyncSession = Depends(get_db),
-):
-    count = await lead_svc.bulk_delete_leads(db, data.ids)
-    await audit_logs.log_update(
-        db=db, user=user, entity_type="leads", entity_id=0,
-        description=f"מחיקה גורפת של {count} לידים",
-        changes={"deleted_ids": data.ids},
-        request=request,
-    )
-    await db.commit()
-    return {"deleted": count}
 
 
 @router.get("/search")
@@ -132,30 +71,6 @@ async def get_salespersons(
         {"id": sp.id, "name": sp.name, "email": sp.email, "phone": sp.phone}
         for sp in salespeople
     ]
-
-
-@router.delete("/{lead_id}")
-async def delete_lead(
-    lead_id: int,
-    request: Request,
-    user = Depends(require_permission("manager")),
-    db: AsyncSession = Depends(get_db),
-):
-    """Delete a single lead by ID."""
-    # Use the existing bulk_delete function with single ID
-    deleted_count = await lead_svc.bulk_delete_leads(db, [lead_id])
-    
-    if deleted_count == 0:
-        raise HTTPException(404, "Lead not found")
-    
-    await audit_logs.log_update(
-        db=db, user=user, entity_type="leads", entity_id=lead_id,
-        description=f"נמחק ליד #{lead_id}",
-        changes={"deleted_id": lead_id},
-        request=request,
-    )
-    await db.commit()
-    return {"deleted": 1, "message": "ליד נמחק בהצלחה"}
 
 
 @router.get("/{lead_id}")
@@ -187,10 +102,8 @@ async def get_lead(
         "salesperson_id": lead.salesperson_id,
         "campaign_id": lead.campaign_id,
         "course_id": lead.course_id,
-        "requested_course": lead.requested_course,
         "student_id": lead.student_id,
         "conversion_date": str(lead.conversion_date) if lead.conversion_date else None,
-        "last_edited_at": str(lead.last_edited_at) if lead.last_edited_at else None,
         "first_payment": lead.first_payment,
         "first_lesson": lead.first_lesson,
         "approved_terms": lead.approved_terms,
@@ -203,8 +116,6 @@ async def get_lead(
                 "interaction_type": i.interaction_type,
                 "description": i.description,
                 "call_status": i.call_status,
-                "form_product": i.form_product,
-                "form_content": i.form_content,
                 "user_name": i.user_name,
                 "created_at": str(i.created_at),
             }
@@ -220,10 +131,7 @@ async def create_lead(
     user = Depends(require_entity_access("leads", "create")),
     db: AsyncSession = Depends(get_db)
 ):
-    try:
-        result = await lead_svc.process_incoming_lead(db, **data.model_dump())
-    except ValueError as e:
-        raise HTTPException(400, str(e))
+    result = await lead_svc.process_incoming_lead(db, **data.model_dump())
     
     # Log lead creation
     if result and "lead_id" in result:
@@ -247,10 +155,7 @@ async def update_lead(
     user = Depends(require_entity_access("leads", "edit")),
     db: AsyncSession = Depends(get_db)
 ):
-    try:
-        lead = await lead_svc.update_lead(db, lead_id, manual_edit=True, **data.model_dump(exclude_unset=True))
-    except ValueError as e:
-        raise HTTPException(400, str(e))
+    lead = await lead_svc.update_lead(db, lead_id, **data.model_dump(exclude_unset=True))
     if not lead:
         raise HTTPException(404, "Lead not found")
     await db.commit()
@@ -267,12 +172,7 @@ async def update_lead(
         request=request,
     )
     
-    return {
-        "id": lead.id,
-        "status": lead.status,
-        "last_edited_at": str(lead.last_edited_at) if lead.last_edited_at else None,
-        "updated_at": str(lead.updated_at) if lead.updated_at else None,
-    }
+    return {"id": lead.id, "status": lead.status}
 
 
 # ── Convert Lead to Student ────────────────────────────────
@@ -498,11 +398,6 @@ async def get_lead_payment_status(
                 "status": p.status,
                 "payment_date": str(p.payment_date) if p.payment_date else None,
                 "nedarim_donation_id": p.nedarim_donation_id,
-                "nedarim_transaction_id": p.nedarim_transaction_id,
-                "transaction_type": p.transaction_type,
-                "reference": p.reference,
-                "installments": p.installments,
-                "payment_method": p.payment_method,
                 "created_at": str(p.created_at),
             }
             for p in payments
@@ -639,9 +534,6 @@ async def charge_lead_card_direct(
     """
     from services import nedarim_debit_card
     
-    logger.info(f"=== DIRECT CHARGE API REQUEST === lead_id={lead_id}, payment_type={data.payment_type}, amount={data.amount}, installments={data.installments}")
-    print(f"\n=== DIRECT CHARGE API REQUEST === lead_id={lead_id}, payment_type={data.payment_type}, amount={data.amount}, installments={data.installments}")
-    
     try:
         result = await nedarim_debit_card.charge_lead_card(
             db=db,
@@ -662,7 +554,7 @@ async def charge_lead_card_direct(
             user=user,
             entity_type="payments",
             entity_id=result["payment_id"],
-            description=f"{'הוקמה הוראת קבע' if result.get('is_hk_setup') else 'בוצעה סליקה ישירה'} לליד #{lead_id} - {result['amount']} ש\"ח - {('KevaId: ' + str(result.get('keva_id'))) if result.get('is_hk_setup') else ('אישור: ' + str(result.get('confirmation')))}",
+            description=f"בוצעה סליקה ישירה לליד #{lead_id} - {result['amount']} ש\"ח - אישור: {result['confirmation']}",
             request=request,
         )
         

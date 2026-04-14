@@ -1,11 +1,10 @@
 import { useEffect, useState, useCallback, type FormEvent } from 'react'
-import { Plus, Inbox, MessageSquarePlus } from 'lucide-react'
-import { BackButton } from '@/components/ui/BackButton'
+import { Plus, Inbox, Eye, MessageSquarePlus, ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, formatDateTime } from '@/lib/status'
 import { useModal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
-import { SmartTable, type SmartColumn } from '@/components/ui/SmartTable'
+import { DataTable, type Column } from '@/components/ui/DataTable'
 import type { Inquiry, InquiryResponse } from '@/types'
 import s from '@/styles/shared.module.css'
 
@@ -185,6 +184,7 @@ export function InquiriesPage() {
 
   const [inquiries, setInquiries] = useState<Inquiry[]>([])
   const [loading, setLoading] = useState(true)
+  const [statusFilter, setStatusFilter] = useState('')
 
   // Workspace view state
   type ViewMode = 'list' | 'create'
@@ -196,13 +196,13 @@ export function InquiriesPage() {
     setLoading(true)
     try {
       const data = await api.get<Inquiry[]>('inquiries')
-      setInquiries(data)
+      setInquiries(statusFilter ? data.filter(i => i.status === statusFilter) : data)
     } catch (err: unknown) {
       toast.error((err as { message?: string }).message ?? 'שגיאה')
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [statusFilter, toast])
 
   useEffect(() => { fetchInquiries() }, [fetchInquiries])
 
@@ -263,31 +263,22 @@ export function InquiriesPage() {
     })
   }
 
-  const columns: SmartColumn<Inquiry>[] = [
-    { key: 'id', header: '#', type: 'number', width: 60, editable: false },
-    { key: 'subject', header: 'נושא', type: 'text', editable: false },
+  const columns: Column<Inquiry>[] = [
+    { key: 'id', header: '#' },
+    { key: 'subject', header: 'נושא' },
+    { key: 'inquiry_type', header: 'סוג' },
+    { key: 'status', header: 'סטטוס', render: r => <Badge entity="inquiry" value={r.status} /> },
+    { key: 'handled_by', header: 'מטפל', render: r => r.handled_by ?? '—' },
+    { key: 'created_at', header: 'תאריך', render: r => formatDateTime(r.created_at), className: s.muted },
     {
-      key: 'inquiry_type', header: 'סוג', type: 'select', editable: false,
-      options: [
-        { value: 'general', label: 'כללי' },
-        { value: 'complaint', label: 'תלונה' },
-        { value: 'question', label: 'שאלה' },
-        { value: 'request', label: 'בקשה' },
-        { value: 'feedback', label: 'משוב' },
-      ],
+      key: '_actions',
+      header: '',
+      render: r => (
+        <button className={`${s.btn} ${s['btn-ghost']} ${s['btn-xs']}`} onClick={e => { e.stopPropagation(); openDetail(r) }}>
+          <Eye size={14} strokeWidth={1.5} />
+        </button>
+      ),
     },
-    {
-      key: 'status', header: 'סטטוס', type: 'select', editable: false,
-      options: [
-        { value: 'new', label: 'חדש' },
-        { value: 'in_progress', label: 'בטיפול' },
-        { value: 'closed', label: 'סגור' },
-      ],
-      renderView: r => <Badge entity="inquiry" value={r.status} />,
-    },
-    { key: 'handled_by', header: 'מטפל', type: 'text', editable: false, renderView: r => r.handled_by ?? '—' },
-    { key: 'phone', header: 'טלפון', type: 'text', editable: false, hiddenByDefault: true, renderView: r => r.phone ?? '—' },
-    { key: 'created_at', header: 'תאריך', type: 'datetime', editable: false, renderView: r => formatDateTime(r.created_at), className: s.muted },
   ]
 
   /* ── Workspace: create ── */
@@ -296,7 +287,9 @@ export function InquiriesPage() {
       <div>
         <div className={s['page-header']}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <BackButton onClick={backToList} label="חזרה לפניות" />
+            <button className={`${s.btn} ${s['btn-ghost']}`} onClick={backToList} style={{ padding: '6px 10px' }}>
+              <ArrowRight size={18} /> חזרה לרשימה
+            </button>
             <h1 className={s['page-title']} style={{ fontSize: '1.2rem' }}>פנייה חדשה</h1>
           </div>
         </div>
@@ -331,7 +324,15 @@ export function InquiriesPage() {
       </div>
 
       <div className={s.card}>
-        <SmartTable
+        <div className={s.toolbar}>
+          <select className={`${s.select} ${s['select-sm']}`} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+            <option value="">כל הסטטוסים</option>
+            <option value="new">חדש</option>
+            <option value="in_progress">בטיפול</option>
+            <option value="closed">סגור</option>
+          </select>
+        </div>
+        <DataTable
           columns={columns}
           data={inquiries}
           loading={loading}
@@ -339,13 +340,6 @@ export function InquiriesPage() {
           emptyIcon={<Inbox size={40} strokeWidth={1.5} />}
           onRowClick={openDetail}
           keyExtractor={r => r.id}
-          storageKey="inquiries_table"
-          searchFields={[
-            { key: 'subject', label: 'נושא', weight: 3 },
-            { key: 'phone', label: 'טלפון', weight: 2 },
-            { key: 'handled_by', label: 'מטפל', weight: 1 },
-          ]}
-          searchPlaceholder="חיפוש פניות..."
         />
       </div>
     </div>

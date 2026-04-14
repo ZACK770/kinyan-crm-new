@@ -52,18 +52,11 @@ export interface EntityFormSchema {
 // Status Options (reused across entities)
 // ============================================================
 const leadStatusOptions: FieldOption[] = [
-  { value: 'ליד חדש', label: 'ליד חדש' },
-  { value: 'ליד בתהליך', label: 'ליד בתהליך' },
-  { value: 'חיוג ראשון', label: 'חיוג ראשון' },
-  { value: 'ליד ישן', label: 'ליד ישן' },
-  { value: 'במעקב', label: 'במעקב' },
-  { value: 'מתעניין', label: 'מתעניין' },
-  { value: 'נסלק', label: 'נסלק' },
-  { value: 'converted', label: 'הומר לתלמיד' },
-  { value: 'תלמיד פעיל', label: 'תלמיד פעיל' },
-  { value: 'לא רלוונטי', label: 'לא רלוונטי' },
-  { value: 'ליד סגור - לקוח', label: 'ליד סגור - לקוח' },
-  { value: 'ליד סגור - לא רלוונטי', label: 'ליד סגור - לא רלוונטי' },
+  { value: 'new', label: 'חדש' },
+  { value: 'contacted', label: 'נוצר קשר' },
+  { value: 'interested', label: 'מעוניין' },
+  { value: 'converted', label: 'הומר' },
+  { value: 'irrelevant', label: 'לא רלוונטי' },
 ]
 
 const sourceTypeOptions: FieldOption[] = [
@@ -206,19 +199,23 @@ export const inquiryFormSchema: EntityFormSchema = {
     {
       fields: [
         { key: 'subject', label: 'נושא', type: 'text', required: true },
-        { key: 'inquiry_type', label: 'סוג פניה', type: 'select', options: [
-          { value: 'email', label: 'מייל' },
-          { value: 'phone', label: 'טלפון' },
-          { value: 'voicemail', label: 'דואר קולי' },
-          { value: 'other', label: 'אחר' },
-        ], halfWidth: true },
+        {
+          key: 'inquiry_type', label: 'סוג פניה', type: 'select', options: [
+            { value: 'email', label: 'מייל' },
+            { value: 'phone', label: 'טלפון' },
+            { value: 'voicemail', label: 'דואר קולי' },
+            { value: 'other', label: 'אחר' },
+          ], halfWidth: true
+        },
         { key: 'phone', label: 'טלפון פונה', type: 'tel', dir: 'ltr', halfWidth: true },
-        { key: 'status', label: 'סטטוס', type: 'select', options: [
-          { value: 'new', label: 'חדש' },
-          { value: 'in_progress', label: 'בטיפול' },
-          { value: 'resolved', label: 'טופל' },
-          { value: 'closed', label: 'סגור' },
-        ], halfWidth: true },
+        {
+          key: 'status', label: 'סטטוס', type: 'select', options: [
+            { value: 'new', label: 'חדש' },
+            { value: 'in_progress', label: 'בטיפול' },
+            { value: 'resolved', label: 'טופל' },
+            { value: 'closed', label: 'סגור' },
+          ], halfWidth: true
+        },
         { key: 'notes', label: 'הערות', type: 'textarea' },
       ],
     },
@@ -235,12 +232,14 @@ export const paymentFormSchema: EntityFormSchema = {
       fields: [
         { key: 'amount', label: 'סכום', type: 'currency', required: true, halfWidth: true },
         { key: 'payment_date', label: 'תאריך תשלום', type: 'date', halfWidth: true },
-        { key: 'payment_method', label: 'צורת תשלום', type: 'select', options: [
-          { value: 'credit', label: 'אשראי' },
-          { value: 'bank', label: 'העברה בנקאית' },
-          { value: 'cash', label: 'מזומן' },
-          { value: 'check', label: 'צ\'ק' },
-        ], halfWidth: true },
+        {
+          key: 'payment_method', label: 'צורת תשלום', type: 'select', options: [
+            { value: 'credit', label: 'אשראי' },
+            { value: 'bank', label: 'העברה בנקאית' },
+            { value: 'cash', label: 'מזומן' },
+            { value: 'check', label: 'צ\'ק' },
+          ], halfWidth: true
+        },
         { key: 'status', label: 'סטטוס', type: 'select', options: paymentStatusOptions, halfWidth: true },
         { key: 'reference', label: 'אסמכתא', type: 'text', dir: 'ltr' },
       ],
@@ -259,11 +258,13 @@ export const expenseFormSchema: EntityFormSchema = {
         { key: 'vendor', label: 'ספק', type: 'text', required: true, halfWidth: true },
         { key: 'amount', label: 'סכום', type: 'currency', required: true, halfWidth: true },
         { key: 'expense_date', label: 'תאריך', type: 'date', halfWidth: true },
-        { key: 'payment_method', label: 'צורת תשלום', type: 'select', options: [
-          { value: 'credit', label: 'אשראי' },
-          { value: 'bank', label: 'העברה' },
-          { value: 'cash', label: 'מזומן' },
-        ], halfWidth: true },
+        {
+          key: 'payment_method', label: 'צורת תשלום', type: 'select', options: [
+            { value: 'credit', label: 'אשראי' },
+            { value: 'bank', label: 'העברה' },
+            { value: 'cash', label: 'מזומן' },
+          ], halfWidth: true
+        },
         { key: 'course_id', label: 'קורס קשור', type: 'entity-select', entityRef: 'courses', halfWidth: true },
         { key: 'campaign_id', label: 'קמפיין קשור', type: 'entity-select', entityRef: 'campaigns', halfWidth: true },
         { key: 'description', label: 'פירוט', type: 'textarea' },
@@ -289,7 +290,7 @@ export const formSchemas: Record<string, EntityFormSchema> = {
 export function getDefaultValue(type: FieldType): unknown {
   switch (type) {
     case 'boolean': return false
-    case 'number': 
+    case 'number':
     case 'currency': return ''
     default: return ''
   }

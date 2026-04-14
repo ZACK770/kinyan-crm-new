@@ -31,7 +31,6 @@ export function InlineEditCell({
   const [showSaved, setShowSaved] = useState(false)
   const inputRef = useRef<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(null)
   const savedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const savingViaChangeRef = useRef(false)
 
   // Sync when value changes
   useEffect(() => {
@@ -40,14 +39,11 @@ export function InlineEditCell({
     }
   }, [value, isEditing])
 
-  // Focus on edit start — for selects, also open the dropdown automatically
+  // Focus on edit start
   useEffect(() => {
     if (isEditing && inputRef.current) {
       inputRef.current.focus()
-      if (inputRef.current instanceof HTMLSelectElement) {
-        // Auto-open dropdown on first click
-        try { inputRef.current.showPicker() } catch { /* not supported in all browsers */ }
-      } else if (inputRef.current instanceof HTMLInputElement) {
+      if (inputRef.current instanceof HTMLInputElement) {
         inputRef.current.select()
       }
     }
@@ -114,8 +110,7 @@ export function InlineEditCell({
     const raw = e.target.value
     const newValue = type === 'boolean' ? raw === 'true' : raw || null
     setEditValue(newValue)
-    // Save directly with the new value to avoid stale closure
-    savingViaChangeRef.current = true
+    // Save directly with the new value to avoid stale state
     saveValue(newValue)
   }
 
@@ -141,7 +136,7 @@ export function InlineEditCell({
   // Display mode
   if (!isEditing) {
     return (
-      <div 
+      <div
         className={`${s.inlineCell} ${disabled ? s.disabled : ''}`}
         onClick={startEditing}
         onKeyDown={e => e.key === 'Enter' && startEditing()}
@@ -163,7 +158,7 @@ export function InlineEditCell({
           value={String(editValue ?? '')}
           onChange={handleSelectChange}
           onKeyDown={handleKeyDown}
-          onBlur={() => { if (!savingViaChangeRef.current) cancelEditing(); savingViaChangeRef.current = false }}
+          onBlur={cancelEditing}
           disabled={isSaving}
         >
           <option value="">—</option>
@@ -178,7 +173,7 @@ export function InlineEditCell({
           value={editValue === true ? 'true' : editValue === false ? 'false' : ''}
           onChange={handleSelectChange}
           onKeyDown={handleKeyDown}
-          onBlur={() => { if (!savingViaChangeRef.current) cancelEditing(); savingViaChangeRef.current = false }}
+          onBlur={cancelEditing}
           disabled={isSaving}
         >
           <option value="">—</option>
@@ -227,8 +222,8 @@ export function InlineEditCell({
 
 // Format value for display
 function formatValue(
-  value: unknown, 
-  type: FieldType, 
+  value: unknown,
+  type: FieldType,
   options: { value: string | number; label: string }[]
 ): string {
   if (value === null || value === undefined || value === '') return '—'

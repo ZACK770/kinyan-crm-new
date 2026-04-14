@@ -85,15 +85,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshUser = async () => {
     try {
       const token = localStorage.getItem(TOKEN_KEY)
-      if (token) {
-        api.setAuthToken(token)
+      if (!token) {
+        setUser(null)
+        return
       }
-      
-      // Always try to get user - backend may have DEV_SKIP_AUTH enabled
+
+      api.setAuthToken(token)
       const userData = await api.get<User>('/auth/me')
       setUser(userData)
     } catch (error) {
-      // Token is invalid or expired (or no dev mode)
+      // Token is invalid or expired
       clearAuthToken()
       setUser(null)
       console.error('Failed to refresh user:', error)

@@ -2,8 +2,7 @@ import { useState, useCallback, useEffect, useMemo, type ReactNode, type FormEve
 import {
   MessageSquarePlus,
   UserCheck,
-  ArrowDownLeft,
-  ArrowUpRight,
+  ArrowLeft,
   CreditCard,
   ListTodo,
   MessageCircle,
@@ -18,17 +17,12 @@ import {
   FileText,
   X,
   Paperclip,
-  Plus,
-  AlertTriangle,
-  Trash2,
 } from 'lucide-react'
-import { BackButton } from '@/components/ui/BackButton'
 import { api } from '@/lib/api'
 import { getStatus, formatDateTime } from '@/lib/status'
 import { EditableField, type SelectOption } from '@/components/ui/EditableField'
 import { useModal } from '@/components/ui/Modal'
-import { useToast } from '@/components/ui/Toast'
-import type { Lead, LeadInteraction, Salesperson, Course, Campaign, SalesTask } from '@/types'
+import type { Lead, LeadInteraction, Salesperson, Course, Campaign } from '@/types'
 import { LeadPaymentTab } from './LeadPaymentTab'
 // @ts-ignore - used in conversion tab
 import LeadConversionChecklist from './LeadConversionChecklist'
@@ -53,20 +47,15 @@ function Badge({ entity, value }: { entity: string; value?: string }) {
   return <span className={`${s.badge} ${s[`badge-${color}`]}`}>{label}</span>
 }
 
-// Status options — values must match DB (Hebrew)
+// Status options (Hebrew per SPEC)
 const STATUS_OPTIONS: SelectOption[] = [
-  { value: 'ליד חדש', label: 'ליד חדש' },
-  { value: 'ליד בתהליך', label: 'ליד בתהליך' },
-  { value: 'חיוג ראשון', label: 'חיוג ראשון' },
-  { value: 'ליד ישן', label: 'ליד ישן' },
-  { value: 'במעקב', label: 'במעקב' },
-  { value: 'מתעניין', label: 'מתעניין' },
-  { value: 'נסלק', label: 'נסלק' },
-  { value: 'converted', label: 'הומר לתלמיד' },
-  { value: 'תלמיד פעיל', label: 'תלמיד פעיל' },
-  { value: 'לא רלוונטי', label: 'לא רלוונטי' },
-  { value: 'ליד סגור - לקוח', label: 'ליד סגור - לקוח' },
-  { value: 'ליד סגור - לא רלוונטי', label: 'ליד סגור - לא רלוונטי' },
+  { value: 'new', label: 'ליד חדש' },
+  { value: 'first_call', label: 'חיוג ראשון' },
+  { value: 'follow_up', label: 'במעקב' },
+  { value: 'interested', label: 'מתעניין' },
+  { value: 'payment_done', label: 'נסלק' },
+  { value: 'converted', label: 'ליד סגור-לקוח' },
+  { value: 'not_relevant', label: 'ליד סגור-לא רלוונטי' },
 ]
 
 const SOURCE_OPTIONS: SelectOption[] = [
@@ -74,7 +63,6 @@ const SOURCE_OPTIONS: SelectOption[] = [
   { value: 'elementor', label: 'אלמנטור' },
   { value: 'manual', label: 'ידני' },
   { value: 'referral', label: 'הפניה' },
-  { value: 'ייבוא ממערכת ישנה', label: 'ייבוא ממערכת ישנה' },
   { value: 'other', label: 'אחר' },
 ]
 
@@ -93,10 +81,9 @@ const INITIAL_FORM = {
   source_message: '',
   campaign_id: '',
   course_id: '',
-  requested_course: '',
   notes: '',
   salesperson_id: '',
-  status: 'ליד חדש',
+  status: 'new',
 }
 
 interface LeadWorkspaceProps {
@@ -109,7 +96,6 @@ interface LeadWorkspaceProps {
   onCreate?: (lead: Lead) => void  // Called after successful creation
   onAddInteraction?: () => void
   onConvert?: () => void
-  onDelete?: () => void  // Added delete callback
 }
 
 type TabId = 'interactions' | 'tasks' | 'payments' | 'conversion' | 'inquiries' | 'emails'
@@ -124,13 +110,12 @@ export function LeadWorkspace({
   onCreate,
   onAddInteraction,
   onConvert,
-  onDelete,
 }: LeadWorkspaceProps) {
   const isCreateMode = !lead
   const [activeTab, setActiveTab] = useState<TabId>('interactions')
   const [isSaving, setIsSaving] = useState(false)
   const { confirm } = useModal()
-  
+
   // Form state for create mode
   const [form, setForm] = useState(INITIAL_FORM)
 
@@ -145,7 +130,7 @@ export function LeadWorkspace({
   const updateForm = (field: string, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }))
   }
-  
+
   // Inline save handler (edit mode)
   const saveField = useCallback(async (field: string, value: string | number | null) => {
     if (!lead) return
@@ -190,14 +175,9 @@ export function LeadWorkspace({
       else delete data.course_id
       // Remove empty strings
       Object.keys(data).forEach(k => { if (data[k] === '') delete data[k] })
-      
-      const result = await api.post<{ lead_id: number; action: string }>('leads', data)
-      // API returns {lead_id: N}, fetch the full lead object
-      const fullLead = await api.get<Lead>(`leads/${result.lead_id}`)
-      if (result.action === 'updated') {
-        alert('ליד עם טלפון זה כבר קיים במערכת — פותח את הליד הקיים')
-      }
-      onCreate?.(fullLead)
+
+      const newLead = await api.post<Lead>('leads', data)
+      onCreate?.(newLead)
     } catch (err) {
       console.error('Failed to create lead:', err)
     } finally {
@@ -210,12 +190,17 @@ export function LeadWorkspace({
     value: sp.id,
     label: sp.name,
   }))
-  
+
   const campaignOptions: SelectOption[] = campaigns.map(c => ({
     value: c.id,
     label: c.name,
   }))
-  
+
+  const courseOptions: SelectOption[] = courses.map(c => ({
+    value: c.id,
+    label: c.name,
+  }))
+
   const isConverted = lead ? (lead.status === 'converted' || !!lead.student_id) : false
 
   // Find related names for display (edit mode only)
@@ -256,11 +241,13 @@ export function LeadWorkspace({
         <form onSubmit={handleCreate} className={s.workspace__sidebar}>
           {/* Header */}
           <div className={s.workspace__header}>
-            <BackButton onClick={handleClose} label="חזרה ללידים" />
             <div className={s.workspace__title}>
               <span>{form.full_name || 'ליד חדש'} {form.family_name}</span>
               <Badge entity="leads" value={form.status} />
             </div>
+            <button type="button" className={`${s.btn} ${s['btn-ghost']} ${s['btn-icon']}`} onClick={handleClose} title="חזור">
+              <ArrowLeft size={18} />
+            </button>
           </div>
 
           {/* Contact Info */}
@@ -288,7 +275,7 @@ export function LeadWorkspace({
                 displayValue={<Badge entity="leads" value={form.status} />}
                 type="select"
                 options={STATUS_OPTIONS}
-                onSave={v => { updateForm('status', String(v ?? 'ליד חדש')); return Promise.resolve() }}
+                onSave={v => { updateForm('status', String(v ?? 'new')); return Promise.resolve() }}
               />
               <EditableField
                 label="איש מכירות"
@@ -331,8 +318,12 @@ export function LeadWorkspace({
             <div className={`${s['field-grid']} ${s['field-grid--single']}`}>
               <EditableField
                 label="קורס מבוקש"
-                value={form.requested_course}
-                onSave={v => { updateForm('requested_course', String(v ?? '')); return Promise.resolve() }}
+                value={form.course_id || null}
+                displayValue={courses.find(c => c.id === Number(form.course_id))?.name}
+                type="entity-select"
+                options={courseOptions}
+                onSave={v => { updateForm('course_id', String(v ?? '')); return Promise.resolve() }}
+                entityCreatePath="/courses"
               />
             </div>
           </CollapsibleSection>
@@ -356,10 +347,10 @@ export function LeadWorkspace({
         {/* Main Area — Empty tabs placeholder (no ID yet) */}
         <div className={s.workspace__main}>
           <div className={s.tabs}>
-            <TabButton id="interactions" active icon={<History size={14} />} label="היסטוריה" onClick={() => {}} />
-            <TabButton id="tasks" active={false} icon={<ListTodo size={14} />} label="משימות" onClick={() => {}} />
-            <TabButton id="payments" active={false} icon={<CreditCard size={14} />} label="תשלומים" onClick={() => {}} />
-            <TabButton id="inquiries" active={false} icon={<MessageCircle size={14} />} label="פניות" onClick={() => {}} />
+            <TabButton id="interactions" active icon={<History size={14} />} label="היסטוריה" onClick={() => { }} />
+            <TabButton id="tasks" active={false} icon={<ListTodo size={14} />} label="משימות" onClick={() => { }} />
+            <TabButton id="payments" active={false} icon={<CreditCard size={14} />} label="תשלומים" onClick={() => { }} />
+            <TabButton id="inquiries" active={false} icon={<MessageCircle size={14} />} label="פניות" onClick={() => { }} />
           </div>
           <div className={s.workspace__section}>
             <div className={s['empty-state']}>
@@ -381,18 +372,20 @@ export function LeadWorkspace({
       <div className={s.workspace__sidebar}>
         {/* Header */}
         <div className={s.workspace__header}>
-          <BackButton onClick={onClose} label="חזרה ללידים" />
           <div className={s.workspace__title}>
             <span>{lead!.full_name} {lead!.family_name ?? ''}</span>
             <Badge entity="leads" value={lead!.status} />
           </div>
+          <button className={`${s.btn} ${s['btn-ghost']} ${s['btn-icon']}`} onClick={onClose} title="חזור">
+            <ArrowLeft size={18} />
+          </button>
         </div>
 
         {/* Converted badge */}
         {isConverted && lead!.student_id && (
-          <div style={{ 
-            background: 'var(--color-success-light, #f0fdf4)', 
-            padding: '10px 12px', 
+          <div style={{
+            background: 'var(--color-success-light, #f0fdf4)',
+            padding: '10px 12px',
             borderRadius: 8,
             display: 'flex',
             alignItems: 'center',
@@ -415,15 +408,6 @@ export function LeadWorkspace({
           {onAddInteraction && (
             <button className={`${s.btn} ${s['btn-secondary']} ${s['btn-sm']}`} onClick={onAddInteraction}>
               <MessageSquarePlus size={14} /> הוסף פעילות
-            </button>
-          )}
-          {onDelete && (
-            <button 
-              className={`${s.btn} ${s['btn-danger']} ${s['btn-sm']}`} 
-              onClick={onDelete}
-              style={{ background: 'var(--color-danger, #dc2626)', color: 'white' }}
-            >
-              <Trash2 size={14} /> מחק ליד
             </button>
           )}
         </div>
@@ -542,8 +526,12 @@ export function LeadWorkspace({
           <div className={`${s['field-grid']} ${s['field-grid--single']}`}>
             <EditableField
               label="קורס מבוקש"
-              value={lead!.requested_course}
-              onSave={v => saveField('requested_course', v)}
+              value={lead!.course_id}
+              displayValue={courses.find(c => c.id === lead!.course_id)?.name}
+              type="entity-select"
+              options={courseOptions}
+              onSave={v => saveField('course_id', v)}
+              entityCreatePath="/courses"
             />
           </div>
         </CollapsibleSection>
@@ -559,9 +547,9 @@ export function LeadWorkspace({
         </CollapsibleSection>
 
         {/* Meta info */}
-        <div style={{ 
-          marginTop: 'auto', 
-          paddingTop: 16, 
+        <div style={{
+          marginTop: 'auto',
+          paddingTop: 16,
           borderTop: '1px solid var(--color-border-light)',
           fontSize: 11,
           color: 'var(--color-text-muted)',
@@ -576,44 +564,44 @@ export function LeadWorkspace({
       <div className={s.workspace__main}>
         {/* Tabs */}
         <div className={s.tabs}>
-          <TabButton 
-            id="interactions" 
+          <TabButton
+            id="interactions"
             active={activeTab === 'interactions'}
             onClick={() => setActiveTab('interactions')}
             icon={<History size={14} />}
             label="היסטוריה"
             count={lead!.interactions?.length}
           />
-          <TabButton 
-            id="tasks" 
+          <TabButton
+            id="tasks"
             active={activeTab === 'tasks'}
             onClick={() => setActiveTab('tasks')}
             icon={<ListTodo size={14} />}
             label="משימות"
           />
-          <TabButton 
-            id="payments" 
+          <TabButton
+            id="payments"
             active={activeTab === 'payments'}
             onClick={() => setActiveTab('payments')}
             icon={<CreditCard size={14} />}
             label="תשלומים"
           />
-          <TabButton 
-            id="conversion" 
+          <TabButton
+            id="conversion"
             active={activeTab === 'conversion'}
             onClick={() => setActiveTab('conversion')}
             icon={<CheckCircle2 size={14} />}
             label="המרה לתלמיד"
           />
-          <TabButton 
-            id="inquiries" 
+          <TabButton
+            id="inquiries"
             active={activeTab === 'inquiries'}
             onClick={() => setActiveTab('inquiries')}
             icon={<MessageCircle size={14} />}
             label="פניות"
           />
-          <TabButton 
-            id="emails" 
+          <TabButton
+            id="emails"
             active={activeTab === 'emails'}
             onClick={() => setActiveTab('emails')}
             icon={<Mail size={14} />}
@@ -624,8 +612,8 @@ export function LeadWorkspace({
         {/* Tab Content */}
         <div className={s.workspace__section}>
           {activeTab === 'interactions' && (
-            <InteractionsTab 
-              interactions={lead!.interactions || []} 
+            <InteractionsTab
+              interactions={lead!.interactions || []}
               onAdd={onAddInteraction}
             />
           )}
@@ -651,13 +639,13 @@ export function LeadWorkspace({
 }
 
 // Tab button component
-function TabButton({ 
-  active, 
-  onClick, 
-  icon, 
-  label, 
-  count 
-}: { 
+function TabButton({
+  active,
+  onClick,
+  icon,
+  label,
+  count
+}: {
   id?: string
   active: boolean
   onClick: () => void
@@ -673,7 +661,7 @@ function TabButton({
       {icon}
       <span>{label}</span>
       {count !== undefined && count > 0 && (
-        <span style={{ 
+        <span style={{
           background: active ? 'var(--color-primary)' : 'var(--color-border)',
           color: active ? '#fff' : 'var(--color-text-secondary)',
           padding: '1px 6px',
@@ -689,10 +677,10 @@ function TabButton({
 }
 
 // Interactions Tab
-function InteractionsTab({ 
-  interactions, 
-  onAdd 
-}: { 
+function InteractionsTab({
+  interactions,
+  onAdd
+}: {
   interactions: LeadInteraction[]
   onAdd?: () => void
 }) {
@@ -722,8 +710,8 @@ function InteractionsTab({
       <div className={s.timeline} style={{ padding: 16 }}>
         {interactions.map(interaction => (
           <div key={interaction.id} className={s['timeline-item']}>
-            <div className={s['timeline-dot']} style={{ 
-              background: interaction.interaction_type === 'call' ? 'var(--color-primary)' : 'var(--color-border)' 
+            <div className={s['timeline-dot']} style={{
+              background: interaction.interaction_type === 'call' ? 'var(--color-primary)' : 'var(--color-border)'
             }} />
             <div className={s['timeline-content']}>
               <div className={s['timeline-date']}>
@@ -738,16 +726,6 @@ function InteractionsTab({
                   </span>
                 )}
               </div>
-              {interaction.form_product && (
-                <div style={{ marginTop: 4, fontSize: 13, color: 'var(--color-primary)' }}>
-                  מסלול: {interaction.form_product}
-                </div>
-              )}
-              {interaction.form_content && (
-                <div style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text)', whiteSpace: 'pre-wrap' }}>
-                  {interaction.form_content}
-                </div>
-              )}
               {interaction.description && (
                 <div style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text)' }}>
                   {interaction.description}
@@ -761,192 +739,13 @@ function InteractionsTab({
   )
 }
 
-// Tasks Tab — shows tasks linked to this lead
-function TasksTab({ leadId }: { leadId: number }) {
-  const toast = useToast()
-  const [tasks, setTasks] = useState<SalesTask[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [newTitle, setNewTitle] = useState('')
-  const [newDue, setNewDue] = useState('')
-  const [newPriority, setNewPriority] = useState(0)
-  const [creating, setCreating] = useState(false)
-
-  const fetchTasks = useCallback(async () => {
-    setLoading(true)
-    try {
-      const data = await api.get<SalesTask[]>(`tasks?lead_id=${leadId}`)
-      setTasks(data)
-    } catch {
-      setTasks([])
-    } finally {
-      setLoading(false)
-    }
-  }, [leadId])
-
-  useEffect(() => { fetchTasks() }, [fetchTasks])
-
-  const handleCreate = async () => {
-    if (!newTitle.trim()) return
-    setCreating(true)
-    try {
-      await api.post('tasks', {
-        title: newTitle,
-        lead_id: leadId,
-        priority: newPriority,
-        due_date: newDue || undefined,
-      })
-      toast.success('משימה נוצרה')
-      setNewTitle('')
-      setNewDue('')
-      setNewPriority(0)
-      setShowForm(false)
-      fetchTasks()
-    } catch {
-      toast.error('שגיאה ביצירת משימה')
-    } finally {
-      setCreating(false)
-    }
-  }
-
-  const handleStatusChange = async (taskId: number, newStatus: string) => {
-    try {
-      await api.patch(`tasks/${taskId}`, { status: newStatus })
-      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t))
-    } catch {
-      toast.error('שגיאה בעדכון')
-    }
-  }
-
-  if (loading) {
-    return <div style={{ textAlign: 'center', padding: 20, color: 'var(--color-text-muted)' }}>טוען...</div>
-  }
-
+// Tasks Tab (placeholder - to be expanded)
+function TasksTab({ leadId: _leadId }: { leadId: number }) {
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <span style={{ fontSize: 13, fontWeight: 600 }}>משימות ({tasks.length})</span>
-        <button
-          className={`${s.btn} ${s['btn-primary']} ${s['btn-xs']}`}
-          onClick={() => setShowForm(!showForm)}
-        >
-          <Plus size={12} /> משימה חדשה
-        </button>
-      </div>
-
-      {showForm && (
-        <div style={{ padding: 12, background: 'var(--color-bg-accent)', borderRadius: 8, marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <input
-            className={s.input}
-            placeholder="כותרת המשימה..."
-            value={newTitle}
-            onChange={e => setNewTitle(e.target.value)}
-            style={{ fontSize: 13 }}
-          />
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              className={s.input}
-              type="date"
-              value={newDue}
-              onChange={e => setNewDue(e.target.value)}
-              dir="ltr"
-              style={{ flex: 1, fontSize: 12 }}
-            />
-            <select
-              className={s.select}
-              value={newPriority}
-              onChange={e => setNewPriority(Number(e.target.value))}
-              style={{ flex: 1, fontSize: 12 }}
-            >
-              <option value={0}>ללא עדיפות</option>
-              <option value={1}>נמוך</option>
-              <option value={2}>רגיל</option>
-              <option value={3}>גבוה</option>
-            </select>
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button
-              className={`${s.btn} ${s['btn-primary']} ${s['btn-xs']}`}
-              onClick={handleCreate}
-              disabled={creating || !newTitle.trim()}
-            >
-              {creating ? '...' : 'צור'}
-            </button>
-            <button
-              className={`${s.btn} ${s['btn-ghost']} ${s['btn-xs']}`}
-              onClick={() => setShowForm(false)}
-            >
-              ביטול
-            </button>
-          </div>
-        </div>
-      )}
-
-      {tasks.length === 0 ? (
-        <div className={s['empty-state']}>
-          <ListTodo size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
-          <div>אין משימות מקושרות</div>
-          <div style={{ fontSize: 12, marginTop: 4 }}>צור משימה חדשה לליד זה</div>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {tasks.map(t => {
-            const isOverdue = t.due_date && new Date(t.due_date) < new Date() && t.status !== 'הושלם' && t.status !== 'בוטל'
-            return (
-              <div
-                key={t.id}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '8px 10px', borderRadius: 6,
-                  background: t.status === 'הושלם' ? 'var(--color-bg-accent)' : 'var(--color-surface)',
-                  border: '1px solid var(--color-border)',
-                  opacity: t.status === 'הושלם' || t.status === 'בוטל' ? 0.6 : 1,
-                }}
-              >
-                <select
-                  className={s.select}
-                  value={t.status}
-                  onChange={e => handleStatusChange(t.id, e.target.value)}
-                  style={{ width: 80, fontSize: 11, padding: '2px 4px' }}
-                >
-                  <option value="חדש">חדש</option>
-                  <option value="בטיפול">בטיפול</option>
-                  <option value="הושלם">הושלם</option>
-                  <option value="בוטל">בוטל</option>
-                </select>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{
-                    fontSize: 13, fontWeight: 500,
-                    textDecoration: t.status === 'הושלם' ? 'line-through' : 'none',
-                  }}>
-                    {isOverdue && <AlertTriangle size={11} style={{ color: 'var(--color-danger)', marginLeft: 4, display: 'inline' }} />}
-                    {t.title}
-                  </div>
-                  {t.description && (
-                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {t.description}
-                    </div>
-                  )}
-                </div>
-                {t.due_date && (
-                  <span style={{
-                    fontSize: 11, whiteSpace: 'nowrap',
-                    color: isOverdue ? 'var(--color-danger)' : 'var(--color-text-muted)',
-                    fontWeight: isOverdue ? 600 : 400,
-                  }}>
-                    {new Date(t.due_date).toLocaleDateString('he-IL')}
-                  </span>
-                )}
-                {t.priority > 0 && (
-                  <span className={`${s.badge} ${s[`badge-${t.priority >= 3 ? 'orange' : t.priority >= 2 ? 'blue' : 'gray'}`]}`} style={{ fontSize: 10 }}>
-                    {t.priority >= 3 ? 'גבוה' : t.priority >= 2 ? 'רגיל' : 'נמוך'}
-                  </span>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
+    <div className={s['empty-state']}>
+      <ListTodo size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
+      <div>אין משימות מקושרות</div>
+      <div style={{ fontSize: 12, marginTop: 4 }}>משימות מכירות קשורות לליד יופיעו כאן</div>
     </div>
   )
 }
@@ -967,7 +766,23 @@ function InquiriesTab({ leadId: _leadId }: { leadId: number }) {
   )
 }
 
-// Emails Tab — Send emails to lead + view synced emails
+// Emails Tab — Send emails to lead + view history
+interface SentEmail {
+  id: number
+  subject: string
+  body: string
+  status: string
+  send_method: string
+  created_at: string
+  sent_at: string | null
+  attachments?: Array<{
+    id: number
+    filename: string
+    size_bytes: number
+    content_type: string
+  }>
+}
+
 interface EmailTemplate {
   id: number
   name: string
@@ -983,10 +798,9 @@ interface EmailTemplate {
 }
 
 function EmailsTab({ lead, onUpdate }: { lead: Lead; onUpdate: () => void }) {
-  // Show synced emails by default, with compose mode toggle
+  const [emails, setEmails] = useState<SentEmail[]>([])
+  const [loading, setLoading] = useState(true)
   const [showCompose, setShowCompose] = useState(false)
-
-  // ── Compose state (existing) ──
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [sending, setSending] = useState(false)
@@ -996,42 +810,16 @@ function EmailsTab({ lead, onUpdate }: { lead: Lead; onUpdate: () => void }) {
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ id: number; filename: string; size_bytes: number }>>([])
   const [uploading, setUploading] = useState(false)
 
-  // ── Synced emails state (new) ──
-  interface SyncedEmail {
-    id: number
-    gmail_id: string
-    thread_id: string | null
-    direction: string
-    from_email: string
-    from_name: string | null
-    to_emails: Array<{ name?: string; email: string }> | null
-    subject: string | null
-    snippet: string | null
-    has_attachment: boolean
-    attachments_count: number
-    folder: string | null
-    is_read: boolean
-    email_date: string | null
-    body_html?: string | null
-    body_text?: string | null
-    thread_emails?: Array<{
-      id: number
-      direction: string
-      from_name: string | null
-      from_email: string
-      subject: string | null
-      snippet: string | null
-      email_date: string | null
-      has_attachment: boolean
-      is_current: boolean
-    }>
-  }
-  const [syncedEmails, setSyncedEmails] = useState<SyncedEmail[]>([])
-  const [syncedLoading, setSyncedLoading] = useState(true)
-  const [syncedTotal, setSyncedTotal] = useState(0)
-  const [expandedSynced, setExpandedSynced] = useState<number | null>(null)
-  const [expandedDetail, setExpandedDetail] = useState<SyncedEmail | null>(null)
-  const [loadingDetail, setLoadingDetail] = useState(false)
+  const fetchEmails = useCallback(async () => {
+    try {
+      const data = await api.get<SentEmail[]>(`/messages/lead/${lead.id}`)
+      setEmails(data)
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false)
+    }
+  }, [lead.id])
 
   const fetchTemplates = useCallback(async () => {
     try {
@@ -1042,42 +830,10 @@ function EmailsTab({ lead, onUpdate }: { lead: Lead; onUpdate: () => void }) {
     }
   }, [])
 
-  const fetchSyncedEmails = useCallback(async () => {
-    setSyncedLoading(true)
-    try {
-      const data = await api.get<{ items: SyncedEmail[]; total: number }>(`/inbound-emails/lead/${lead.id}/emails?limit=100`)
-      setSyncedEmails(data.items)
-      setSyncedTotal(data.total)
-    } catch {
-      // ignore
-    } finally {
-      setSyncedLoading(false)
-    }
-  }, [lead.id])
-
-  useEffect(() => { 
+  useEffect(() => {
+    fetchEmails()
     fetchTemplates()
-    fetchSyncedEmails()
-  }, [fetchTemplates, fetchSyncedEmails])
-
-  const loadSyncedDetail = async (emailId: number) => {
-    if (expandedSynced === emailId) {
-      setExpandedSynced(null)
-      setExpandedDetail(null)
-      return
-    }
-    setExpandedSynced(emailId)
-    setExpandedDetail(null)
-    setLoadingDetail(true)
-    try {
-      const detail = await api.get<SyncedEmail>(`/inbound-emails/${emailId}`)
-      setExpandedDetail(detail)
-    } catch {
-      setExpandedDetail(null)
-    } finally {
-      setLoadingDetail(false)
-    }
-  }
+  }, [fetchEmails, fetchTemplates])
 
   const handleTemplateSelect = (templateId: number) => {
     const template = templates.find(t => t.id === templateId)
@@ -1139,7 +895,7 @@ function EmailsTab({ lead, onUpdate }: { lead: Lead; onUpdate: () => void }) {
       setSelectedTemplate(null)
       setUploadedFiles([])
       setShowCompose(false)
-      fetchSyncedEmails()
+      fetchEmails()
       onUpdate()
     } catch (err: any) {
       setSendResult({ ok: false, msg: err?.message || 'שליחת המייל נכשלה' })
@@ -1148,152 +904,23 @@ function EmailsTab({ lead, onUpdate }: { lead: Lead; onUpdate: () => void }) {
     }
   }
 
-  const formatSyncedDate = (dateStr: string | null) => {
-    if (!dateStr) return ''
-    try {
-      const d = new Date(dateStr)
-      return d.toLocaleDateString('he-IL', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })
-    } catch { return '' }
-  }
-
   return (
     <div className={s.workspace__section_content}>
-      {/* Header with Compose button (Gmail style) */}
+      {/* Compose / Action bar */}
       <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--color-border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Mail size={16} style={{ color: 'var(--color-text-muted)' }} />
-          <span style={{ fontSize: 14, fontWeight: 500 }}>מיילים {syncedTotal > 0 && `(${syncedTotal})`}</span>
-        </div>
+        {!lead.email ? (
+          <span style={{ color: 'var(--color-warning, #d97706)', fontSize: 13 }}>⚠ לליד אין כתובת מייל — הוסף מייל בפרטי הקשר</span>
+        ) : (
+          <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{lead.email}</span>
+        )}
         <button
           className={`${s.btn} ${s['btn-primary']} ${s['btn-sm']}`}
           onClick={() => setShowCompose(!showCompose)}
           disabled={!lead.email}
-          title={!lead.email ? 'הוסף מייל בפרטי הקשר' : ''}
         >
-          <Send size={14} /> {showCompose ? 'סגור' : 'כתוב מייל'}
+          <Mail size={14} /> {showCompose ? 'סגור' : 'כתוב מייל'}
         </button>
       </div>
-
-      {/* Compose form (shown when button clicked) */}
-      {showCompose && (
-        <div style={{ padding: 16, borderBottom: '2px solid var(--color-primary)', background: 'var(--color-bg-secondary, #f8fafc)' }}>
-          {!lead.email ? (
-            <div style={{ color: 'var(--color-warning, #d97706)', fontSize: 13, padding: '8px 12px', background: 'var(--color-warning-light, #fef3c7)', borderRadius: 6 }}>
-              ⚠ לליד אין כתובת מייל — הוסף מייל בפרטי הקשר
-            </div>
-          ) : (
-            <>
-              {templates.length > 0 && (
-                <div style={{ marginBottom: 10 }}>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-text-secondary)' }}>בחר תבנית</label>
-                  <select
-                    value={selectedTemplate || ''}
-                    onChange={e => handleTemplateSelect(Number(e.target.value))}
-                    style={{
-                      width: '100%', padding: '8px 12px', borderRadius: 6,
-                      border: '1px solid var(--color-border)', fontSize: 14,
-                    }}
-                  >
-                    <option value="">כתוב מייל חופשי</option>
-                    {templates.map(t => (
-                      <option key={t.id} value={t.id}>
-                        {t.name} {t.category && `(${t.category})`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <div style={{ marginBottom: 10 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-text-secondary)' }}>נושא</label>
-                <input
-                  type="text"
-                  value={subject}
-                  onChange={e => setSubject(e.target.value)}
-                  placeholder="נושא המייל..."
-                  style={{
-                    width: '100%', padding: '8px 12px', borderRadius: 6,
-                    border: '1px solid var(--color-border)', fontSize: 14,
-                    direction: 'rtl',
-                  }}
-                />
-              </div>
-              <div style={{ marginBottom: 10 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-text-secondary)' }}>תוכן</label>
-                <textarea
-                  value={body}
-                  onChange={e => setBody(e.target.value)}
-                  placeholder="תוכן המייל..."
-                  rows={6}
-                  style={{
-                    width: '100%', padding: '8px 12px', borderRadius: 6,
-                    border: '1px solid var(--color-border)', fontSize: 14,
-                    resize: 'vertical', direction: 'rtl', fontFamily: 'inherit',
-                  }}
-                />
-              </div>
-              <div style={{ marginBottom: 10 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--color-text-secondary)' }}>קבצים מצורפים</label>
-                <label className={`${s.btn} ${s['btn-secondary']} ${s['btn-sm']}`} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                  <Upload size={14} />
-                  {uploading ? 'מעלה...' : 'העלה קובץ'}
-                  <input
-                    type="file"
-                    multiple
-                    onChange={handleFileUpload}
-                    disabled={uploading}
-                    style={{ display: 'none' }}
-                  />
-                </label>
-                {uploadedFiles.length > 0 && (
-                  <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {uploadedFiles.map(file => (
-                      <div
-                        key={file.id}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          padding: '4px 8px',
-                          background: 'white',
-                          border: '1px solid var(--color-border)',
-                          borderRadius: 4,
-                          fontSize: 12,
-                        }}
-                      >
-                        <FileText size={12} />
-                        <span style={{ flex: 1 }}>{file.filename}</span>
-                        <span style={{ color: 'var(--color-text-muted)' }}>{formatFileSize(file.size_bytes)}</span>
-                        <button
-                          onClick={() => handleRemoveFile(file.id)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            padding: 2,
-                            color: 'var(--color-danger)',
-                          }}
-                        >
-                          <X size={12} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                <button className={`${s.btn} ${s['btn-ghost']} ${s['btn-sm']}`} onClick={() => setShowCompose(false)}>ביטול</button>
-                <button
-                  className={`${s.btn} ${s['btn-primary']} ${s['btn-sm']}`}
-                  onClick={handleSend}
-                  disabled={sending || !subject.trim() || !body.trim()}
-                >
-                  <Send size={14} /> {sending ? 'שולח...' : 'שלח מייל'}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
 
       {/* Send result toast */}
       {sendResult && (
@@ -1309,128 +936,178 @@ function EmailsTab({ lead, onUpdate }: { lead: Lead; onUpdate: () => void }) {
         </div>
       )}
 
-      {/* ═══ SYNCED EMAILS LIST ═══ */}
-      {(
-        <>
-          {syncedLoading ? (
-            <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)' }}>טוען...</div>
-          ) : syncedEmails.length === 0 ? (
-            <div className={s['empty-state']}>
-              <Mail size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
-              <div>אין מיילים מסונכרנים לליד זה</div>
-              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>מיילים יופיעו כאן אחרי סנכרון מתיבת המייל</div>
-            </div>
-          ) : (
-            <div style={{ overflow: 'auto' }}>
-              {syncedEmails.map(email => (
-                <div key={email.id}>
-                  <div
-                    onClick={() => loadSyncedDetail(email.id)}
-                    style={{
-                      padding: '10px 14px',
-                      borderBottom: '1px solid var(--color-border-light)',
-                      cursor: 'pointer',
-                      background: expandedSynced === email.id ? 'var(--color-primary-light, #eff6ff)' : email.is_read ? 'transparent' : 'var(--color-bg-secondary, #f8fafc)',
-                      display: 'flex', gap: 8, alignItems: 'flex-start',
-                    }}
-                  >
-                    <div style={{ marginTop: 2, flexShrink: 0 }}>
-                      {email.direction === 'inbound' ? (
-                        <ArrowDownLeft size={14} style={{ color: 'var(--color-primary, #2563eb)' }} />
-                      ) : (
-                        <ArrowUpRight size={14} style={{ color: 'var(--color-success, #16a34a)' }} />
-                      )}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                        <span style={{ fontWeight: email.is_read ? 400 : 600, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {email.direction === 'outbound' && email.to_emails?.length ? (email.to_emails[0].name || email.to_emails[0].email) : (email.from_name || email.from_email)}
-                        </span>
-                        <span style={{ fontSize: 10, color: 'var(--color-text-muted)', flexShrink: 0 }}>{formatSyncedDate(email.email_date)}</span>
-                      </div>
-                      <div style={{ fontSize: 12, fontWeight: email.is_read ? 400 : 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
-                        {email.subject || '(ללא נושא)'}
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
-                        {email.snippet || ''}
-                      </div>
-                      <div style={{ display: 'flex', gap: 4, marginTop: 3 }}>
-                        {email.has_attachment && (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, padding: '0 4px', background: 'var(--color-bg-secondary)', borderRadius: 3 }}>
-                            <Paperclip size={9} /> {email.attachments_count || ''}
-                          </span>
-                        )}
-                        <span style={{ fontSize: 10, padding: '0 4px', borderRadius: 3, background: email.direction === 'inbound' ? 'var(--color-primary-light, #eff6ff)' : 'var(--color-success-light, #f0fdf4)', color: email.direction === 'inbound' ? 'var(--color-primary)' : 'var(--color-success)' }}>
-                          {email.direction === 'inbound' ? 'נכנס' : 'יוצא'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  {/* Expanded detail */}
-                  {expandedSynced === email.id && (
-                    <div style={{ padding: '12px 16px', background: 'var(--color-bg-secondary, #f8fafc)', borderBottom: '2px solid var(--color-primary)' }}>
-                      {loadingDetail ? (
-                        <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)' }}>טוען תוכן...</div>
-                      ) : !expandedDetail ? (
-                        <div style={{ padding: 12, textAlign: 'center', color: 'var(--color-danger)' }}>שגיאה בטעינת המייל</div>
-                      ) : (
-                        <>
-                          {/* Thread indicator */}
-                          {expandedDetail.thread_emails && expandedDetail.thread_emails.length > 1 && (
-                            <div style={{ marginBottom: 8, padding: '6px 8px', background: 'white', borderRadius: 4, border: '1px solid var(--color-border-light)' }}>
-                              <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4, color: 'var(--color-text-secondary)' }}>
-                                שרשור ({expandedDetail.thread_emails.length} הודעות)
-                              </div>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                {expandedDetail.thread_emails.map(te => (
-                                  <div
-                                    key={te.id}
-                                    onClick={() => { if (!te.is_current) loadSyncedDetail(te.id) }}
-                                    style={{
-                                      display: 'flex', gap: 4, alignItems: 'center', padding: '2px 4px', borderRadius: 3,
-                                      cursor: te.is_current ? 'default' : 'pointer',
-                                      background: te.is_current ? 'var(--color-primary-light, #eff6ff)' : 'transparent',
-                                      fontSize: 10,
-                                    }}
-                                  >
-                                    {te.direction === 'inbound' ? <ArrowDownLeft size={9} /> : <ArrowUpRight size={9} />}
-                                    <span style={{ fontWeight: te.is_current ? 600 : 400 }}>{te.from_name || te.from_email}</span>
-                                    <span style={{ color: 'var(--color-text-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                      — {te.subject || te.snippet || ''}
-                                    </span>
-                                    {te.has_attachment && <Paperclip size={8} />}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 8 }}>
-                            <div><strong>מאת:</strong> {expandedDetail.from_name && `${expandedDetail.from_name} `}&lt;{expandedDetail.from_email}&gt;</div>
-                            {expandedDetail.to_emails && (
-                              <div><strong>אל:</strong> {expandedDetail.to_emails.map(t => t.name ? `${t.name} <${t.email}>` : t.email).join(', ')}</div>
-                            )}
-                          </div>
-                          {expandedDetail.body_html ? (
-                            <iframe
-                              srcDoc={`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;font-size:13px;padding:8px;margin:0;direction:rtl;color:#333;}img{max-width:100%;height:auto;}a{color:#2563eb;}</style></head><body>${expandedDetail.body_html}</body></html>`}
-                              style={{ width: '100%', height: 250, border: '1px solid var(--color-border-light)', borderRadius: 4, background: 'white' }}
-                              sandbox="allow-same-origin"
-                              title="Email body"
-                            />
-                          ) : (
-                            <pre style={{ padding: 8, margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 13, background: 'white', border: '1px solid var(--color-border-light)', borderRadius: 4, maxHeight: 250, overflow: 'auto' }}>
-                              {expandedDetail.body_text || '(ללא תוכן)'}
-                            </pre>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
+      {/* Compose form */}
+      {showCompose && (
+        <div style={{ padding: 16, borderBottom: '2px solid var(--color-primary)', background: 'var(--color-bg-secondary, #f8fafc)' }}>
+          {templates.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-text-secondary)' }}>בחר תבנית</label>
+              <select
+                value={selectedTemplate || ''}
+                onChange={e => handleTemplateSelect(Number(e.target.value))}
+                style={{
+                  width: '100%', padding: '8px 12px', borderRadius: 6,
+                  border: '1px solid var(--color-border)', fontSize: 14,
+                }}
+              >
+                <option value="">כתוב מייל חופשי</option>
+                {templates.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} {t.category && `(${t.category})`}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
-        </>
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-text-secondary)' }}>נושא</label>
+            <input
+              type="text"
+              value={subject}
+              onChange={e => setSubject(e.target.value)}
+              placeholder="נושא המייל..."
+              style={{
+                width: '100%', padding: '8px 12px', borderRadius: 6,
+                border: '1px solid var(--color-border)', fontSize: 14,
+                direction: 'rtl',
+              }}
+            />
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-text-secondary)' }}>תוכן</label>
+            <textarea
+              value={body}
+              onChange={e => setBody(e.target.value)}
+              placeholder="תוכן המייל..."
+              rows={6}
+              style={{
+                width: '100%', padding: '8px 12px', borderRadius: 6,
+                border: '1px solid var(--color-border)', fontSize: 14,
+                resize: 'vertical', direction: 'rtl', fontFamily: 'inherit',
+              }}
+            />
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--color-text-secondary)' }}>קבצים מצורפים</label>
+            <label className={`${s.btn} ${s['btn-secondary']} ${s['btn-sm']}`} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <Upload size={14} />
+              {uploading ? 'מעלה...' : 'העלה קובץ'}
+              <input
+                type="file"
+                multiple
+                onChange={handleFileUpload}
+                disabled={uploading}
+                style={{ display: 'none' }}
+              />
+            </label>
+            {uploadedFiles.length > 0 && (
+              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {uploadedFiles.map(file => (
+                  <div
+                    key={file.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '4px 8px',
+                      background: 'white',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 4,
+                      fontSize: 12,
+                    }}
+                  >
+                    <FileText size={12} />
+                    <span style={{ flex: 1 }}>{file.filename}</span>
+                    <span style={{ color: 'var(--color-text-muted)' }}>{formatFileSize(file.size_bytes)}</span>
+                    <button
+                      onClick={() => handleRemoveFile(file.id)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: 2,
+                        color: 'var(--color-danger)',
+                      }}
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button className={`${s.btn} ${s['btn-ghost']} ${s['btn-sm']}`} onClick={() => setShowCompose(false)}>ביטול</button>
+            <button
+              className={`${s.btn} ${s['btn-primary']} ${s['btn-sm']}`}
+              onClick={handleSend}
+              disabled={sending || !subject.trim() || !body.trim()}
+            >
+              <Send size={14} /> {sending ? 'שולח...' : 'שלח מייל'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Email history */}
+      {loading ? (
+        <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)' }}>טוען...</div>
+      ) : emails.length === 0 ? (
+        <div className={s['empty-state']}>
+          <Mail size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
+          <div>לא נשלחו מיילים לליד זה</div>
+          {lead.email && (
+            <button className={`${s.btn} ${s['btn-primary']} ${s['btn-sm']}`} onClick={() => setShowCompose(true)} style={{ marginTop: 12 }}>
+              <Mail size={14} /> שלח מייל ראשון
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className={s.timeline} style={{ padding: 16 }}>
+          {emails.map(email => (
+            <div key={email.id} className={s['timeline-item']}>
+              <div className={s['timeline-dot']} style={{
+                background: email.status === 'נשלח' ? 'var(--color-success, #16a34a)' : email.status === 'נכשל' ? 'var(--color-danger, #dc2626)' : 'var(--color-border)',
+              }} />
+              <div className={s['timeline-content']}>
+                <div className={s['timeline-date']}>
+                  {formatDateTime(email.sent_at || email.created_at)}
+                  <span style={{
+                    marginRight: 8, fontSize: 11, padding: '1px 6px', borderRadius: 4,
+                    background: email.status === 'נשלח' ? 'var(--color-success-light, #f0fdf4)' : 'var(--color-danger-light, #fef2f2)',
+                    color: email.status === 'נשלח' ? 'var(--color-success, #16a34a)' : 'var(--color-danger, #dc2626)',
+                  }}>{email.status}</span>
+                </div>
+                <div style={{ fontWeight: 600, fontSize: 14, marginTop: 4 }}>{email.subject}</div>
+                <div style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-secondary)', whiteSpace: 'pre-wrap', maxHeight: 100, overflow: 'hidden' }}>
+                  {email.body.replace(/<[^>]*>/g, '').substring(0, 200)}
+                  {email.body.length > 200 && '...'}
+                </div>
+                {email.attachments && email.attachments.length > 0 && (
+                  <div style={{ marginTop: 8, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    {email.attachments.map(att => (
+                      <div
+                        key={att.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '2px 6px',
+                          background: 'var(--color-bg-secondary)',
+                          borderRadius: 4,
+                          fontSize: 11,
+                        }}
+                      >
+                        <Paperclip size={10} />
+                        <span>{att.filename}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )

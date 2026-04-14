@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from db import settings
-from db.models import Lead, Payment, Course, Commitment, HistoryEntry
+from db.models import Lead, Payment, Course, Commitment
 
 logger = logging.getLogger(__name__)
 

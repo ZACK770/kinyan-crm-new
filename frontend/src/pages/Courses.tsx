@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useSearchParams, useNavigate } from 'react-router-dom'
-import { BookOpen, Plus, Layers } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { BookOpen, Plus } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatDate } from '@/lib/status'
 import { useToast } from '@/components/ui/Toast'
@@ -23,11 +23,10 @@ function Badge({ value }: { value: boolean }) {
    ══════════════════════════════════════════════════════════════ */
 export function CoursesPage() {
   const toast = useToast()
-  const navigate = useNavigate()
 
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
-  
+
   // Workspace view state: 'list' | 'create' | Course object (edit mode)
   type ViewMode = 'list' | 'create'
   const [viewMode, setViewMode] = useState<ViewMode>('list')
@@ -101,21 +100,6 @@ export function CoursesPage() {
       render: r => <Badge value={r.is_active} />,
     },
     { key: 'start_date', header: 'התחלה', type: 'text', render: r => formatDate(r.start_date), className: s.muted },
-    {
-      key: 'topics' as keyof Course,
-      header: 'נושאים',
-      type: 'text',
-      render: (r: Course) => (
-        <button
-          className={`${s.btn} ${s['btn-secondary']}`}
-          style={{ padding: '0.25rem 0.6rem', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
-          onClick={(e) => { e.stopPropagation(); navigate(`/admin/courses/${r.id}/topics`) }}
-        >
-          <Layers size={14} />
-          נושאים
-        </button>
-      ),
-    },
   ]
 
   // Show workspace for create or edit
@@ -124,7 +108,7 @@ export function CoursesPage() {
       <CourseWorkspace
         course={null}
         onClose={backToList}
-        onUpdate={() => {}}
+        onUpdate={() => { }}
         onCreate={handleCreatedCourse}
       />
     )
