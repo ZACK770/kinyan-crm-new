@@ -28,7 +28,7 @@ class InteractionCreate(BaseModel):
 async def list_leads(
     status: str | None = Query(None),
     salesperson_id: int | None = Query(None),
-    limit: int = Query(50, le=200),
+    limit: int = Query(50, le=1000),
     offset: int = Query(0),
     user = Depends(require_entity_access("leads", "view")),
     db: AsyncSession = Depends(get_db),
