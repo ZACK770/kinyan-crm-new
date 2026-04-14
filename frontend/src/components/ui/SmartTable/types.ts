@@ -55,6 +55,7 @@ export interface SmartColumn<T> {
   type: FieldType
   render?: (row: T, onUpdate: (value: unknown) => void) => ReactNode
   renderView?: (row: T) => ReactNode // Display-only render (no editing)
+  displayValue?: (row: T) => ReactNode // Custom display value for inline editing
   options?: SelectOption[] // For select type
   editable?: boolean // Allow inline editing (default true)
   sortable?: boolean // Allow sorting (default true)

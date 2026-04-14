@@ -13,7 +13,6 @@ import { getStatus, getSourceLabel, formatDate, formatDateTime } from '@/lib/sta
 import { useModal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { SmartTable, type SmartColumn } from '@/components/ui/SmartTable'
-import { InlineEditCell } from '@/components/ui/SmartTable/InlineEditCell'
 import { LeadWorkspace } from '@/components/leads'
 import type { Lead, LeadInteraction, Salesperson, Course, Campaign } from '@/types'
 import s from '@/styles/shared.module.css'
@@ -761,25 +760,7 @@ export function LeadsPage() {
       key: 'status',
       header: 'סטטוס',
       type: 'select',
-      render: (r, onUpdate) => onUpdate ? (
-        <InlineEditCell
-          value={r.status}
-          type="select"
-          options={[
-            { value: 'ליד חדש', label: 'ליד חדש' },
-            { value: 'ליד בתהליך', label: 'ליד בתהליך' },
-            { value: 'חיוג ראשון', label: 'חיוג ראשון' },
-            { value: 'ליד ישן', label: 'ליד ישן' },
-            { value: 'נסלק', label: 'נסלק' },
-            { value: 'תלמיד פעיל', label: 'תלמיד פעיל' },
-            { value: 'לא רלוונטי', label: 'לא רלוונטי' },
-          ]}
-          displayValue={<Badge entity="lead" value={r.status} />}
-          onSave={async (v) => await onUpdate(v)}
-        />
-      ) : (
-        <Badge entity="lead" value={r.status} />
-      ),
+      displayValue: r => <Badge entity="lead" value={r.status} />,
       options: [
         { value: 'ליד חדש', label: 'ליד חדש' },
         { value: 'ליד בתהליך', label: 'ליד בתהליך' },

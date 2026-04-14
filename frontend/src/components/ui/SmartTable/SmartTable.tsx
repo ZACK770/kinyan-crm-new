@@ -559,7 +559,7 @@ function renderCell<T>(
       value={value}
       type={column.type}
       options={column.options}
-      displayValue={formatDisplayValue(value, column)}
+      displayValue={column.displayValue ? column.displayValue(row) : formatDisplayValue(value, column)}
       onSave={onUpdate}
     />
   )
