@@ -718,12 +718,43 @@ export function LeadsPage() {
       )
     },
     {
+      key: 'family_name',
+      header: 'שם משפחה',
+      type: 'text',
+      hiddenByDefault: true,
+      editable: false,
+    },
+    {
       key: 'phone',
       header: 'טלפון',
       type: 'text',
       className: s.mono,
       renderView: r => <span dir="ltr">{r.phone}</span>,
       editable: false // Phone usually shouldn't be edited inline easily
+    },
+    {
+      key: 'phone2',
+      header: 'טלפון 2',
+      type: 'text',
+      className: s.mono,
+      hiddenByDefault: true,
+      editable: false,
+      renderView: r => r.phone2 ? <span dir="ltr">{r.phone2}</span> : '—',
+    },
+    {
+      key: 'email',
+      header: 'אימייל',
+      type: 'text',
+      hiddenByDefault: true,
+      editable: false,
+      renderView: r => r.email ? <span dir="ltr">{r.email}</span> : '—',
+    },
+    {
+      key: 'city',
+      header: 'עיר',
+      type: 'text',
+      hiddenByDefault: true,
+      editable: false,
     },
     {
       key: 'status',
@@ -750,6 +781,7 @@ export function LeadsPage() {
       key: 'source_type',
       header: 'מקור',
       type: 'select',
+      renderView: r => r.source_type ? getSourceLabel(r.source_type) : '—',
       options: [
         { value: 'yemot', label: 'ימות המשיח' },
         { value: 'elementor', label: 'אלמנטור' },
@@ -758,6 +790,36 @@ export function LeadsPage() {
         { value: 'ייבוא ממערכת ישנה', label: 'ייבוא ממערכת ישנה' },
         { value: 'other', label: 'אחר' },
       ],
+    },
+    {
+      key: 'source_name',
+      header: 'שם מקור',
+      type: 'text',
+      hiddenByDefault: true,
+      editable: false,
+    },
+    {
+      key: 'campaign_name',
+      header: 'שם קמפיין',
+      type: 'text',
+      hiddenByDefault: true,
+      editable: false,
+    },
+    {
+      key: 'requested_course',
+      header: 'קורס מבוקש',
+      type: 'text',
+      hiddenByDefault: true,
+      editable: false,
+    },
+    {
+      key: 'arrival_date',
+      header: 'תאריך הגעה',
+      type: 'datetime',
+      className: s.muted,
+      editable: false,
+      hiddenByDefault: true,
+      renderView: r => r.arrival_date ? formatDate(r.arrival_date) : '—'
     },
     {
       key: 'created_at',
@@ -888,8 +950,13 @@ export function LeadsPage() {
             { key: 'full_name', label: 'שם פרטי', weight: 3 },
             { key: 'family_name', label: 'שם משפחה', weight: 3 },
             { key: 'phone', label: 'טלפון', weight: 2 },
+            { key: 'phone2', label: 'טלפון 2', weight: 1 },
             { key: 'email', label: 'אימייל', weight: 1 },
             { key: 'city', label: 'עיר', weight: 1 },
+            { key: 'source_type', label: 'מקור', weight: 1 },
+            { key: 'source_name', label: 'שם מקור', weight: 1 },
+            { key: 'campaign_name', label: 'שם קמפיין', weight: 1 },
+            { key: 'requested_course', label: 'קורס מבוקש', weight: 1 },
             { key: 'status', label: 'סטטוס', weight: 1 },
           ]}
           defaultPageSize={100}
@@ -911,7 +978,7 @@ export function LeadsPage() {
           onDelete={handleBulkDelete}
           onBulkUpdate={handleBulkUpdate}
           keyExtractor={(row) => row.id}
-          storageKey="leads_table_v1"
+          storageKey="leads_table_v2"
           bulkActions={[
             {
               id: 'assign_sp',

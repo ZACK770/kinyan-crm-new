@@ -38,10 +38,22 @@ async def list_leads(
         {
             "id": l.id,
             "full_name": l.full_name,
+            "family_name": l.family_name,
             "phone": l.phone,
+            "phone2": l.phone2,
+            "email": l.email,
+            "city": l.city,
             "status": l.status,
+            "source_type": l.source_type,
+            "source_name": l.source_name,
+            "campaign_name": l.campaign_name,
+            "requested_course": l.requested_course,
+            "arrival_date": str(l.arrival_date) if l.arrival_date else None,
             "salesperson_id": l.salesperson_id,
             "created_at": str(l.created_at),
+            "updated_at": str(l.updated_at) if l.updated_at else None,
+            "last_edited_at": str(l.last_edited_at) if l.last_edited_at else None,
+            "conversion_date": str(l.conversion_date) if l.conversion_date else None,
         }
         for l in items
     ]
