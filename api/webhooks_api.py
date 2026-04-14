@@ -14,6 +14,8 @@ from webhooks.elementor import handle_elementor_webhook
 from webhooks.yemot import handle_yemot_webhook
 from webhooks.generic import handle_generic_webhook
 from webhooks.nedarim import handle_nedarim_webhook
+from webhooks.nedarim_debitcard import handle_nedarim_debitcard_webhook
+from webhooks.nedarim_keva import handle_nedarim_keva_webhook
 from webhooks.lead_unified import handle_unified_lead_webhook, detect_source
 from services.nedarim_plus import verify_webhook_signature
 from services.webhook_logger import log_webhook, WebhookTimer
@@ -170,11 +172,141 @@ async def nedarim_webhook(request: Request):
     # Get raw body for signature verification
     body = await request.body()
     signature = request.headers.get("X-Nedarim-Signature", "")
-    
+
     # Verify signature
     if not verify_webhook_signature(body, signature):
         return {"success": False, "error": "Invalid signature"}
-    
+
     data = await request.json()
     result = await handle_nedarim_webhook(data, signature)
     return result
+
+
+@router.post("/nedarim-debitcard")
+async def nedarim_debitcard_webhook(request: Request):
+    """
+    Handle Nedarim Plus DebitCard API callbacks.
+    These are direct credit card charges (RAGIL payments).
+    Does NOT require signature verification (Nedarim doesn't sign these).
+    """
+    timer = WebhookTimer()
+    data = None
+
+    try:
+        with timer:
+            # Can be form-data or JSON
+            content_type = request.headers.get("content-type", "")
+            if "form" in content_type:
+                data = dict(await request.form())
+            else:
+                data = await request.json()
+
+            data = _unwrap_array(data)
+            logger.info(f"Nedarim DebitCard webhook received: confirmation={data.get('Confirmation', 'N/A')}")
+
+            async for db in get_db():
+                result = await handle_nedarim_debitcard_webhook(db, data)
+                await log_webhook(
+                    db,
+                    webhook_type="nedarim-debitcard",
+                    raw_payload=data,
+                    source_ip=_get_client_ip(request),
+                    success=result.get("success", False),
+                    action=result.get("action"),
+                    result_data=result,
+                    entity_type="payment" if result.get("payment_id") else None,
+                    entity_id=result.get("payment_id"),
+                    processing_time_ms=timer.elapsed_ms,
+                )
+                await db.commit()
+
+            return result
+    except Exception as e:
+        logger.error(f"Nedarim DebitCard webhook error: {e}", exc_info=True)
+        async for db in get_db():
+            webhook_log = await log_webhook(
+                db,
+                webhook_type="nedarim-debitcard",
+                raw_payload=data,
+                source_ip=_get_client_ip(request),
+                success=False,
+                error_message=str(e),
+                processing_time_ms=timer.elapsed_ms,
+            )
+            if webhook_log:
+                await save_failed_webhook(
+                    db,
+                    webhook_log.id,
+                    "nedarim-debitcard",
+                    data,
+                    _get_client_ip(request),
+                    str(e),
+                )
+            await db.commit()
+
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/nedarim-keva")
+async def nedarim_keva_webhook(request: Request):
+    """
+    Handle Nedarim Plus הוראת קבע (standing order) callbacks.
+    These are recurring charges from Nedarim's keva system.
+    Does NOT require signature verification (Nedarim doesn't sign these).
+    """
+    timer = WebhookTimer()
+    data = None
+
+    try:
+        with timer:
+            # Can be form-data or JSON
+            content_type = request.headers.get("content-type", "")
+            if "form" in content_type:
+                data = dict(await request.form())
+            else:
+                data = await request.json()
+
+            data = _unwrap_array(data)
+            logger.info(f"Nedarim Keva webhook received: keva_id={data.get('KevaId', 'N/A')}, confirmation={data.get('Confirmation', 'N/A')}")
+
+            async for db in get_db():
+                result = await handle_nedarim_keva_webhook(db, data)
+                await log_webhook(
+                    db,
+                    webhook_type="nedarim-keva",
+                    raw_payload=data,
+                    source_ip=_get_client_ip(request),
+                    success=result.get("success", False),
+                    action=result.get("action"),
+                    result_data=result,
+                    entity_type="payment" if result.get("payment_id") else None,
+                    entity_id=result.get("payment_id"),
+                    processing_time_ms=timer.elapsed_ms,
+                )
+                await db.commit()
+
+            return result
+    except Exception as e:
+        logger.error(f"Nedarim Keva webhook error: {e}", exc_info=True)
+        async for db in get_db():
+            webhook_log = await log_webhook(
+                db,
+                webhook_type="nedarim-keva",
+                raw_payload=data,
+                source_ip=_get_client_ip(request),
+                success=False,
+                error_message=str(e),
+                processing_time_ms=timer.elapsed_ms,
+            )
+            if webhook_log:
+                await save_failed_webhook(
+                    db,
+                    webhook_log.id,
+                    "nedarim-keva",
+                    data,
+                    _get_client_ip(request),
+                    str(e),
+                )
+            await db.commit()
+
+        return {"success": False, "error": str(e)}

@@ -18,6 +18,8 @@ Both webhooks share the same logic:
 | Website Forms | `POST /webhooks/elementor` | JSON |
 | IVR Calls | `POST /webhooks/yemot` | JSON or form-data |
 | Unified Lead Ingestion | `GET/POST /webhooks/lead` | GET for diagnostics, POST for payloads |
+| Nedarim DebitCard | `POST /webhooks/nedarim-debitcard` | JSON or form-data |
+| Nedarim Keva (הוראת קבע) | `POST /webhooks/nedarim-keva` | JSON or form-data |
 
 ## Unified Lead Webhook
 
@@ -233,6 +235,62 @@ Invoke-RestMethod -Uri "https://kinyan-crm-new-1.onrender.com/webhooks/lead" -Me
 $body = '{"Phone": "0527109371", "Folder": "99999/2", "QueueStatus": "CONTINUE", "AnswerSeconds": "600"}'
 Invoke-RestMethod -Uri "http://localhost:8000/webhooks/yemot" -Method Post -Body $body -ContentType "application/json"
 ```
+
+---
+
+## Nedarim Plus Webhooks
+
+### Nedarim DebitCard Webhook
+
+Handles direct credit card charges (RAGIL payments) from the DebitCard.aspx API.
+
+**Endpoint:** `POST /webhooks/nedarim-debitcard`
+
+**Key Fields:**
+- `Confirmation`: Payment confirmation number
+- `Amount`: Charged amount
+- `Tashloumim`: Number of installments (spelled with 'ou', not 'um'!)
+- `LastNum`: Last 4 digits of card
+- `TransactionId`: Nedarim transaction ID
+- `ClientName`: Payer name
+- `Comments`: Format "קורס: X | תלמיד: Y"
+- `KevaId`: Present if charge is from a standing order
+
+**Important Notes:**
+- Does NOT require signature verification
+- Nedarim silently ignores `Tashlumim` - must use `Tashloumim` (with 'ou')
+- Minimum per installment: 5 ILS
+
+### Nedarim Keva (הוראת קבע) Webhook
+
+Handles recurring charge callbacks from Nedarim's standing order system.
+
+**Endpoint:** `POST /webhooks/nedarim-keva`
+
+**Key Fields:**
+- `KevaId`: Unique standing order ID (stored in `Commitment.nedarim_subscription_id`)
+- `ClientName`: Payer name
+- `Amount`: Monthly charge amount
+- `Confirmation`: Payment confirmation
+- `TransactionId`: Nedarim transaction ID
+- `Comments`: Format "קורס: X | תלמיד: Y"
+- `TransactionType`: "הו\"ק"
+- `Makor`: "נדרים - הוראת קבע"
+- `CreditTerms`: Number of monthly charges
+
+**Matching Logic:**
+1. Try to find `Commitment` by `KevaId`
+2. Try to find `Student` by name (from Comments or ClientName)
+3. Try to find `Lead` by name
+4. Try to find `Course` from Comments
+
+**Important Notes:**
+- Does NOT require signature verification
+- Has NO `Param2` (unlike DebitCard callbacks)
+- Creates/updates `Commitment` records
+- Creates `Collection` records with installment tracking
+
+
 
 ---
 
