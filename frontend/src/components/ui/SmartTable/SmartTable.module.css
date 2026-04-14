@@ -925,6 +925,23 @@
   font-size: 14px;
 }
 
+/* --- Row status colors --- */
+:global(.row-closed-won) td {
+  background: rgba(22, 163, 74, 0.05);
+}
+
+:global(.row-closed-won:hover) td {
+  background: rgba(22, 163, 74, 0.09);
+}
+
+:global(.row-closed-lost) td {
+  background: rgba(220, 38, 38, 0.05);
+}
+
+:global(.row-closed-lost:hover) td {
+  background: rgba(220, 38, 38, 0.09);
+}
+
 /* --- Responsive --- */
 @media (max-width: 768px) {
   .filterPanelContent {
