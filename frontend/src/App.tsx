@@ -24,12 +24,21 @@ import { PlaceholderPage } from '@/pages/Placeholder'
 import { TracksPage } from '@/pages/TracksPage'
 import { EntryPointsPage } from '@/pages/EntryPointsPage'
 import EmailTemplates from '@/pages/EmailTemplates'
+import { CourseTopicsPage } from '@/pages/CourseTopics'
+import { TopicLessonsPage } from '@/pages/TopicLessons'
+import { LessonWorkspacePage } from '@/pages/LessonWorkspace'
+import { StudentPortalPage } from '@/pages/StudentPortal'
+import WebhookQueue from '@/pages/WebhookQueue'
+import { ExamsAdminPage } from '@/pages/ExamsAdmin'
+import { PopupManagePage } from '@/pages/PopupManage'
+import { EmailInboxPage } from '@/pages/EmailInbox'
+import { LandingPage } from '@/pages/LandingPage'
 
 export function App() {
   return (
     <Routes>
       {/* Public Auth Routes */}
-      <Route path="/auth/login" element={<LoginPage />} />
+      <Route path="/auth/login" element={<LandingPage />} />
       <Route path="/auth/register" element={<RegisterPage />} />
       <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
 
@@ -64,6 +73,14 @@ export function App() {
                 <Route path="/admin/webhook-logs" element={<ManagerRoute><WebhookLogsPage /></ManagerRoute>} />
                 <Route path="/admin/sales-assignment" element={<ManagerRoute><SalesAssignmentRulesPage /></ManagerRoute>} />
                 <Route path="/admin/import-leads" element={<AdminRoute><ImportLeadsPage /></AdminRoute>} />
+                <Route path="/admin/webhook-queue" element={<AdminRoute><WebhookQueue /></AdminRoute>} />
+                <Route path="/admin/exams" element={<ManagerRoute><ExamsAdminPage /></ManagerRoute>} />
+                <Route path="/admin/popups" element={<ManagerRoute><PopupManagePage /></ManagerRoute>} />
+                <Route path="/email-inbox" element={<ViewerRoute><EmailInboxPage /></ViewerRoute>} />
+                <Route path="/admin/courses/:courseId/topics" element={<ManagerRoute><CourseTopicsPage /></ManagerRoute>} />
+                <Route path="/admin/topics/:topicId/lessons" element={<ManagerRoute><TopicLessonsPage /></ManagerRoute>} />
+                <Route path="/admin/lessons/:lessonId" element={<ManagerRoute><LessonWorkspacePage /></ManagerRoute>} />
+                <Route path="/student-portal/:studentId/:courseId" element={<ViewerRoute><StudentPortalPage /></ViewerRoute>} />
                 <Route path="*" element={<PlaceholderPage title="הדף לא נמצא" />} />
               </Routes>
             </AppLayout>

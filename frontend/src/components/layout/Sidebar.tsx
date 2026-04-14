@@ -23,6 +23,10 @@ import {
   Upload,
   UserCog,
   Activity,
+  AlertCircle,
+  Mail,
+  Zap,
+  ClipboardList,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import clsx from 'clsx'
@@ -65,6 +69,8 @@ const NAV_SECTIONS: { items: NavItem[] }[] = [
       { to: '/tasks', label: 'משימות', icon: CheckSquare },
       { to: '/inquiries', label: 'פניות', icon: Inbox },
       { to: '/messages', label: 'הודעות', icon: Send },
+      { to: '/email-inbox', label: 'תיבת מייל', icon: Mail },
+      { to: '/email-templates', label: 'תבניות מייל', icon: Mail },
     ],
   },
   {
@@ -78,11 +84,14 @@ const NAV_SECTIONS: { items: NavItem[] }[] = [
 // Admin-only navigation items
 const ADMIN_NAV_ITEMS: NavItem[] = [
   { to: '/admin/users', label: 'ניהול משתמשים', icon: Shield },
+  { to: '/admin/webhook-queue', label: 'תור ווביהוקים', icon: AlertCircle },
   { to: '/admin/import-leads', label: 'ייבוא לידים', icon: Upload },
 ]
 
 // Manager+ navigation items
 const MANAGER_NAV_ITEMS: NavItem[] = [
+  { to: '/admin/exams', label: 'מבחנים', icon: ClipboardList },
+  { to: '/admin/popups', label: 'הודעות פופ-אפ', icon: Zap },
   { to: '/admin/sales-assignment', label: 'שיוך לידים', icon: UserCog },
   { to: '/admin/webhook-logs', label: 'לוגים Webhooks', icon: Activity },
   { to: '/admin/audit-logs', label: 'יומן פעילות', icon: ScrollText },
