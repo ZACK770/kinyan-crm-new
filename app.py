@@ -22,7 +22,7 @@ from api import inquiries_api, exams_api, payments_api, expenses_api, attendance
 from api import auth_api, users_api, audit_logs_api, campaigns_api, files_api, sales_assignment_api
 from api import course_tracks_api, lecturers_api, messages_api, templates_api, lead_conversion_api, chat_api
 from api import salespeople_api, tasks_api, examinees_api, table_prefs_api, popup_api, webhook_logs_api
-from api import exam_registration_api, export_api, import_api, topics_api
+from api import exam_registration_api, export_api, import_api, import_generic_api, topics_api
 
 # Frontend build directory
 FRONTEND_DIR = Path(__file__).parent / "frontend" / "dist"
@@ -87,6 +87,7 @@ app.include_router(webhook_logs_api.router, prefix="/api/webhook-logs", tags=["w
 app.include_router(exam_registration_api.router, prefix="/api/exam-registration", tags=["exam-registration"])
 app.include_router(export_api.router, prefix="/api/export", tags=["export"])
 app.include_router(import_api.router, prefix="/api/import", tags=["import"])
+app.include_router(import_generic_api.router, prefix="/api/admin/import", tags=["import-generic"])
 app.include_router(topics_api.router, prefix="/api/topics", tags=["topics"])
 
 
