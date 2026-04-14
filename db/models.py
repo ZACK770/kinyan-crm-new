@@ -745,6 +745,7 @@ class Exam(Base):
     course: Mapped["Course"] = relationship(back_populates="exams")
     lecturer: Mapped[Optional["Lecturer"]] = relationship(back_populates="exams")
     submissions: Mapped[List["ExamSubmission"]] = relationship(back_populates="exam", cascade="all, delete-orphan")
+    exam_dates: Mapped[List["ExamDate"]] = relationship(secondary="exam_date_exams", back_populates="exams")
 
 
 # ============================================================
@@ -1523,3 +1524,77 @@ class GlobalTablePref(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     updated_by_user: Mapped[Optional["User"]] = relationship(foreign_keys=[updated_by_user_id])
+
+
+# ============================================================
+# ExamDate (תאריכי בחינות)
+# ============================================================
+class ExamDate(Base):
+    __tablename__ = "exam_dates"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    date: Mapped[date] = mapped_column(Date, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(String(500))
+    is_active: Mapped[Optional[bool]] = mapped_column(Boolean, default=True)
+    max_registrations: Mapped[Optional[int]] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    exams: Mapped[List["Exam"]] = relationship(secondary="exam_date_exams", back_populates="exam_dates")
+    registrations: Mapped[List["ExamRegistration"]] = relationship(back_populates="exam_date")
+
+
+# ============================================================
+# ExamDateExam (קישור בין תאריכי בחינות לבחינות)
+# ============================================================
+class ExamDateExam(Base):
+    __tablename__ = "exam_date_exams"
+
+    exam_date_id: Mapped[int] = mapped_column(ForeignKey("exam_dates.id"), primary_key=True)
+    exam_id: Mapped[int] = mapped_column(ForeignKey("exams.id"), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# ============================================================
+# Examinee (נבחנים) — for external exam takers
+# ============================================================
+class Examinee(Base):
+    __tablename__ = "examinees"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    full_name: Mapped[Optional[str]] = mapped_column(String(300))
+    phone: Mapped[str] = mapped_column(String(50), nullable=False)
+    id_number: Mapped[Optional[str]] = mapped_column(String(20))
+    email: Mapped[Optional[str]] = mapped_column(String(200))
+    source: Mapped[str] = mapped_column(String(100), default="external_exam_product")
+    student_id: Mapped[Optional[int]] = mapped_column(ForeignKey("students.id", ondelete="SET NULL"))
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_examinees_phone", "phone"),
+        Index("idx_examinees_student", "student_id"),
+    )
+
+    student: Mapped[Optional["Student"]] = relationship()
+    exam_registrations: Mapped[List["ExamRegistration"]] = relationship(back_populates="examinee")
+
+
+# ============================================================
+# ExamRegistration (רישום לבחינות)
+# ============================================================
+class ExamRegistration(Base):
+    __tablename__ = "exam_registrations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    exam_date_id: Mapped[int] = mapped_column(ForeignKey("exam_dates.id"), nullable=False)
+    exam_id: Mapped[int] = mapped_column(ForeignKey("exams.id"), nullable=False)
+    examinee_id: Mapped[int] = mapped_column(ForeignKey("examinees.id"), nullable=False)
+    status: Mapped[Optional[str]] = mapped_column(String(20), default="registered")
+    registration_code: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
+    notes: Mapped[Optional[str]] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    exam_date: Mapped["ExamDate"] = relationship(back_populates="registrations")
+    exam: Mapped["Exam"] = relationship()
+    examinee: Mapped["Examinee"] = relationship(back_populates="exam_registrations")
