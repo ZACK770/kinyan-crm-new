@@ -12,6 +12,7 @@ Supports the standard Elementor webhook format where fields is a dict of objects
     "meta": {"date": {...}, "time": {...}, "page_url": {...}}
 }
 """
+import re
 from datetime import datetime
 from db import get_db
 from services.leads import process_incoming_lead
@@ -48,10 +49,10 @@ def parse_elementor_payload(data: dict) -> dict:
     """
     Parse Elementor form submission into normalized lead data.
     Supports various form field naming conventions and formats.
-    
+
     Format 1: fields as dict of objects (new Elementor format)
     Format 2: fields as array of {id, value} objects
-    Format 3: flat key-value pairs
+    Format 3: flat key-value pairs (e.g., fields[field_id][value])
     """
     parsed = {
         "source_type": "elementor",
@@ -64,11 +65,48 @@ def parse_elementor_payload(data: dict) -> dict:
 
     # Extract form metadata
     form_info = data.get("form", {})
+
+    # Handle flat key-value format for form (e.g., form[id])
+    if not form_info:
+        flat_form = {}
+        for key, value in data.items():
+            if key.startswith("form[") and key.endswith("]"):
+                try:
+                    match = re.match(r"form\[([^\]]+)\]", key)
+                    if match:
+                        form_key = match.group(1)
+                        flat_form[form_key] = value
+                except:
+                    pass
+        if flat_form:
+            form_info = flat_form
+
     if form_info:
         parsed["source_name"] = form_info.get("name", form_info.get("id", "elementor"))
-    
+
     # Extract fields
     fields = data.get("fields", {})
+
+    # Handle flat key-value format (e.g., fields[field_id][value])
+    if not fields:
+        # Check if data has flat keys like fields[field_id][property]
+        flat_fields = {}
+        for key, value in data.items():
+            if key.startswith("fields[") and "][" in key:
+                # Parse fields[field_id][property]
+                try:
+                    # Extract field_id and property
+                    match = re.match(r"fields\[([^\]]+)\]\[([^\]]+)\]", key)
+                    if match:
+                        field_id = match.group(1)
+                        property_name = match.group(2)
+                        if field_id not in flat_fields:
+                            flat_fields[field_id] = {}
+                        flat_fields[field_id][property_name] = value
+                except:
+                    pass
+        if flat_fields:
+            fields = flat_fields
     
     # Format 1: dict of field objects (e.g., {"field_id": {"title": "שם", "value": "..."}})
     if isinstance(fields, dict):
@@ -111,6 +149,24 @@ def parse_elementor_payload(data: dict) -> dict:
 
     # Extract meta info (date, time, page_url)
     meta = data.get("meta", {})
+
+    # Handle flat key-value format for meta (e.g., meta[date][value])
+    if not meta:
+        flat_meta = {}
+        for key, value in data.items():
+            if key.startswith("meta[") and "][" in key:
+                try:
+                    match = re.match(r"meta\[([^\]]+)\]\[([^\]]+)\]", key)
+                    if match:
+                        meta_key = match.group(1)
+                        property_name = match.group(2)
+                        if meta_key not in flat_meta:
+                            flat_meta[meta_key] = {}
+                        flat_meta[meta_key][property_name] = value
+                except:
+                    pass
+        if flat_meta:
+            meta = flat_meta
     if meta:
         page_url_info = meta.get("page_url", {})
         if isinstance(page_url_info, dict):
