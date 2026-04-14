@@ -266,6 +266,19 @@ async def convert_lead_to_student(
     if lead.student_id:
         return {"success": False, "error": "Lead already converted", "student_id": lead.student_id}
     
+    # Check if all conversion checklist items are completed
+    if not lead.approved_terms:
+        return {"success": False, "error": "הליד לא אישר את התקנון"}
+    
+    if not lead.shipping_details_complete:
+        return {"success": False, "error": "הליד לא קיבל את המשלוח"}
+    
+    if not lead.student_chat_added:
+        return {"success": False, "error": "הליד לא הוכנס לרשימת צינתוקים"}
+    
+    if not lead.personal_course_update:
+        return {"success": False, "error": "הליד לא עודכן אישית על מיקום ושעת הקורס הקרוב"}
+    
     # Create student from lead data
     student = Student(
         full_name=lead.full_name,
@@ -300,6 +313,8 @@ async def convert_lead_to_student(
     lead.student_id = student.id
     lead.status = "converted"
     lead.conversion_date = datetime.now()
+    lead.conversion_checklist_complete = True
+    lead.conversion_completed_at = datetime.now()
     
     await db.commit()
     

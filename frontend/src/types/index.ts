@@ -37,6 +37,14 @@ export interface Lead {
   selected_payment_day?: number
   first_payment_id?: number
   nedarim_payment_link?: string
+  // Conversion checklist fields
+  shipping_details_complete?: boolean
+  student_chat_added?: boolean
+  personal_course_update?: boolean
+  personal_course_update_date?: string
+  personal_course_update_notes?: string
+  conversion_checklist_complete?: boolean
+  conversion_completed_at?: string
   created_at: string
   updated_at?: string
   created_by?: string

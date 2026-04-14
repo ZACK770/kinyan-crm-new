@@ -95,19 +95,17 @@
 .completeBadge {
   display: flex;
   align-items: center;
-  gap: 12px;
-  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+  gap: 8px;
+  padding: 8px 16px;
+  background: #10b981;
   color: white;
-  padding: 12px 24px;
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(16, 185, 129, 0.4);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  animation: pulse 2s infinite;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
 }
 
 .completeBadge span {
   font-weight: 700;
-  font-size: 18px;
 }
 
 /* Progress Bar */
@@ -148,9 +146,9 @@
 }
 
 .progressPercentage {
-  font-size: 32px;
-  font-weight: 900;
-  color: white;
+  font-size: 20px;
+  font-weight: 700;
+  color: #3b82f6;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
@@ -167,11 +165,10 @@
 }
 
 .progressBar {
-  background: linear-gradient(90deg, #fcd34d 0%, #fb923c 50%, #ec4899 100%);
+  background: #3b82f6;
   height: 100%;
-  transition: width 700ms ease-out;
-  position: relative;
-  overflow: hidden;
+  border-radius: 12px;
+  transition: width 0.5s ease-out;
 }
 
 .progressBar::after {

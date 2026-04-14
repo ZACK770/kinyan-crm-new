@@ -467,6 +467,11 @@ class Lead(Base):
     student_chat_platform: Mapped[Optional[str]] = mapped_column(String(50))  # WhatsApp/Telegram/Discord
     student_chat_added_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     
+    # NEW: Personal course update (עדכון אישי על מיקום ושעת הקורס)
+    personal_course_update: Mapped[bool] = mapped_column(Boolean, default=False)
+    personal_course_update_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    personal_course_update_notes: Mapped[Optional[str]] = mapped_column(Text)
+    
     # 5. Handoff to class manager (העברה למנהל כיתות)
     handoff_to_manager: Mapped[bool] = mapped_column(Boolean, default=False)
     handoff_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
