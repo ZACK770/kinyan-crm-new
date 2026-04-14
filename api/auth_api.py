@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_db, settings
 from db.models import User
+from api.dependencies import get_current_user
 from services import audit_logs
 from services.auth import (
     verify_password,
