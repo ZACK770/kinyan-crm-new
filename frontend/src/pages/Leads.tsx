@@ -827,7 +827,6 @@ export function LeadsPage() {
       type: 'datetime',
       className: s.muted,
       editable: false,
-      renderView: r => formatDate(r.created_at)
     },
     {
       key: 'updated_at',

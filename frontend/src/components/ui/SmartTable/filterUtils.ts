@@ -198,7 +198,7 @@ export function applyFilter<T>(row: T, filter: Filter, type: FieldType): boolean
     switch (filter.operator) {
       case 'equals':
         if (!filterDate) return false
-        return dateValue.toDateString() === filterDate.toDateString()
+        return dateValue.getTime() === filterDate.getTime()
       case 'before':
         if (!filterDate) return false
         return dateValue < filterDate
