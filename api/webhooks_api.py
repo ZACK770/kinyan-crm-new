@@ -44,43 +44,125 @@ def _get_client_ip(request: Request) -> str:
 @router.post("/elementor")
 async def elementor_webhook(request: Request):
     """Handle Elementor form submissions from website."""
-    try:
-        # Elementor can send as form-data or JSON
-        content_type = request.headers.get("content-type", "")
-        if "form" in content_type:
-            data = dict(await request.form())
-        else:
-            data = await request.json()
+    timer = WebhookTimer()
+    data = None
 
-        data = _unwrap_array(data)
-        logger.info(f"Elementor webhook received: phone={data.get('fields', {}).get('field_6f8642e', {}).get('value', 'N/A')}")
-        result = await handle_elementor_webhook(data)
-        logger.info(f"Elementor webhook result: {result}")
+    try:
+        with timer:
+            # Elementor can send as form-data or JSON
+            content_type = request.headers.get("content-type", "")
+            if "form" in content_type:
+                data = dict(await request.form())
+            else:
+                data = await request.json()
+
+            data = _unwrap_array(data)
+            logger.info(f"Elementor webhook received: phone={data.get('fields', {}).get('field_6f8642e', {}).get('value', 'N/A')}")
+            result = await handle_elementor_webhook(data)
+            logger.info(f"Elementor webhook result: {result}")
+
+        async for db in get_db():
+            await log_webhook(
+                db,
+                webhook_type="elementor",
+                raw_payload=data,
+                source_ip=_get_client_ip(request),
+                success=result.get("success", False),
+                action=result.get("action"),
+                result_data=result,
+                entity_type="lead" if result.get("lead_id") else None,
+                entity_id=result.get("lead_id"),
+                processing_time_ms=timer.elapsed_ms,
+            )
+            await db.commit()
+
         return result
     except Exception as e:
         logger.error(f"Elementor webhook error: {e}")
+        async for db in get_db():
+            webhook_log = await log_webhook(
+                db,
+                webhook_type="elementor",
+                raw_payload=data,
+                source_ip=_get_client_ip(request),
+                success=False,
+                error_message=str(e),
+                processing_time_ms=timer.elapsed_ms,
+            )
+            if webhook_log:
+                await save_failed_webhook(
+                    db,
+                    webhook_log.id,
+                    "elementor",
+                    data,
+                    _get_client_ip(request),
+                    str(e),
+                )
+            await db.commit()
+
         return {"success": False, "error": str(e)}
 
 
 @router.post("/yemot")
 async def yemot_webhook(request: Request):
     """Handle Yemot IVR call events."""
+    timer = WebhookTimer()
+    data = None
+
     try:
-        # Yemot can send as form-data or JSON
-        content_type = request.headers.get("content-type", "")
-        if "form" in content_type:
-            data = dict(await request.form())
-        else:
-            data = await request.json()
-        
-        data = _unwrap_array(data)
-        phone = data.get("Phone", data.get("phone", data.get("caller", "N/A")))
-        logger.info(f"Yemot IVR webhook received: phone={phone}, folder={data.get('Folder', 'N/A')}")
-        result = await handle_yemot_webhook(data)
-        logger.info(f"Yemot webhook result: {result}")
+        with timer:
+            # Yemot can send as form-data or JSON
+            content_type = request.headers.get("content-type", "")
+            if "form" in content_type:
+                data = dict(await request.form())
+            else:
+                data = await request.json()
+
+            data = _unwrap_array(data)
+            phone = data.get("Phone", data.get("phone", data.get("caller", "N/A")))
+            logger.info(f"Yemot IVR webhook received: phone={phone}, folder={data.get('Folder', 'N/A')}")
+            result = await handle_yemot_webhook(data)
+            logger.info(f"Yemot webhook result: {result}")
+
+        async for db in get_db():
+            await log_webhook(
+                db,
+                webhook_type="yemot",
+                raw_payload=data,
+                source_ip=_get_client_ip(request),
+                success=result.get("success", False),
+                action=result.get("action"),
+                result_data=result,
+                entity_type="lead" if result.get("lead_id") else None,
+                entity_id=result.get("lead_id"),
+                processing_time_ms=timer.elapsed_ms,
+            )
+            await db.commit()
+
         return result
     except Exception as e:
         logger.error(f"Yemot webhook error: {e}")
+        async for db in get_db():
+            webhook_log = await log_webhook(
+                db,
+                webhook_type="yemot",
+                raw_payload=data,
+                source_ip=_get_client_ip(request),
+                success=False,
+                error_message=str(e),
+                processing_time_ms=timer.elapsed_ms,
+            )
+            if webhook_log:
+                await save_failed_webhook(
+                    db,
+                    webhook_log.id,
+                    "yemot",
+                    data,
+                    _get_client_ip(request),
+                    str(e),
+                )
+            await db.commit()
+
         return {"success": False, "error": str(e)}
 
 
