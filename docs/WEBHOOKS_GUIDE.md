@@ -17,6 +17,30 @@ Both webhooks share the same logic:
 |--------|-----|--------|
 | Website Forms | `POST /webhooks/elementor` | JSON |
 | IVR Calls | `POST /webhooks/yemot` | JSON or form-data |
+| Unified Lead Ingestion | `GET/POST /webhooks/lead` | GET for diagnostics, POST for payloads |
+
+## Unified Lead Webhook
+
+Single endpoint for all lead sources:
+- `POST /webhooks/lead` processes Elementor, Yemot, or generic lead payloads
+- `GET /webhooks/lead` confirms the route is deployed and registered
+
+### Diagnostic Response
+```json
+{
+    "success": true,
+    "endpoint": "/webhooks/lead",
+    "methods": ["GET", "POST"],
+    "status": "registered",
+    "supports": ["elementor", "yemot", "generic"],
+    "message": "Unified lead webhook is deployed. Use POST to submit lead payloads."
+}
+```
+
+### Source Detection
+- `fields` + `form` or `meta` -> Elementor
+- `Phone` / `Folder` / `QueueStatus` -> Yemot
+- Anything else -> Generic lead parser
 
 ## Elementor (Website) Webhook
 
@@ -191,6 +215,17 @@ Each call or form submission creates a new interaction record:
 ```powershell
 $body = '{"form": {"id": "test"}, "fields": {"name": {"title": "Name", "value": "Test"}, "field_phone": {"title": "טלפון", "value": "0501234567"}}}'
 Invoke-RestMethod -Uri "http://localhost:8000/webhooks/elementor" -Method Post -Body $body -ContentType "application/json"
+```
+
+### Test Unified Lead Webhook Deployment
+```powershell
+Invoke-RestMethod -Uri "https://kinyan-crm-new-1.onrender.com/webhooks/lead" -Method Get
+```
+
+### Test Unified Lead Webhook With Payload
+```powershell
+$body = '{"phone": "0501234567", "name": "Test Lead", "source_type": "manual-test"}'
+Invoke-RestMethod -Uri "https://kinyan-crm-new-1.onrender.com/webhooks/lead" -Method Post -Body $body -ContentType "application/json"
 ```
 
 ### Test Yemot Webhook

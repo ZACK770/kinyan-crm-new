@@ -14,7 +14,11 @@ from webhooks.elementor import handle_elementor_webhook
 from webhooks.yemot import handle_yemot_webhook
 from webhooks.generic import handle_generic_webhook
 from webhooks.nedarim import handle_nedarim_webhook
+from webhooks.lead_unified import handle_unified_lead_webhook, detect_source
 from services.nedarim_plus import verify_webhook_signature
+from services.webhook_logger import log_webhook, WebhookTimer
+from services.webhook_queue import save_failed_webhook
+from db import get_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["webhooks"])
@@ -25,6 +29,14 @@ def _unwrap_array(data):
     if isinstance(data, list) and len(data) > 0:
         return data[0]
     return data
+
+
+def _get_client_ip(request: Request) -> str:
+    """Extract client IP from request, including proxy headers."""
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else ""
 
 
 @router.post("/elementor")
@@ -70,6 +82,83 @@ async def generic_webhook(request: Request):
     data = await request.json()
     result = await handle_generic_webhook(data)
     return result
+
+
+@router.get("/lead")
+async def unified_lead_webhook_status():
+    """Public diagnostic endpoint for verifying the unified lead webhook is deployed."""
+    return {
+        "success": True,
+        "endpoint": "/webhooks/lead",
+        "methods": ["GET", "POST"],
+        "status": "registered",
+        "supports": ["elementor", "yemot", "generic"],
+        "message": "Unified lead webhook is deployed. Use POST to submit lead payloads.",
+    }
+
+
+@router.post("/lead")
+async def unified_lead_webhook(request: Request):
+    """
+    Unified lead ingestion endpoint.
+    Auto-detects source (Elementor / Yemot IVR / Generic) and routes accordingly.
+    """
+    timer = WebhookTimer()
+    data = None
+
+    try:
+        with timer:
+            content_type = request.headers.get("content-type", "")
+            if "form" in content_type:
+                data = dict(await request.form())
+            else:
+                data = await request.json()
+
+            data = _unwrap_array(data)
+            source = detect_source(data)
+            logger.info(f"Unified lead webhook: detected source={source}")
+            result = await handle_unified_lead_webhook(data)
+
+        async for db in get_db():
+            await log_webhook(
+                db,
+                webhook_type=f"lead-unified:{result.get('source_detected', 'unknown')}",
+                raw_payload=data,
+                source_ip=_get_client_ip(request),
+                success=result.get("success", False),
+                action=result.get("action"),
+                result_data=result,
+                entity_type="lead" if result.get("lead_id") else None,
+                entity_id=result.get("lead_id"),
+                processing_time_ms=timer.elapsed_ms,
+            )
+            await db.commit()
+
+        return result
+    except Exception as e:
+        logger.error(f"Unified lead webhook error: {e}")
+        async for db in get_db():
+            webhook_log = await log_webhook(
+                db,
+                webhook_type="lead-unified",
+                raw_payload=data,
+                source_ip=_get_client_ip(request),
+                success=False,
+                error_message=str(e),
+                processing_time_ms=timer.elapsed_ms,
+            )
+            if webhook_log:
+                await save_failed_webhook(
+                    db,
+                    webhook_log.id,
+                    "lead-unified",
+                    data,
+                    _get_client_ip(request),
+                    str(e),
+                )
+            await db.commit()
+
+        return {"success": False, "error": str(e)}
 
 
 @router.post("/nedarim")
