@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, Circle, Loader2, AlertCircle, FileText, Package, MessageCircle, MapPin, UserCheck, Sparkles } from 'lucide-react';
+import { CheckCircle2, Loader2, AlertCircle, UserCheck, Sparkles } from 'lucide-react';
 import styles from './LeadConversionChecklist.module.css';
 import { api } from '@/lib/api';
 
@@ -155,16 +155,8 @@ const LeadConversionChecklist: React.FC<Props> = ({ lead, onUpdate }) => {
               disabled={loading || lead.student_id !== null}
               className={styles.checkbox}
             />
-            <div className={styles.checklistIcon}>
-              {lead.approved_terms ? (
-                <CheckCircle2 className={styles.iconChecked} size={24} />
-              ) : (
-                <Circle className={styles.iconUnchecked} size={24} />
-              )}
-            </div>
             <div className={styles.checklistContent}>
               <div className={styles.checklistTitle}>
-                <FileText size={20} />
                 <span>אישר תקנון</span>
               </div>
               <p className={styles.checklistDescription}>
@@ -184,16 +176,8 @@ const LeadConversionChecklist: React.FC<Props> = ({ lead, onUpdate }) => {
               disabled={loading || lead.student_id !== null}
               className={styles.checkbox}
             />
-            <div className={styles.checklistIcon}>
-              {lead.shipping_details_complete ? (
-                <CheckCircle2 className={styles.iconChecked} size={24} />
-              ) : (
-                <Circle className={styles.iconUnchecked} size={24} />
-              )}
-            </div>
             <div className={styles.checklistContent}>
               <div className={styles.checklistTitle}>
-                <Package size={20} />
                 <span>קיבל את המשלוח</span>
               </div>
               <p className={styles.checklistDescription}>
@@ -213,16 +197,8 @@ const LeadConversionChecklist: React.FC<Props> = ({ lead, onUpdate }) => {
               disabled={loading || lead.student_id !== null}
               className={styles.checkbox}
             />
-            <div className={styles.checklistIcon}>
-              {lead.student_chat_added ? (
-                <CheckCircle2 className={styles.iconChecked} size={24} />
-              ) : (
-                <Circle className={styles.iconUnchecked} size={24} />
-              )}
-            </div>
             <div className={styles.checklistContent}>
               <div className={styles.checklistTitle}>
-                <MessageCircle size={20} />
                 <span>הוכנס לרשימת צינתוקים</span>
               </div>
               <p className={styles.checklistDescription}>
@@ -242,16 +218,8 @@ const LeadConversionChecklist: React.FC<Props> = ({ lead, onUpdate }) => {
               disabled={loading || lead.student_id !== null}
               className={styles.checkbox}
             />
-            <div className={styles.checklistIcon}>
-              {lead.personal_course_update ? (
-                <CheckCircle2 className={styles.iconChecked} size={24} />
-              ) : (
-                <Circle className={styles.iconUnchecked} size={24} />
-              )}
-            </div>
             <div className={styles.checklistContent}>
               <div className={styles.checklistTitle}>
-                <MapPin size={20} />
                 <span>עודכן אישית על מיקום ושעת הקורס הקרוב</span>
               </div>
               <p className={styles.checklistDescription}>
