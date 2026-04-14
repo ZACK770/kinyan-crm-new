@@ -834,6 +834,18 @@ export function LeadsPage() {
           emptyText="לא נמצאו לידים"
           emptyIcon={<Phone size={40} strokeWidth={1.5} />}
           onRowClick={openLeadWorkspace}
+          onSearchSelect={openLeadWorkspace}
+          searchPlaceholder="חיפוש ליד לפי שם, טלפון, אימייל..."
+          searchFields={[
+            { key: 'full_name', label: 'שם פרטי', weight: 3 },
+            { key: 'family_name', label: 'שם משפחה', weight: 3 },
+            { key: 'phone', label: 'טלפון', weight: 2 },
+            { key: 'email', label: 'אימייל', weight: 1 },
+            { key: 'city', label: 'עיר', weight: 1 },
+            { key: 'status', label: 'סטטוס', weight: 1 },
+          ]}
+          defaultPageSize={100}
+          pageSizeOptions={[50, 100, 200]}
           onUpdate={handleInlineUpdate}
           onDelete={handleBulkDelete}
           onBulkUpdate={handleBulkUpdate}

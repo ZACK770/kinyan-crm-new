@@ -1,5 +1,5 @@
-/* ============================================================
-   SmartTable — Feature-rich data table component
+﻿/* ============================================================
+   SmartTable Γאפ Feature-rich data table component
    ============================================================
    Features:
    - Smart filtering with operators per field type
@@ -20,13 +20,13 @@ import { BulkActions } from './BulkActions'
 import { InlineEditCell } from './InlineEditCell'
 import { SmartSearch } from './SmartSearch'
 import { TablePagination } from './TablePagination'
-import {
-  generateId,
-  applyFilters,
-  loadTableState,
-  saveTableState,
-  loadSavedFilters,
-  saveSavedFilters
+import { 
+  generateId, 
+  applyFilters, 
+  loadTableState, 
+  saveTableState, 
+  loadSavedFilters, 
+  saveSavedFilters 
 } from './filterUtils'
 import s from './SmartTable.module.css'
 import shared from '@/styles/shared.module.css'
@@ -36,7 +36,7 @@ export function SmartTable<T>({
   columns,
   keyExtractor,
   loading = false,
-  emptyText = 'אין נתונים להצגה',
+  emptyText = '╫נ╫ש╫ƒ ╫á╫¬╫ץ╫á╫ש╫¥ ╫£╫פ╫ª╫ע╫פ',
   emptyIcon,
   onRowClick,
   onUpdate,
@@ -56,6 +56,7 @@ export function SmartTable<T>({
   const searchSelect = onSearchSelect ?? onRowClick
   const defaultPgSize = defaultPageSize ?? 100
   const pgSizeOpts = pageSizeOptions ?? [50, 100, 200]
+
   // State
   const [filters, setFilters] = useState<Filter[]>([])
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([])
@@ -75,7 +76,7 @@ export function SmartTable<T>({
     const defaultVisible = columns
       .filter(c => !c.hiddenByDefault)
       .map(c => c.key)
-
+    
     const defaultOrder = columns.map(c => c.key)
 
     if (storageKey) {
@@ -277,7 +278,7 @@ export function SmartTable<T>({
 
   // Loading state
   if (loading) {
-    return <div className={shared.loading}>טוען נתונים...</div>
+    return <div className={shared.loading}>╫ר╫ץ╫ó╫ƒ ╫á╫¬╫ץ╫á╫ש╫¥...</div>
   }
 
   // Empty state
@@ -302,7 +303,7 @@ export function SmartTable<T>({
             columns={columns}
             searchFields={searchFields}
             onSelect={(row) => searchSelect?.(row)}
-            placeholder={searchPlaceholder ?? 'חיפוש...'}
+            placeholder={searchPlaceholder ?? '╫ק╫ש╫ñ╫ץ╫⌐...'}
           />
           <FilterPanel
             columns={columns}
@@ -325,8 +326,8 @@ export function SmartTable<T>({
         <div className={s.toolbarRight}>
           {toolbarExtra}
           <span className={s.resultCount}>
-            {sortedData.length !== data.length && <>{sortedData.length} מתוך </>}
-            {data.length} תוצאות
+            {sortedData.length !== data.length && <>{sortedData.length} ╫₧╫¬╫ץ╫ת </>}
+            {data.length} ╫¬╫ץ╫ª╫נ╫ץ╫¬
           </span>
         </div>
       </div>
@@ -405,8 +406,8 @@ export function SmartTable<T>({
                     </td>
                   )}
                   {displayColumns.map(col => (
-                    <td
-                      key={col.key}
+                    <td 
+                      key={col.key} 
                       className={col.className}
                       onClick={e => {
                         // Stop propagation for editable cells
@@ -440,12 +441,12 @@ export function SmartTable<T>({
       {/* Filtered results notice */}
       {filters.length > 0 && sortedData.length === 0 && (
         <div className={s.noResults}>
-          <span>לא נמצאו תוצאות התואמות לסינון</span>
-          <button
+          <span>╫£╫נ ╫á╫₧╫ª╫נ╫ץ ╫¬╫ץ╫ª╫נ╫ץ╫¬ ╫פ╫¬╫ץ╫נ╫₧╫ץ╫¬ ╫£╫í╫ש╫á╫ץ╫ƒ</span>
+          <button 
             className={`${shared.btn} ${shared['btn-ghost']} ${shared['btn-sm']}`}
             onClick={() => setFilters([])}
           >
-            נקה סינון
+            ╫á╫º╫פ ╫í╫ש╫á╫ץ╫ƒ
           </button>
         </div>
       )}
@@ -463,7 +464,7 @@ function renderCell<T>(
 
   // Custom render function takes priority (always)
   if (column.render) {
-    return column.render(row, onUpdate ? (v) => onUpdate(v) : () => { })
+    return column.render(row, onUpdate ? (v) => onUpdate(v) : () => {})
   }
 
   // View-only render
@@ -490,7 +491,7 @@ function renderCell<T>(
 
 // Format value for display
 function formatDisplayValue<T>(value: unknown, column: SmartColumn<T>): React.ReactNode {
-  if (value === null || value === undefined || value === '') return '—'
+  if (value === null || value === undefined || value === '') return 'Γאפ'
 
   if (column.type === 'select' && column.options?.length) {
     const opt = column.options.find(o => String(o.value) === String(value))
@@ -498,7 +499,7 @@ function formatDisplayValue<T>(value: unknown, column: SmartColumn<T>): React.Re
   }
 
   if (column.type === 'boolean') {
-    return value === true ? 'כן' : value === false ? 'לא' : '—'
+    return value === true ? '╫¢╫ƒ' : value === false ? '╫£╫נ' : 'Γאפ'
   }
 
   if (column.type === 'currency') {

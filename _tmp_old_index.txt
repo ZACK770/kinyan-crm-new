@@ -1,4 +1,4 @@
-/* SmartTable Exports */
+﻿/* SmartTable Exports */
 export { SmartTable, default } from './SmartTable'
 export { FilterPanel } from './FilterPanel'
 export { ColumnManager } from './ColumnManager'

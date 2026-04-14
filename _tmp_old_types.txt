@@ -1,4 +1,4 @@
-/* ============================================================
+﻿/* ============================================================
    SmartTable Type Definitions
    ============================================================ */
 
@@ -7,9 +7,9 @@ import type { ReactNode } from 'react'
 // Filter operator types based on field type
 export type TextOperator = 'contains' | 'equals' | 'startsWith' | 'endsWith' | 'isEmpty' | 'isNotEmpty'
 export type NumberOperator = 'equals' | 'gt' | 'gte' | 'lt' | 'lte' | 'between' | 'isEmpty' | 'isNotEmpty'
-export type DateOperator =
-  | 'equals' | 'before' | 'after' | 'between'
-  | 'today' | 'yesterday' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth'
+export type DateOperator = 
+  | 'equals' | 'before' | 'after' | 'between' 
+  | 'today' | 'yesterday' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' 
   | 'last7Days' | 'last30Days' | 'thisYear' | 'isEmpty' | 'isNotEmpty'
 export type SelectOperator = 'equals' | 'notEquals' | 'in' | 'isEmpty' | 'isNotEmpty'
 export type BooleanOperator = 'isTrue' | 'isFalse'
@@ -80,48 +80,48 @@ export interface BulkAction<T> {
   }
 }
 
-// SmartTable props
-export interface SmartTableProps<T> {
-  // Data
-  data: T[]
-  columns: SmartColumn<T>[]
-  keyExtractor: (row: T) => string | number
-
-  // State
-  loading?: boolean
-  emptyText?: string
-  emptyIcon?: ReactNode
-
-  // Events
-  onRowClick?: (row: T) => void
-  onUpdate?: (row: T, field: string, value: unknown) => Promise<void>
-  onDelete?: (rows: T[]) => Promise<void>
-  onBulkUpdate?: (rows: T[], field: string, value: unknown) => Promise<void>
-
-  // Features
-  bulkActions?: BulkAction<T>[]
-  storageKey?: string // For persisting filters/columns to localStorage
-
-  // Search
-  searchFields?: SearchFieldConfig[] // Fields to search in (defaults to all text/select)
-  searchPlaceholder?: string
-  onSearchSelect?: (row: T) => void // Called when a search result is clicked
-
-  // Pagination
-  defaultPageSize?: number // Default items per page (default: 100)
-  pageSizeOptions?: number[] // Available page sizes (default: [50, 100, 200])
-
-  // UI customization
-  className?: string
-  toolbarExtra?: ReactNode // Extra toolbar content
-}
-
 // Search field configuration
 export interface SearchFieldConfig {
   key: string
   label: string
   /** Weight for ranking (higher = more important). Default 1 */
   weight?: number
+}
+
+// SmartTable props
+export interface SmartTableProps<T> {
+  // Data
+  data: T[]
+  columns: SmartColumn<T>[]
+  keyExtractor: (row: T) => string | number
+  
+  // State
+  loading?: boolean
+  emptyText?: string
+  emptyIcon?: ReactNode
+  
+  // Events
+  onRowClick?: (row: T) => void
+  onUpdate?: (row: T, field: string, value: unknown) => Promise<void>
+  onDelete?: (rows: T[]) => Promise<void>
+  onBulkUpdate?: (rows: T[], field: string, value: unknown) => Promise<void>
+  
+  // Features
+  bulkActions?: BulkAction<T>[]
+  storageKey?: string // For persisting filters/columns to localStorage
+  
+  // Search
+  searchFields?: SearchFieldConfig[] // Fields to search in (defaults to all text/select)
+  searchPlaceholder?: string
+  onSearchSelect?: (row: T) => void // Called when a search result is clicked
+  
+  // Pagination
+  defaultPageSize?: number // Default items per page (default: 100)
+  pageSizeOptions?: number[] // Available page sizes (default: [50, 100, 200])
+  
+  // UI customization
+  className?: string
+  toolbarExtra?: ReactNode // Extra toolbar content
 }
 
 // Filter panel state
