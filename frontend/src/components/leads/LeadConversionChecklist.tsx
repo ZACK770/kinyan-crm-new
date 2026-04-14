@@ -68,11 +68,14 @@ const LeadConversionChecklist: React.FC<Props> = ({ lead, onUpdate }) => {
 
   const handleCheckboxChange = async (field: string, value: boolean) => {
     try {
+      console.log('handleCheckboxChange:', { leadId: lead.id, field, value })
       setLoading(true);
       setError(null);
-      await api.patch(`/leads/${lead.id}`, { [field]: value });
+      const result = await api.patch(`/leads/${lead.id}`, { [field]: value });
+      console.log('API response:', result)
       onUpdate();
     } catch (err) {
+      console.error('Error updating checkbox:', err)
       setError('שגיאה בעדכון');
     } finally {
       setLoading(false);
