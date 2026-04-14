@@ -18,6 +18,8 @@ import { ExpensesPage } from '@/pages/Expenses'
 import { AuditLogsPage } from '@/pages/AuditLogs'
 import { UsersManagePage } from '@/pages/UsersManagePage'
 import { SalesAssignmentRulesPage } from '@/pages/SalesAssignmentRules'
+import { WebhookLogsPage } from '@/pages/WebhookLogs'
+import { ImportLeadsPage } from '@/pages/ImportLeads'
 import { PlaceholderPage } from '@/pages/Placeholder'
 import { TracksPage } from '@/pages/TracksPage'
 import { EntryPointsPage } from '@/pages/EntryPointsPage'
@@ -59,7 +61,9 @@ export function App() {
                 <Route path="/expenses" element={<ViewerRoute><ExpensesPage /></ViewerRoute>} />
                 <Route path="/admin/users" element={<AdminRoute><UsersManagePage /></AdminRoute>} />
                 <Route path="/admin/audit-logs" element={<ManagerRoute><AuditLogsPage /></ManagerRoute>} />
+                <Route path="/admin/webhook-logs" element={<ManagerRoute><WebhookLogsPage /></ManagerRoute>} />
                 <Route path="/admin/sales-assignment" element={<ManagerRoute><SalesAssignmentRulesPage /></ManagerRoute>} />
+                <Route path="/admin/import-leads" element={<AdminRoute><ImportLeadsPage /></AdminRoute>} />
                 <Route path="*" element={<PlaceholderPage title="הדף לא נמצא" />} />
               </Routes>
             </AppLayout>

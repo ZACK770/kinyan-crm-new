@@ -20,6 +20,9 @@ import {
   ScrollText,
   Calendar,
   MapPin,
+  Upload,
+  UserCog,
+  Activity,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import clsx from 'clsx'
@@ -75,10 +78,13 @@ const NAV_SECTIONS: { items: NavItem[] }[] = [
 // Admin-only navigation items
 const ADMIN_NAV_ITEMS: NavItem[] = [
   { to: '/admin/users', label: 'ניהול משתמשים', icon: Shield },
+  { to: '/admin/import-leads', label: 'ייבוא לידים', icon: Upload },
 ]
 
 // Manager+ navigation items
 const MANAGER_NAV_ITEMS: NavItem[] = [
+  { to: '/admin/sales-assignment', label: 'שיוך לידים', icon: UserCog },
+  { to: '/admin/webhook-logs', label: 'לוגים Webhooks', icon: Activity },
   { to: '/admin/audit-logs', label: 'יומן פעילות', icon: ScrollText },
 ]
 
