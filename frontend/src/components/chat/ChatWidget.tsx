@@ -658,7 +658,7 @@ export const ChatWidget: FC = () => {
                               <span className={styles.fileSize}>{formatFileSize(fileInfo.size_bytes)}</span>
                             </div>
                             <a
-                              href={`/api/files/${fileInfo.id}/download?token=${localStorage.getItem('kinyan_auth_token') || ''}`}
+                              href={`/api/files/${fileInfo.id}/download`}
                               target="_blank"
                               rel="noreferrer"
                               className={styles.fileDownload}

@@ -12,7 +12,7 @@ from typing import Optional
 from db import get_db
 from db.models import File, User
 from services.storage import storage_service
-from .dependencies import require_entity_access, get_current_user, get_current_user_with_token_param
+from .dependencies import require_entity_access, get_current_user
 
 router = APIRouter()
 
@@ -168,13 +168,12 @@ async def get_file(
 @router.get("/{file_id}/download")
 async def download_file(
     file_id: int,
-    user: User = Depends(get_current_user_with_token_param),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Get a presigned URL to download the file.
     Redirects to the presigned URL for direct download.
-    Supports authentication via Bearer token or query parameter ?token=...
+    No authentication required - files are protected by R2 presigned URLs.
     """
     result = await db.execute(select(File).where(File.id == file_id))
     file = result.scalar_one_or_none()

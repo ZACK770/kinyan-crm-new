@@ -484,7 +484,7 @@ export function EmailInboxPage() {
                           <Paperclip size={10} />
                           <span>{att.filename}</span>
                           <span style={{ color: 'var(--color-text-muted)' }}>({formatFileSize(att.size_bytes)})</span>
-                          <a href={`/api/files/${att.id}/download?token=${localStorage.getItem('kinyan_auth_token') || ''}`} target="_blank" rel="noreferrer" style={{ color: 'var(--color-primary)', display: 'flex' }}>
+                          <a href={`/api/files/${att.id}/download`} target="_blank" rel="noreferrer" style={{ color: 'var(--color-primary)', display: 'flex' }}>
                             <Download size={12} />
                           </a>
                         </div>
