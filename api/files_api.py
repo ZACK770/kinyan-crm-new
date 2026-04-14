@@ -171,9 +171,9 @@ async def download_file(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Get a presigned URL to download the file.
-    Redirects to the presigned URL for direct download.
-    No authentication required - files are protected by R2 presigned URLs.
+    Download a file - either from R2 storage or directly from database.
+    - If file has storage_key: redirect to R2 presigned URL
+    - If file has file_data: return binary data directly
     """
     result = await db.execute(select(File).where(File.id == file_id))
     file = result.scalar_one_or_none()
@@ -181,12 +181,29 @@ async def download_file(
     if not file:
         raise HTTPException(404, "File not found")
     
-    try:
-        # Generate presigned URL (valid for 1 hour)
-        url = await storage_service.get_presigned_url(file.storage_key, expires_in=3600)
-        return RedirectResponse(url=url, status_code=302)
-    except Exception as e:
-        raise HTTPException(500, f"Could not generate download URL: {str(e)}")
+    # Case 1: File stored in R2
+    if file.storage_key:
+        try:
+            # Generate presigned URL (valid for 1 hour)
+            url = await storage_service.get_presigned_url(file.storage_key, expires_in=3600)
+            return RedirectResponse(url=url, status_code=302)
+        except Exception as e:
+            raise HTTPException(500, f"Could not generate download URL: {str(e)}")
+    
+    # Case 2: File stored in database
+    elif file.file_data:
+        from fastapi.responses import Response
+        return Response(
+            content=file.file_data,
+            media_type=file.content_type or 'application/octet-stream',
+            headers={
+                'Content-Disposition': f'attachment; filename="{file.filename}"'
+            }
+        )
+    
+    # Case 3: No file data anywhere
+    else:
+        raise HTTPException(500, "File data not found in storage or database")
 
 
 @router.patch("/{file_id}")
