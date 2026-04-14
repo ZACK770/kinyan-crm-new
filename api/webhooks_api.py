@@ -45,7 +45,13 @@ def _get_client_ip(request: Request) -> str:
 async def elementor_webhook(request: Request):
     """Handle Elementor form submissions from website."""
     try:
-        data = await request.json()
+        # Elementor can send as form-data or JSON
+        content_type = request.headers.get("content-type", "")
+        if "form" in content_type:
+            data = dict(await request.form())
+        else:
+            data = await request.json()
+
         data = _unwrap_array(data)
         logger.info(f"Elementor webhook received: phone={data.get('fields', {}).get('field_6f8642e', {}).get('value', 'N/A')}")
         result = await handle_elementor_webhook(data)
