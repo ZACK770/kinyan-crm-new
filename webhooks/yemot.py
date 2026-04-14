@@ -59,8 +59,10 @@ def parse_yemot_payload(data: dict) -> dict:
     )
     parsed["phone"] = phone
 
-    # Caller name (if known)
-    parsed["user_name"] = data.get("ApiCallerId", data.get("callerName", ""))
+    # Caller name (if known) - also add as name for lead creation
+    caller_name = data.get("ApiCallerId", data.get("callerName", ""))
+    parsed["user_name"] = caller_name
+    parsed["name"] = caller_name or "ליד ימות"  # Default name if not provided
 
     # IVR extension/folder (determines product of interest)
     folder = data.get("Folder", data.get("folder", data.get("ApiExtension", data.get("extension", ""))))
