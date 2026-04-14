@@ -74,15 +74,25 @@ async def create_lead(db: AsyncSession, **kwargs) -> Lead:
 # ============================================================
 async def update_lead(db: AsyncSession, lead_id: int, **kwargs) -> Lead | None:
     """Update lead fields."""
+    from datetime import datetime
+    
     stmt = select(Lead).where(Lead.id == lead_id)
     result = await db.execute(stmt)
     lead = result.scalar_one_or_none()
     if not lead:
         return None
 
+    # Track if status or salesperson_id changed (manual edits by salesperson)
+    is_manual_edit = 'status' in kwargs or 'salesperson_id' in kwargs
+
     for key, value in kwargs.items():
         if value is not None and hasattr(lead, key):
             setattr(lead, key, value)
+
+    # Update last_edited_at for manual edits (status/salesperson changes)
+    if is_manual_edit:
+        from sqlalchemy import func
+        lead.last_edited_at = datetime.now()
 
     await db.flush()
     return lead
