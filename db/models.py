@@ -1445,6 +1445,10 @@ class ChatMessage(Base):
         Index("idx_chat_msg_created", "created_at"),
     )
 
+    # New fields for notifications
+    is_dm_notification: Mapped[bool] = mapped_column(Boolean, default=False)
+    mentioned_user_ids: Mapped[Optional[List[int]]] = mapped_column(ARRAY(Integer))
+
     thread: Mapped["ChatThread"] = relationship(back_populates="messages")
     sender: Mapped["User"] = relationship(foreign_keys=[sender_user_id])
     reply_to: Mapped[Optional["ChatMessage"]] = relationship(remote_side="ChatMessage.id", foreign_keys=[reply_to_message_id])

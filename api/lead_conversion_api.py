@@ -196,7 +196,7 @@ async def get_lead_conversion_status(
     current_user: User = Depends(require_entity_access("leads", "view"))
 ):
     """
-    קבלת סטטוס המרה של ליד
+    קבלת סטטוס המרה של ליד - גרסה חדשה
     """
     result = await session.execute(select(Lead).where(Lead.id == lead_id))
     lead = result.scalar_one_or_none()
@@ -204,44 +204,44 @@ async def get_lead_conversion_status(
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
     
-    progress = await get_conversion_progress(lead)
+    # Return simplified conversion status for new checklist
+    steps_completed = [
+        lead.approved_terms,
+        lead.shipping_details_complete,
+        lead.student_chat_added,
+        lead.personal_course_update
+    ].count(True)
     
     return {
         "lead_id": lead_id,
         "lead_name": lead.full_name,
         "status": lead.status,
-        "conversion_progress": progress,
-        "details": {
-            "payment": {
-                "completed": lead.payment_completed,
-                "amount": float(lead.payment_completed_amount) if lead.payment_completed_amount else None,
-                "date": lead.payment_completed_date.isoformat() if lead.payment_completed_date else None,
-                "method": lead.payment_completed_method,
-                "verified": lead.payment_verified
+        "conversion_progress": {
+            "steps": {
+                "approved_terms": lead.approved_terms or False,
+                "shipping": lead.shipping_details_complete or False,
+                "chat": lead.student_chat_added or False,
+                "personal_update": lead.personal_course_update or False
             },
-            "kinyan": {
-                "signed": lead.kinyan_signed,
-                "date": lead.kinyan_signed_date.isoformat() if lead.kinyan_signed_date else None,
-                "method": lead.kinyan_method,
-                "file_url": lead.kinyan_file_url
+            "completed": steps_completed,
+            "total": 4,
+            "percentage": int((steps_completed / 4) * 100),
+            "conversion_complete": lead.conversion_checklist_complete or False
+        },
+        "details": {
+            "approved_terms": {
+                "completed": lead.approved_terms or False
             },
             "shipping": {
-                "complete": lead.shipping_details_complete,
-                "address": lead.shipping_full_address,
-                "city": lead.shipping_city,
-                "phone": lead.shipping_phone
+                "complete": lead.shipping_details_complete or False
             },
             "student_chat": {
-                "added": lead.student_chat_added,
-                "platform": lead.student_chat_platform,
-                "link": lead.student_chat_link,
-                "date": lead.student_chat_added_date.isoformat() if lead.student_chat_added_date else None
+                "added": lead.student_chat_added or False
             },
-            "handoff": {
-                "to_manager": lead.handoff_to_manager,
-                "completed": lead.handoff_completed,
-                "manager_id": lead.handoff_manager_id,
-                "date": lead.handoff_date.isoformat() if lead.handoff_date else None
+            "personal_course_update": {
+                "completed": lead.personal_course_update or False,
+                "date": lead.personal_course_update_date.isoformat() if lead.personal_course_update_date else None,
+                "notes": lead.personal_course_update_notes
             }
         }
     }
