@@ -188,12 +188,37 @@ async def update_lead(
         request=request,
     )
 
-    # Return all updated fields so frontend can update UI correctly
-    response = {"id": lead.id}
-    for key in changes.keys():
-        if hasattr(lead, key):
-            response[key] = getattr(lead, key)
-    return response
+    # Return full lead object to prevent overwriting other fields in frontend
+    return {
+        "id": lead.id,
+        "full_name": lead.full_name,
+        "family_name": lead.family_name,
+        "phone": lead.phone,
+        "phone2": lead.phone2,
+        "email": lead.email,
+        "city": lead.city,
+        "address": lead.address,
+        "id_number": lead.id_number,
+        "notes": lead.notes,
+        "source_type": lead.source_type,
+        "source_name": lead.source_name,
+        "campaign_name": lead.campaign_name,
+        "source_message": lead.source_message,
+        "source_details": lead.source_details,
+        "status": lead.status,
+        "salesperson_id": lead.salesperson_id,
+        "campaign_id": lead.campaign_id,
+        "course_id": lead.course_id,
+        "student_id": lead.student_id,
+        "conversion_date": str(lead.conversion_date) if lead.conversion_date else None,
+        "first_payment": lead.first_payment,
+        "first_lesson": lead.first_lesson,
+        "approved_terms": lead.approved_terms,
+        "created_at": str(lead.created_at),
+        "updated_at": str(lead.updated_at) if lead.updated_at else None,
+        "created_by": lead.created_by,
+        "last_edited_at": str(lead.last_edited_at) if lead.last_edited_at else None,
+    }
 
 
 # ── Convert Lead to Student ────────────────────────────────

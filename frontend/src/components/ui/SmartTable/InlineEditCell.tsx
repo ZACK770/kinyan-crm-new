@@ -162,7 +162,7 @@ export function InlineEditCell({
           value={String(editValue ?? '')}
           onChange={handleSelectChange}
           onKeyDown={handleKeyDown}
-          onBlur={cancelEditing}
+          onBlur={handleBlur}
           onClick={e => e.stopPropagation()}
           disabled={isSaving}
         >
@@ -178,7 +178,7 @@ export function InlineEditCell({
           value={editValue === true ? 'true' : editValue === false ? 'false' : ''}
           onChange={handleSelectChange}
           onKeyDown={handleKeyDown}
-          onBlur={cancelEditing}
+          onBlur={handleBlur}
           onClick={e => e.stopPropagation()}
           disabled={isSaving}
         >

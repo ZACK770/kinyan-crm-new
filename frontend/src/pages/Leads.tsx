@@ -591,7 +591,7 @@ export function LeadsPage() {
     try {
       const fresh = await api.get<Lead>(`leads/${selectedLead.id}`)
       setSelectedLead(fresh)
-    } catch {
+    } catch (err) {
       // Ignore refresh errors
     }
   }
