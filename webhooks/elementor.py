@@ -37,6 +37,7 @@ FIELD_MAP = {
     "בחר מסלול": "form_product",
     "מוצר": "form_product",
     "קורס": "form_product",
+    "קורס מבוקש": "requested_course",
     # UTM fields
     "מקור": "utm_source",
     "utm_source": "utm_source",

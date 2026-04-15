@@ -45,10 +45,13 @@ async def create_lead(db: AsyncSession, **kwargs) -> Lead:
     """Create a new lead."""
     # Support both 'name' (from webhooks) and 'full_name' (from frontend)
     full_name = kwargs.get("full_name") or kwargs.get("name", "")
+    
+    phone = normalize_phone(kwargs.get("phone", ""))
+    
     lead = Lead(
         full_name=full_name,
         family_name=kwargs.get("family_name"),
-        phone=normalize_phone(kwargs.get("phone", "")),
+        phone=phone,
         phone2=kwargs.get("phone2"),
         email=kwargs.get("email"),
         address=kwargs.get("address"),
@@ -63,6 +66,7 @@ async def create_lead(db: AsyncSession, **kwargs) -> Lead:
         salesperson_id=kwargs.get("salesperson_id"),
         campaign_id=kwargs.get("campaign_id"),
         course_id=kwargs.get("course_id"),
+        requested_course=kwargs.get("requested_course"),
     )
     db.add(lead)
     await db.flush()
@@ -75,18 +79,21 @@ async def create_lead(db: AsyncSession, **kwargs) -> Lead:
 async def update_lead(db: AsyncSession, lead_id: int, **kwargs) -> Lead | None:
     """Update lead fields."""
     from datetime import datetime
-    
+
+    print(f"DEBUG: update_lead service called with lead_id={lead_id}, kwargs={kwargs}")
     stmt = select(Lead).where(Lead.id == lead_id)
     result = await db.execute(stmt)
     lead = result.scalar_one_or_none()
     if not lead:
+        print(f"DEBUG: lead not found with id={lead_id}")
         return None
 
     # Track if status or salesperson_id changed (manual edits by salesperson)
     is_manual_edit = 'status' in kwargs or 'salesperson_id' in kwargs
 
     for key, value in kwargs.items():
-        if value is not None and hasattr(lead, key):
+        if hasattr(lead, key):
+            print(f"DEBUG: setting {key}={value} (type={type(value)})")
             setattr(lead, key, value)
 
     # Update last_edited_at for manual edits (status/salesperson changes)
@@ -95,6 +102,7 @@ async def update_lead(db: AsyncSession, lead_id: int, **kwargs) -> Lead | None:
         lead.last_edited_at = datetime.now()
 
     await db.flush()
+    print(f"DEBUG: lead updated, salesperson_id={lead.salesperson_id}, status={lead.status}")
     return lead
 
 
@@ -345,10 +353,14 @@ async def process_incoming_lead(db: AsyncSession, **kwargs) -> dict:
     This is the core function that replaces the entire unified_make_module.js.
     """
     phone = kwargs.get("phone", "")
-    if not is_valid_phone(phone):
-        return {"success": False, "error": "Invalid phone number"}
-
+    
+    # Normalize phone (basic cleanup, no validation)
     phone = normalize_phone(phone)
+    
+    # If phone is empty, use a placeholder to satisfy DB constraint
+    if not phone:
+        phone = f"no_phone_{kwargs.get('name', 'unknown')}"
+    
     existing = await search_by_phone(db, phone)
 
     if existing:

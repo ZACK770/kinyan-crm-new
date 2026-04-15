@@ -79,6 +79,7 @@ def parse_yemot_payload(data: dict) -> dict:
     if product:
         parsed["ivr_product"] = product
         parsed["form_product"] = product
+        parsed["requested_course"] = product
 
     # Call answered status
     queue_status = data.get("QueueStatus", data.get("hangupCause", data.get("ApiHangupCause", "")))

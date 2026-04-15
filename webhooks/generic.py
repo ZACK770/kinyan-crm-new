@@ -17,6 +17,7 @@ def parse_generic_payload(data: dict) -> dict:
         "campaign_name": data.get("campaign_name"),
         "source_message": data.get("message"),
         "interaction_type": data.get("interaction_type", "generic"),
+        "requested_course": data.get("requested_course"),
     }
 
 
