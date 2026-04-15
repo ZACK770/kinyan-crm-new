@@ -136,7 +136,11 @@ export function LeadWorkspace({
   const saveField = useCallback(async (field: string, value: string | number | null) => {
     if (!lead) return
     try {
-      await api.patch(`/leads/${lead.id}`, { [field]: value })
+      console.log('saveField:', { field, value, type: typeof value })
+      const payload = { [field]: value }
+      console.log('API payload:', payload)
+      const result = await api.patch(`/leads/${lead.id}`, payload)
+      console.log('API response:', result)
       onUpdate()
     } catch (err) {
       console.error('Failed to update field:', err)

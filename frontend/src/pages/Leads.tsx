@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, type FormEvent } from 'react'
+import { useEffect, useState, useCallback, useMemo, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   Plus,
@@ -704,7 +704,7 @@ export function LeadsPage() {
   }
 
   /* ── Columns (SmartTable) ── */
-  const columns: SmartColumn<Lead>[] = [
+  const columns: SmartColumn<Lead>[] = useMemo(() => [
     {
       key: 'full_name',
       header: 'שם מלא',
@@ -1325,7 +1325,7 @@ export function LeadsPage() {
         </div>
       ),
     },
-  ]
+  ], [salespersons, campaigns, courses])
 
   // Handle created lead — go to workspace in edit mode
   const handleCreatedLead = async (newLead: Lead) => {

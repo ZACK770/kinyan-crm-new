@@ -39,15 +39,19 @@ export function InlineEditCell({
     }
   }, [value, isEditing])
 
-  // Focus on edit start
+  // Focus input when entering edit mode
   useEffect(() => {
     if (isEditing && inputRef.current) {
       inputRef.current.focus()
-      if (inputRef.current instanceof HTMLInputElement) {
+      if (inputRef.current instanceof HTMLInputElement || inputRef.current instanceof HTMLTextAreaElement) {
         inputRef.current.select()
       }
+      // Open select dropdown immediately for select/boolean types
+      if ((type === 'select' || type === 'boolean') && inputRef.current instanceof HTMLSelectElement) {
+        inputRef.current.click()
+      }
     }
-  }, [isEditing])
+  }, [isEditing, type])
 
   // Cleanup
   useEffect(() => {
@@ -60,6 +64,14 @@ export function InlineEditCell({
     if (disabled || isSaving) return
     setEditValue(value)
     setIsEditing(true)
+    // For select types, open the dropdown immediately
+    if ((type === 'select' || type === 'boolean') && inputRef.current) {
+      setTimeout(() => {
+        if (inputRef.current instanceof HTMLSelectElement) {
+          inputRef.current.click()
+        }
+      }, 0)
+    }
   }
 
   const cancelEditing = () => {
@@ -138,7 +150,7 @@ export function InlineEditCell({
     return (
       <div
         className={`${s.inlineCell} ${disabled ? s.disabled : ''}`}
-        onClick={startEditing}
+        onClick={e => { e.stopPropagation(); startEditing() }}
         onKeyDown={e => e.key === 'Enter' && startEditing()}
         tabIndex={disabled ? undefined : 0}
         role={disabled ? undefined : 'button'}
@@ -159,6 +171,7 @@ export function InlineEditCell({
           onChange={handleSelectChange}
           onKeyDown={handleKeyDown}
           onBlur={cancelEditing}
+          onClick={e => e.stopPropagation()}
           disabled={isSaving}
         >
           <option value="">—</option>
@@ -174,6 +187,7 @@ export function InlineEditCell({
           onChange={handleSelectChange}
           onKeyDown={handleKeyDown}
           onBlur={cancelEditing}
+          onClick={e => e.stopPropagation()}
           disabled={isSaving}
         >
           <option value="">—</option>
@@ -189,6 +203,7 @@ export function InlineEditCell({
           onChange={e => setEditValue(e.target.value || null)}
           onKeyDown={handleKeyDown}
           onBlur={handleBlur}
+          onClick={e => e.stopPropagation()}
           disabled={isSaving}
         />
       ) : type === 'number' || type === 'currency' ? (
@@ -200,6 +215,7 @@ export function InlineEditCell({
           onChange={e => setEditValue(e.target.value ? Number(e.target.value) : null)}
           onKeyDown={handleKeyDown}
           onBlur={handleBlur}
+          onClick={e => e.stopPropagation()}
           disabled={isSaving}
           dir="ltr"
         />
@@ -212,6 +228,7 @@ export function InlineEditCell({
           onChange={e => setEditValue(e.target.value || null)}
           onKeyDown={handleKeyDown}
           onBlur={handleBlur}
+          onClick={e => e.stopPropagation()}
           disabled={isSaving}
         />
       )}
