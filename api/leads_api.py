@@ -188,7 +188,12 @@ async def update_lead(
         request=request,
     )
 
-    return {"id": lead.id, "status": lead.status}
+    # Return all updated fields so frontend can update UI correctly
+    response = {"id": lead.id}
+    for key in changes.keys():
+        if hasattr(lead, key):
+            response[key] = getattr(lead, key)
+    return response
 
 
 # ── Convert Lead to Student ────────────────────────────────

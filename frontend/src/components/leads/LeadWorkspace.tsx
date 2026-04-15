@@ -133,20 +133,16 @@ export function LeadWorkspace({
   }
 
   // Inline save handler (edit mode)
-  const saveField = useCallback(async (field: string, value: string | number | null) => {
+  const saveField = async (field: string, value: string | number | null) => {
     if (!lead) return
     try {
-      console.log('saveField:', { field, value, type: typeof value })
-      const payload = { [field]: value }
-      console.log('API payload:', payload)
-      const result = await api.patch(`/leads/${lead.id}`, payload)
-      console.log('API response:', result)
+      await api.patch(`/leads/${lead.id}`, { [field]: value })
       onUpdate()
     } catch (err) {
       console.error('Failed to update field:', err)
       throw err
     }
-  }, [lead?.id, onUpdate])
+  }
 
   // Close handler with unsaved changes confirmation
   const handleClose = useCallback(async () => {

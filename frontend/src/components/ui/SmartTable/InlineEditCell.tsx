@@ -64,14 +64,6 @@ export function InlineEditCell({
     if (disabled || isSaving) return
     setEditValue(value)
     setIsEditing(true)
-    // For select types, open the dropdown immediately
-    if ((type === 'select' || type === 'boolean') && inputRef.current) {
-      setTimeout(() => {
-        if (inputRef.current instanceof HTMLSelectElement) {
-          inputRef.current.click()
-        }
-      }, 0)
-    }
   }
 
   const cancelEditing = () => {

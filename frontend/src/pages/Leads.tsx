@@ -522,14 +522,14 @@ export function LeadsPage() {
       const payload: Record<string, unknown> = { [field]: value }
       console.log('API payload:', payload)
       // Handle special fields conversions if needed
-      const result = await api.patch(`leads/${lead.id}`, payload)
+      const result = await api.patch<Record<string, unknown>>(`leads/${lead.id}`, payload)
       console.log('API response:', result)
       toast.success('עודכן בהצלחה')
 
       // Update local state to avoid full reload
       setLeads(prev => prev.map(p => p.id === lead.id ? {
         ...p,
-        ...payload,
+        ...result,
         updated_at: new Date().toISOString(),
         last_edited_at: new Date().toISOString(),
       } : p))
