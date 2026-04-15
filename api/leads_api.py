@@ -167,12 +167,14 @@ async def update_lead(
     user = Depends(require_entity_access("leads", "edit")),
     db: AsyncSession = Depends(get_db)
 ):
-    print(f"DEBUG: update_lead called with lead_id={lead_id}, data={data.model_dump(exclude_unset=True)}")
+    print(f"DEBUG API: lead_id={lead_id}, data={data.model_dump(exclude_unset=True)}")
+    if 'status' in data.model_dump(exclude_unset=True):
+        print(f"DEBUG API: status field present, value={data.status}")
     lead = await lead_svc.update_lead(db, lead_id, **data.model_dump(exclude_unset=True))
     if not lead:
         raise HTTPException(404, "Lead not found")
     await db.commit()
-    print(f"DEBUG: lead updated successfully, salesperson_id={lead.salesperson_id}, status={lead.status}")
+    print(f"DEBUG API: after commit, lead.status={lead.status}")
 
     # Log lead update
     changes = data.model_dump(exclude_unset=True)

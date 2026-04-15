@@ -518,8 +518,9 @@ export function LeadsPage() {
   /* ── Inline Update ── */
   const handleInlineUpdate = async (lead: Lead, field: string, value: unknown) => {
     try {
-      console.log('handleInlineUpdate:', { leadId: lead.id, field, value })
+      console.log('handleInlineUpdate:', { leadId: lead.id, field, value, type: typeof value })
       const payload: Record<string, unknown> = { [field]: value }
+      console.log('API payload:', payload)
       // Handle special fields conversions if needed
       const result = await api.patch(`leads/${lead.id}`, payload)
       console.log('API response:', result)

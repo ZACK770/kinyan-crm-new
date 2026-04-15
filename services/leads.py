@@ -80,20 +80,22 @@ async def update_lead(db: AsyncSession, lead_id: int, **kwargs) -> Lead | None:
     """Update lead fields."""
     from datetime import datetime
 
-    print(f"DEBUG: update_lead service called with lead_id={lead_id}, kwargs={kwargs}")
+    print(f"DEBUG SERVICE: lead_id={lead_id}, kwargs={kwargs}")
     stmt = select(Lead).where(Lead.id == lead_id)
     result = await db.execute(stmt)
     lead = result.scalar_one_or_none()
     if not lead:
-        print(f"DEBUG: lead not found with id={lead_id}")
+        print(f"DEBUG SERVICE: lead not found")
         return None
+
+    print(f"DEBUG SERVICE: before update, lead.status={lead.status}")
 
     # Track if status or salesperson_id changed (manual edits by salesperson)
     is_manual_edit = 'status' in kwargs or 'salesperson_id' in kwargs
 
     for key, value in kwargs.items():
         if hasattr(lead, key):
-            print(f"DEBUG: setting {key}={value} (type={type(value)})")
+            print(f"DEBUG SERVICE: setting {key}={value} (type={type(value)})")
             setattr(lead, key, value)
 
     # Update last_edited_at for manual edits (status/salesperson changes)
@@ -102,7 +104,7 @@ async def update_lead(db: AsyncSession, lead_id: int, **kwargs) -> Lead | None:
         lead.last_edited_at = datetime.now()
 
     await db.flush()
-    print(f"DEBUG: lead updated, salesperson_id={lead.salesperson_id}, status={lead.status}")
+    print(f"DEBUG SERVICE: after flush, lead.status={lead.status}")
     return lead
 
 
