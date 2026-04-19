@@ -134,12 +134,51 @@ export function LeadWorkspace({
 
   // Inline save handler (edit mode)
   const saveField = async (field: string, value: string | number | null) => {
-    if (!lead) return
+    console.log(`🏢 [LeadWorkspace] saveField called`, {
+      leadId: lead?.id,
+      field: field,
+      value: value,
+      valueType: typeof value,
+      leadExists: !!lead
+    })
+
+    if (!lead) {
+      console.error(`❌ [LeadWorkspace] No lead object available for saveField`)
+      return
+    }
+
+    console.log(`📡 [LeadWorkspace] Making API call to update lead ${lead.id}`, {
+      endpoint: `/leads/${lead.id}`,
+      payload: { [field]: value },
+      leadName: lead.full_name
+    })
+
     try {
-      await api.patch(`/leads/${lead.id}`, { [field]: value })
+      const startTime = performance.now()
+      const response = await api.patch(`/leads/${lead.id}`, { [field]: value })
+      const endTime = performance.now()
+      
+      console.log(`✅ [LeadWorkspace] API call successful`, {
+        duration: `${(endTime - startTime).toFixed(2)}ms`,
+        response: response,
+        field: field,
+        newValue: value
+      })
+
+      console.log(`🔄 [LeadWorkspace] Calling onUpdate to refresh lead data`)
       onUpdate()
+      
+      console.log(`✅ [LeadWorkspace] saveField completed successfully for field "${field}"`)
     } catch (err) {
-      console.error('Failed to update field:', err)
+      console.error(`❌ [LeadWorkspace] Failed to update field "${field}":`, err)
+      console.error(`❌ [LeadWorkspace] Error details:`, {
+        leadId: lead.id,
+        field: field,
+        value: value,
+        error: err,
+        errorMessage: err instanceof Error ? err.message : 'Unknown error',
+        errorStack: err instanceof Error ? err.stack : undefined
+      })
       throw err
     }
   }

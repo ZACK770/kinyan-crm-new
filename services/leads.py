@@ -80,31 +80,74 @@ async def update_lead(db: AsyncSession, lead_id: int, **kwargs) -> Lead | None:
     """Update lead fields."""
     from datetime import datetime
 
-    print(f"DEBUG SERVICE: lead_id={lead_id}, kwargs={kwargs}")
+    print(f"🔧 [SERVICE] Starting update_lead for lead_id={lead_id}")
+    print(f"📥 [SERVICE] Update kwargs: {kwargs}")
+    print(f"📊 [SERVICE] Number of fields to update: {len(kwargs)}")
+    
+    # Query the lead
+    print(f"🔍 [SERVICE] Querying database for lead {lead_id}")
     stmt = select(Lead).where(Lead.id == lead_id)
-    result = await db.execute(stmt)
+    
+    try:
+        result = await db.execute(stmt)
+        print(f"✅ [SERVICE] Database query executed successfully")
+    except Exception as e:
+        print(f"❌ [SERVICE] Database query failed: {e}")
+        raise
+    
     lead = result.scalar_one_or_none()
     if not lead:
-        print(f"DEBUG SERVICE: lead not found")
+        print(f"❌ [SERVICE] Lead {lead_id} not found in database")
         return None
 
-    print(f"DEBUG SERVICE: before update, lead.status={lead.status}")
+    print(f"✅ [SERVICE] Lead found: {lead.full_name} (current status: {lead.status})")
+    print(f"📊 [SERVICE] Lead current values before update:")
+    for key in kwargs.keys():
+        if hasattr(lead, key):
+            current_value = getattr(lead, key)
+            print(f"  - {key}: {current_value} (type: {type(current_value)})")
 
     # Track if status or salesperson_id changed (manual edits by salesperson)
     is_manual_edit = 'status' in kwargs or 'salesperson_id' in kwargs
+    print(f"🏷️ [SERVICE] Is manual edit (status/salesperson): {is_manual_edit}")
 
+    # Apply updates
+    print(f"🔄 [SERVICE] Applying field updates...")
+    updated_fields = []
     for key, value in kwargs.items():
         if hasattr(lead, key):
-            print(f"DEBUG SERVICE: setting {key}={value} (type={type(value)})")
+            old_value = getattr(lead, key)
+            print(f"🔧 [SERVICE] Updating {key}: {old_value} → {value} (type: {type(value)})")
             setattr(lead, key, value)
+            updated_fields.append(key)
+        else:
+            print(f"⚠️ [SERVICE] Field {key} does not exist on Lead model, skipping")
+
+    print(f"✅ [SERVICE] Updated {len(updated_fields)} fields: {updated_fields}")
 
     # Update last_edited_at for manual edits (status/salesperson changes)
     if is_manual_edit:
         from sqlalchemy import func
+        old_edited_at = lead.last_edited_at
         lead.last_edited_at = datetime.now()
+        print(f"📅 [SERVICE] Updated last_edited_at: {old_edited_at} → {lead.last_edited_at}")
 
-    await db.flush()
-    print(f"DEBUG SERVICE: after flush, lead.status={lead.status}")
+    # Flush changes to database
+    print(f"💾 [SERVICE] Flushing changes to database...")
+    try:
+        await db.flush()
+        print(f"✅ [SERVICE] Database flush successful")
+    except Exception as e:
+        print(f"❌ [SERVICE] Database flush failed: {e}")
+        raise
+
+    # Verify updates
+    print(f"🔍 [SERVICE] Verifying updates after flush:")
+    for key in updated_fields:
+        new_value = getattr(lead, key)
+        print(f"  - {key}: {new_value}")
+    
+    print(f"✅ [SERVICE] Lead update completed successfully for lead {lead_id}")
     return lead
 
 
@@ -127,6 +170,15 @@ async def add_interaction(db: AsyncSession, lead_id: int, **kwargs) -> LeadInter
         description=kwargs.get("description"),
     )
     db.add(interaction)
+    
+    # Touch the lead to trigger updated_at update
+    stmt = select(Lead).where(Lead.id == lead_id)
+    result = await db.execute(stmt)
+    lead = result.scalar_one_or_none()
+    if lead:
+        # Just touch the lead to trigger onupdate
+        lead.updated_at = lead.updated_at  # This will trigger the onupdate=func.now()
+    
     await db.flush()
     return interaction
 

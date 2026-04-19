@@ -93,32 +93,53 @@ export function EditableField({
   }
 
   const save = async () => {
+    console.log(`🔧 [EditableField] Starting save for field "${label}"`, {
+      originalValue: value,
+      editValue: editValue,
+      type: type,
+      hasChanges: editValue !== String(value ?? '')
+    })
+
     // No changes? Just close
     if (editValue === String(value ?? '')) {
+      console.log(`ℹ️ [EditableField] No changes detected for "${label}", closing editor`)
       setIsEditing(false)
       return
     }
 
+    console.log(`💾 [EditableField] Saving changes for "${label}"`)
     setSaveStatus('saving')
+    
     try {
       // Convert to appropriate type
       let finalValue: string | number | null = editValue
       if (editValue === '' || editValue === undefined) {
         finalValue = null
+        console.log(`🔄 [EditableField] Converting empty value to null for "${label}"`)
       } else if (type === 'entity-select' && editValue) {
         finalValue = Number(editValue)
+        console.log(`🔄 [EditableField] Converting to number for entity-select "${label}": ${editValue} → ${finalValue}`)
       }
 
+      console.log(`📤 [EditableField] Calling onSave for "${label}" with value:`, finalValue)
       await onSave(finalValue)
+      
+      console.log(`✅ [EditableField] Save successful for "${label}"`)
       setIsEditing(false)
 
       // Show saved indicator briefly
       setSaveStatus('saved')
       savedTimerRef.current = setTimeout(() => {
         setSaveStatus('idle')
+        console.log(`🔄 [EditableField] Reset save status to idle for "${label}"`)
       }, 1500)
     } catch (err) {
-      console.error('Failed to save:', err)
+      console.error(`❌ [EditableField] Save failed for "${label}":`, err)
+      console.error(`❌ [EditableField] Error details:`, {
+        message: err instanceof Error ? err.message : 'Unknown error',
+        stack: err instanceof Error ? err.stack : undefined,
+        errorObject: err
+      })
       setSaveStatus('idle')
       // Keep editing open on error
     }

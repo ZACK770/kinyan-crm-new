@@ -167,26 +167,54 @@ async def update_lead(
     user = Depends(require_entity_access("leads", "edit")),
     db: AsyncSession = Depends(get_db)
 ):
-    print(f"DEBUG API: lead_id={lead_id}, data={data.model_dump(exclude_unset=True)}")
-    if 'status' in data.model_dump(exclude_unset=True):
-        print(f"DEBUG API: status field present, value={data.status}")
-    lead = await lead_svc.update_lead(db, lead_id, **data.model_dump(exclude_unset=True))
-    if not lead:
-        raise HTTPException(404, "Lead not found")
-    await db.commit()
-    print(f"DEBUG API: after commit, lead.status={lead.status}")
-
-    # Log lead update
+    print(f"🔧 [API] Starting lead update for lead_id={lead_id}")
+    print(f"📥 [API] Request data: {data.model_dump(exclude_unset=True)}")
+    print(f"👤 [API] User: {user.email} (permission_level={user.permission_level})")
+    print(f"🔗 [API] Request URL: {request.url}")
+    print(f"📋 [API] Request headers: {dict(request.headers)}")
+    
     changes = data.model_dump(exclude_unset=True)
-    await audit_logs.log_update(
-        db=db,
-        user=user,
-        entity_type="leads",
-        entity_id=lead_id,
-        description=f"עודכן ליד: {lead.full_name}",
-        changes=changes,
-        request=request,
-    )
+    if 'status' in changes:
+        print(f"🏷️ [API] Status field update detected, value={data.status}")
+    
+    print(f"📞 [API] Calling lead service to update lead {lead_id}")
+    try:
+        lead = await lead_svc.update_lead(db, lead_id, **changes)
+        print(f"✅ [API] Lead service returned: {lead is not None}")
+        
+        if not lead:
+            print(f"❌ [API] Lead {lead_id} not found in database")
+            raise HTTPException(404, "Lead not found")
+        
+        print(f"💾 [API] Committing database transaction")
+        await db.commit()
+        print(f"✅ [API] Database commit successful")
+        print(f"📊 [API] Updated lead status: {lead.status}")
+        print(f"📊 [API] Updated lead name: {lead.full_name}")
+
+        # Log lead update
+        print(f"📝 [API] Logging audit trail for lead update")
+        await audit_logs.log_update(
+            db=db,
+            user=user,
+            entity_type="leads",
+            entity_id=lead_id,
+            description=f"עודכן ליד: {lead.full_name}",
+            changes=changes,
+            request=request,
+        )
+        print(f"✅ [API] Audit log created successfully")
+        
+    except HTTPException as e:
+        print(f"❌ [API] HTTP Exception: {e.status_code} - {e.detail}")
+        raise
+    except Exception as e:
+        print(f"❌ [API] Unexpected error during lead update: {e}")
+        print(f"❌ [API] Error type: {type(e).__name__}")
+        print(f"❌ [API] Error details: {str(e)}")
+        await db.rollback()
+        print(f"🔄 [API] Database rollback completed")
+        raise HTTPException(500, f"Internal server error: {str(e)}")
 
     # Return full lead object to prevent overwriting other fields in frontend
     return {
