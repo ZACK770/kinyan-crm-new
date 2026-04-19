@@ -194,16 +194,19 @@ async def update_lead(
 
         # Log lead update
         print(f"📝 [API] Logging audit trail for lead update")
-        await audit_logs.log_update(
-            db=db,
-            user=user,
-            entity_type="leads",
-            entity_id=lead_id,
-            description=f"עודכן ליד: {lead.full_name}",
-            changes=changes,
-            request=request,
-        )
-        print(f"✅ [API] Audit log created successfully")
+        try:
+            await audit_logs.log_update(
+                db=db,
+                user=user,
+                entity_type="leads",
+                entity_id=lead_id,
+                description=f"עודכן ליד: {lead.full_name}",
+                changes=changes,
+                request=request,
+            )
+            print(f"✅ [API] Audit log created successfully")
+        except Exception as e:
+            print(f"⚠️ [API] Audit log failed (ignored): {type(e).__name__}: {e}")
         
     except HTTPException as e:
         print(f"❌ [API] HTTP Exception: {e.status_code} - {e.detail}")
