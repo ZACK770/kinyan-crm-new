@@ -324,7 +324,7 @@ export function LeadWorkspace({
                 type="entity-select"
                 options={salespersonOptions}
                 onSave={v => { updateForm('salesperson_id', String(v ?? '')); return Promise.resolve() }}
-                entityCreatePath="/leads"
+                entityCreatePath="/salespersons"
               />
             </div>
           </CollapsibleSection>
@@ -514,7 +514,6 @@ export function LeadWorkspace({
               type="select"
               options={STATUS_OPTIONS}
               onSave={v => saveField('status', v)}
-              disabled={!!isConverted}
             />
             <EditableField
               label="איש מכירות"
@@ -523,7 +522,7 @@ export function LeadWorkspace({
               type="entity-select"
               options={salespersonOptions}
               onSave={v => saveField('salesperson_id', v)}
-              entityCreatePath="/leads"
+              entityCreatePath="/salespersons"
             />
           </div>
         </CollapsibleSection>
