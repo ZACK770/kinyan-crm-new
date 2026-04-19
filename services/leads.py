@@ -176,8 +176,9 @@ async def add_interaction(db: AsyncSession, lead_id: int, **kwargs) -> LeadInter
     result = await db.execute(stmt)
     lead = result.scalar_one_or_none()
     if lead:
-        # Just touch the lead to trigger onupdate
-        lead.updated_at = lead.updated_at  # This will trigger the onupdate=func.now()
+        # Force update the updated_at field to current time
+        from sqlalchemy import func
+        lead.updated_at = func.now()
     
     await db.flush()
     return interaction
