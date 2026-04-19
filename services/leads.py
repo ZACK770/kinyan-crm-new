@@ -129,8 +129,8 @@ async def update_lead(db: AsyncSession, lead_id: int, **kwargs) -> Lead | None:
     if is_manual_edit:
         from sqlalchemy import func
         old_edited_at = lead.last_edited_at
-        lead.last_edited_at = datetime.now()
-        print(f"📅 [SERVICE] Updated last_edited_at: {old_edited_at} → {lead.last_edited_at}")
+        lead.last_edited_at = func.now()
+        print(f"📅 [SERVICE] Updated last_edited_at: {old_edited_at} → func.now()")
 
     # Flush changes to database
     print(f"💾 [SERVICE] Flushing changes to database...")
