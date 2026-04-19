@@ -62,7 +62,7 @@ async def create_audit_log(
 
     audit_log = AuditLog(**log_data)
     db.add(audit_log)
-    await db.commit()
+    await db.flush()
     await db.refresh(audit_log)
     
     return audit_log
