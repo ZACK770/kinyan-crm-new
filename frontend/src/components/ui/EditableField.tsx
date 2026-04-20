@@ -4,8 +4,8 @@ import s from '@/styles/shared.module.css'
 
 /* ══════════════════════════════════════════════════════════════
    EditableField — Click-to-edit inline field
-   VERSION: v1.3.1 - 2026-04-20 13:31 - Fixed select/entity-select comparison
-   ═══════════════════════════════════════════════════════════════
+   VERSION: v1.3.2 - 2026-04-20 14:06 - Fixed select stale state via override value
+   ══════════════════════════════════════════════════════════════
    UX Pattern: Auto-save on blur
    - Click to edit → field becomes input
    - Auto-save when: blur, Enter (text), Tab

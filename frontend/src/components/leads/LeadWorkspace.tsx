@@ -30,7 +30,7 @@ import s from '@/styles/shared.module.css'
 
 /* ══════════════════════════════════════════════════════════════
    Lead Workspace — Full workspace view for lead management
-   VERSION: v1.3.1 - 2026-04-20 13:31 - EditableField select/entity-select fix
+   VERSION: v1.3.2 - 2026-04-20 14:06 - EditableField fix for select stale state
    ═══════════════════════════════════════════════════════════════
    Supports both CREATE and EDIT modes:
    - CREATE: lead is null, shows form with fields
