@@ -15,13 +15,21 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List
 
 import httpx
+import urllib3
+
+# Disable SSL warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class WorkspaceFieldTester:
     def __init__(self, base_url: str = "http://localhost:8000", auth_token: Optional[str] = None):
         self.base_url = base_url.rstrip('/')
         self.auth_token = auth_token
-        self.client = httpx.AsyncClient(timeout=30.0)
+        self.client = httpx.AsyncClient(
+            timeout=30.0, 
+            verify=False,
+            follow_redirects=True
+        )
         self.test_results = []
         
         # Define ALL workspace fields with their test values
@@ -165,7 +173,10 @@ class WorkspaceFieldTester:
         
         try:
             # Get salesperson ID
+            # Try to get salesperson data
+            print(f"   Trying: {self.base_url}/api/leads/salespersons")
             response = await self.client.get(f"{self.base_url}/api/leads/salespersons", headers=self.headers())
+            print(f"   Response: {response.status_code}")
             if response.status_code == 200:
                 salespeople = response.json()
                 if salespeople:
@@ -227,7 +238,11 @@ class WorkspaceFieldTester:
         """Get a lead to test with."""
         self.log("info", "🔍 Finding a test lead...")
         try:
+            print(f"   Trying: {self.base_url}/api/leads?limit=1")
             response = await self.client.get(f"{self.base_url}/api/leads?limit=1", headers=self.headers())
+            print(f"   Response: {response.status_code}")
+            if response.status_code != 200:
+                print(f"   Response body: {response.text[:200]}...")
             if response.status_code == 200:
                 leads = response.json()
                 if leads:
@@ -429,21 +444,26 @@ async def main():
     # Configuration
     import os
     
-    base_url = "https://kinyan-crm-new-1.onrender.com"
-    if len(sys.argv) > 1 and sys.argv[1] == "--local":
-        base_url = "http://localhost:8000"
-        print("🏠 Testing LOCAL server")
+    # Default to local for easier testing
+    base_url = "http://localhost:8000"
+    if len(sys.argv) > 1 and sys.argv[1] == "--prod":
+        base_url = "https://kinyan-crm-new-1.onrender.com"
+        print("� Testing PRODUCTION server")
     else:
-        print("🌐 Testing PRODUCTION server")
+        print("� Testing LOCAL server (use --prod for production)")
+        print("💡 Make sure to run: .\\dev.ps1 in another terminal")
     
     print(f"🎯 Target: {base_url}")
     
     # Get auth token
     auth_token = os.getenv("AUTH_TOKEN")
     if not auth_token:
-        auth_token = input("\nEnter auth token (or press Enter to skip): ").strip()
+        print("\n🔑 No AUTH_TOKEN environment variable found.")
+        print("For production testing, you need a valid auth token.")
+        print("You can get one by logging into the system and checking browser dev tools.")
+        auth_token = input("Enter auth token (or press Enter to skip): ").strip()
         if not auth_token:
-            print("⚠️ No auth token - tests may fail")
+            print("⚠️ No auth token provided - will try without auth (may fail)")
     
     # Run tests
     tester = WorkspaceFieldTester(base_url, auth_token)

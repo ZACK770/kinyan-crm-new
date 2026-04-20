@@ -17,7 +17,13 @@ class RemoteBulkDeleteTester:
         self.auth_token = None
         
     async def __aenter__(self):
-        self.session = aiohttp.ClientSession()
+        # Create SSL context that doesn't verify certificates (for testing)
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        
+        connector = aiohttp.TCPConnector(ssl=ssl_context)
+        self.session = aiohttp.ClientSession(connector=connector)
         return self
         
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -27,14 +33,14 @@ class RemoteBulkDeleteTester:
     async def login(self, email: str, password: str) -> bool:
         """Login and get authentication token."""
         login_data = {
-            "username": email,
+            "email": email,
             "password": password
         }
         
         try:
             async with self.session.post(
                 f"{self.base_url}/api/auth/login",
-                data=login_data
+                json=login_data
             ) as response:
                 if response.status == 200:
                     result = await response.json()
