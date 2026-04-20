@@ -1,38 +1,38 @@
 [
   {
-    "timestamp": "13:03:10.771",
+    "timestamp": "13:05:25.377",
     "level": "info",
     "message": "🧪 COMPREHENSIVE WORKSPACE FIELD TEST",
     "details": null
   },
   {
-    "timestamp": "13:03:10.772",
+    "timestamp": "13:05:25.377",
     "level": "info",
     "message": "================================================================================",
     "details": null
   },
   {
-    "timestamp": "13:03:10.772",
+    "timestamp": "13:05:25.377",
     "level": "info",
     "message": "Target: https://kinyan-crm-new-1.onrender.com",
     "details": null
   },
   {
-    "timestamp": "13:03:10.772",
+    "timestamp": "13:05:25.378",
     "level": "info",
     "message": "🔧 Setting up test data...",
     "details": null
   },
   {
-    "timestamp": "13:03:11.110",
+    "timestamp": "13:05:26.110",
     "level": "info",
     "message": "🔍 Finding a test lead...",
     "details": null
   },
   {
-    "timestamp": "13:03:11.194",
+    "timestamp": "13:05:26.281",
     "level": "error",
-    "message": "❌ Failed to get leads: 307",
-    "details": ""
+    "message": "❌ Failed to get leads: 401",
+    "details": "{\"detail\":\"לא נשלח טוקן הזדהות\"}"
   }
 ]

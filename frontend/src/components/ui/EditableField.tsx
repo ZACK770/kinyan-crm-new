@@ -96,12 +96,25 @@ export function EditableField({
     console.log(`🔧 [EditableField] Starting save for field "${label}"`, {
       originalValue: value,
       editValue: editValue,
-      type: type,
-      hasChanges: editValue !== String(value ?? '')
+      type: type
     })
 
     // No changes? Just close
-    if (editValue === String(value ?? '')) {
+    // For entity-select fields, compare as numbers; for others, compare as strings
+    let hasChanges = false
+    if (type === 'entity-select') {
+      // Compare as numbers (handle null/empty cases)
+      const originalNum = value ? Number(value) : null
+      const editNum = editValue ? Number(editValue) : null
+      hasChanges = originalNum !== editNum
+      console.log(`🔍 [EditableField] Entity-select comparison: ${originalNum} !== ${editNum} = ${hasChanges}`)
+    } else {
+      // Compare as strings (default behavior)
+      hasChanges = editValue !== String(value ?? '')
+      console.log(`🔍 [EditableField] String comparison: "${editValue}" !== "${String(value ?? '')}" = ${hasChanges}`)
+    }
+    
+    if (!hasChanges) {
       console.log(`ℹ️ [EditableField] No changes detected for "${label}", closing editor`)
       setIsEditing(false)
       return
