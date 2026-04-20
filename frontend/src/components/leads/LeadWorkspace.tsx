@@ -117,6 +117,11 @@ export function LeadWorkspace({
   const [isSaving, setIsSaving] = useState(false)
   const { confirm } = useModal()
 
+  // Local copy of lead — updated immediately from PATCH response
+  // Prevents stale display values while parent async-refreshes
+  const [localLead, setLocalLead] = useState<Lead | null | undefined>(lead)
+  useEffect(() => { setLocalLead(lead) }, [lead])
+
   // Form state for create mode
   const [form, setForm] = useState(INITIAL_FORM)
 
@@ -155,20 +160,20 @@ export function LeadWorkspace({
 
     try {
       const startTime = performance.now()
-      const response = await api.patch(`/leads/${lead.id}`, { [field]: value })
+      const response = await api.patch<Lead>(`/leads/${lead.id}`, { [field]: value })
       const endTime = performance.now()
-      
+
+      // Update local copy immediately from API response — no waiting for parent refresh
+      setLocalLead(prev => prev ? { ...prev, ...response } : response)
+
       console.log(`✅ [LeadWorkspace] API call successful`, {
         duration: `${(endTime - startTime).toFixed(2)}ms`,
-        response: response,
         field: field,
-        newValue: value
+        newValue: value,
+        responseStatus: (response as Lead).status,
       })
 
-      console.log(`🔄 [LeadWorkspace] Calling onUpdate to refresh lead data`)
       onUpdate()
-      
-      console.log(`✅ [LeadWorkspace] saveField completed successfully for field "${field}"`)
     } catch (err) {
       console.error(`❌ [LeadWorkspace] Failed to update field "${field}":`, err)
       console.error(`❌ [LeadWorkspace] Error details:`, {
@@ -241,11 +246,14 @@ export function LeadWorkspace({
     label: c.name,
   }))
 
-  const isConverted = lead ? (lead.status === 'converted' || !!lead.student_id) : false
+  // effectiveLead: prefer localLead (updated from PATCH response) over prop
+  const effectiveLead = localLead ?? lead
+
+  const isConverted = effectiveLead ? (effectiveLead.status === 'converted' || !!effectiveLead.student_id) : false
 
   // Find related names for display (edit mode only)
-  const salesperson = lead ? salespersons.find(sp => sp.id === lead.salesperson_id) : null
-  const campaign = lead ? campaigns.find(c => c.id === lead.campaign_id) : null
+  const salesperson = effectiveLead ? salespersons.find(sp => sp.id === effectiveLead.salesperson_id) : null
+  const campaign = effectiveLead ? campaigns.find(c => c.id === effectiveLead.campaign_id) : null
 
   // Collapsible section with toggle
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
@@ -413,8 +421,8 @@ export function LeadWorkspace({
         {/* Header */}
         <div className={s.workspace__header}>
           <div className={s.workspace__title}>
-            <span>{lead!.full_name} {lead!.family_name ?? ''}</span>
-            <Badge entity="leads" value={lead!.status} />
+            <span>{effectiveLead!.full_name} {effectiveLead!.family_name ?? ''}</span>
+            <Badge entity="leads" value={effectiveLead!.status} />
           </div>
           <button className={`${s.btn} ${s['btn-ghost']} ${s['btn-icon']}`} onClick={onClose} title="חזור">
             <ArrowLeft size={18} />
@@ -422,7 +430,7 @@ export function LeadWorkspace({
         </div>
 
         {/* Converted badge */}
-        {isConverted && lead!.student_id && (
+        {isConverted && effectiveLead!.student_id && (
           <div style={{
             background: 'var(--color-success-light, #f0fdf4)',
             padding: '10px 12px',
@@ -433,7 +441,7 @@ export function LeadWorkspace({
           }}>
             <UserCheck size={16} style={{ color: 'var(--color-success, #16a34a)' }} />
             <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-success, #16a34a)' }}>
-              הומר לתלמיד #{lead!.student_id}
+              הומר לתלמיד #{effectiveLead!.student_id}
             </span>
           </div>
         )}
@@ -457,47 +465,47 @@ export function LeadWorkspace({
           <div className={s['field-grid']}>
             <EditableField
               label="שם פרטי"
-              value={lead!.full_name}
+              value={effectiveLead!.full_name}
               onSave={v => saveField('full_name', v)}
             />
             <EditableField
               label="שם משפחה"
-              value={lead!.family_name}
+              value={effectiveLead!.family_name}
               onSave={v => saveField('family_name', v)}
             />
             <EditableField
               label="טלפון"
-              value={lead!.phone}
+              value={effectiveLead!.phone}
               dir="ltr"
               onSave={v => saveField('phone', v)}
             />
             <EditableField
               label="טלפון נוסף"
-              value={lead!.phone2}
+              value={effectiveLead!.phone2}
               dir="ltr"
               onSave={v => saveField('phone2', v)}
             />
             <EditableField
               label="אימייל"
-              value={lead!.email}
+              value={effectiveLead!.email}
               dir="ltr"
               onSave={v => saveField('email', v)}
             />
             <EditableField
               label="עיר"
-              value={lead!.city}
+              value={effectiveLead!.city}
               onSave={v => saveField('city', v)}
             />
           </div>
           <div className={`${s['field-grid']} ${s['field-grid--single']}`}>
             <EditableField
               label="כתובת"
-              value={lead!.address}
+              value={effectiveLead!.address}
               onSave={v => saveField('address', v)}
             />
             <EditableField
               label="תעודת זהות"
-              value={lead!.id_number}
+              value={effectiveLead!.id_number}
               dir="ltr"
               onSave={v => saveField('id_number', v)}
             />
@@ -509,15 +517,15 @@ export function LeadWorkspace({
           <div className={`${s['field-grid']} ${s['field-grid--single']}`}>
             <EditableField
               label="סטטוס"
-              value={lead!.status}
-              displayValue={<Badge entity="leads" value={lead!.status} />}
+              value={effectiveLead!.status}
+              displayValue={<Badge entity="leads" value={effectiveLead!.status} />}
               type="select"
               options={STATUS_OPTIONS}
               onSave={v => saveField('status', v)}
             />
             <EditableField
               label="איש מכירות"
-              value={lead!.salesperson_id}
+              value={effectiveLead!.salesperson_id}
               displayValue={salesperson?.name}
               type="entity-select"
               options={salespersonOptions}
@@ -532,14 +540,14 @@ export function LeadWorkspace({
           <div className={`${s['field-grid']} ${s['field-grid--single']}`}>
             <EditableField
               label="מקור"
-              value={lead!.source_type}
+              value={effectiveLead!.source_type}
               type="select"
               options={SOURCE_OPTIONS}
               onSave={v => saveField('source_type', v)}
             />
             <EditableField
               label="קמפיין"
-              value={lead!.campaign_id}
+              value={effectiveLead!.campaign_id}
               displayValue={campaign?.name}
               type="entity-select"
               options={campaignOptions}
@@ -548,12 +556,12 @@ export function LeadWorkspace({
             />
             <EditableField
               label="שם מקור"
-              value={lead!.source_name}
+              value={effectiveLead!.source_name}
               onSave={v => saveField('source_name', v)}
             />
             <EditableField
               label="הודעה מהמקור"
-              value={lead!.source_message}
+              value={effectiveLead!.source_message}
               type="textarea"
               onSave={v => saveField('source_message', v)}
             />
@@ -565,8 +573,8 @@ export function LeadWorkspace({
           <div className={`${s['field-grid']} ${s['field-grid--single']}`}>
             <EditableField
               label="קורס מבוקש"
-              value={lead!.course_id}
-              displayValue={courses.find(c => c.id === lead!.course_id)?.name}
+              value={effectiveLead!.course_id}
+              displayValue={courses.find(c => c.id === effectiveLead!.course_id)?.name}
               type="entity-select"
               options={courseOptions}
               onSave={v => saveField('course_id', v)}
@@ -579,7 +587,7 @@ export function LeadWorkspace({
         <CollapsibleSection id="edit-notes" title="הערות" divider>
           <EditableField
             label="הערות"
-            value={lead!.notes}
+            value={effectiveLead!.notes}
             type="textarea"
             onSave={v => saveField('notes', v)}
           />
@@ -593,9 +601,9 @@ export function LeadWorkspace({
           fontSize: 11,
           color: 'var(--color-text-muted)',
         }}>
-          <div>נוצר: {formatDateTime(lead!.created_at)}</div>
-          {lead!.updated_at && <div>עודכן: {formatDateTime(lead!.updated_at)}</div>}
-          {lead!.conversion_date && <div>הומר: {formatDateTime(lead!.conversion_date)}</div>}
+          <div>נוצר: {formatDateTime(effectiveLead!.created_at)}</div>
+          {effectiveLead!.updated_at && <div>עודכן: {formatDateTime(effectiveLead!.updated_at)}</div>}
+          {effectiveLead!.conversion_date && <div>הומר: {formatDateTime(effectiveLead!.conversion_date)}</div>}
         </div>
       </div>
 
@@ -609,7 +617,7 @@ export function LeadWorkspace({
             onClick={() => setActiveTab('interactions')}
             icon={<History size={14} />}
             label="היסטוריה"
-            count={lead!.interactions?.length}
+            count={effectiveLead!.interactions?.length}
           />
           <TabButton
             id="tasks"
@@ -652,24 +660,24 @@ export function LeadWorkspace({
         <div className={s.workspace__section}>
           {activeTab === 'interactions' && (
             <InteractionsTab
-              interactions={lead!.interactions || []}
+              interactions={effectiveLead!.interactions || []}
               onAdd={onAddInteraction}
             />
           )}
           {activeTab === 'tasks' && (
-            <TasksTab leadId={lead!.id} />
+            <TasksTab leadId={effectiveLead!.id} />
           )}
           {activeTab === 'payments' && (
-            <PaymentsTab lead={lead!} courses={courses} onUpdate={onUpdate} />
+            <PaymentsTab lead={effectiveLead!} courses={courses} onUpdate={onUpdate} />
           )}
           {activeTab === 'conversion' && (
-            <LeadConversionChecklist lead={lead!} onUpdate={onUpdate} />
+            <LeadConversionChecklist lead={effectiveLead!} onUpdate={onUpdate} />
           )}
           {activeTab === 'inquiries' && (
-            <InquiriesTab leadId={lead!.id} />
+            <InquiriesTab leadId={effectiveLead!.id} />
           )}
           {activeTab === 'emails' && (
-            <EmailsTab lead={lead!} onUpdate={onUpdate} />
+            <EmailsTab lead={effectiveLead!} onUpdate={onUpdate} />
           )}
         </div>
       </div>

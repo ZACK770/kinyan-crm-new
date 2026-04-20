@@ -478,6 +478,52 @@ async def list_leads(
     return list(result.scalars().all())
 
 
+async def bulk_delete_leads(db: AsyncSession, lead_ids: list[int]) -> dict:
+    """
+    Delete multiple leads by their IDs.
+    
+    Args:
+        db: Database session
+        lead_ids: List of lead IDs to delete
+    
+    Returns:
+        dict with success status and count of deleted leads
+    """
+    if not lead_ids:
+        return {"success": True, "deleted_count": 0, "message": "No leads to delete"}
+    
+    # First, get the leads to verify they exist
+    stmt = select(Lead).where(Lead.id.in_(lead_ids))
+    result = await db.execute(stmt)
+    existing_leads = result.scalars().all()
+    
+    if not existing_leads:
+        return {"success": False, "error": "No leads found with the provided IDs"}
+    
+    # Delete related interactions first (foreign key constraint)
+    from db.models import LeadInteraction
+    interactions_stmt = select(LeadInteraction).where(LeadInteraction.lead_id.in_(lead_ids))
+    interactions_result = await db.execute(interactions_stmt)
+    interactions = interactions_result.scalars().all()
+    
+    for interaction in interactions:
+        await db.delete(interaction)
+    
+    # Delete the leads
+    deleted_count = 0
+    for lead in existing_leads:
+        await db.delete(lead)
+        deleted_count += 1
+    
+    await db.flush()
+    
+    return {
+        "success": True,
+        "deleted_count": deleted_count,
+        "message": f"Successfully deleted {deleted_count} leads"
+    }
+
+
 # ============================================================
 # Discount & Pricing Calculations
 # ============================================================
