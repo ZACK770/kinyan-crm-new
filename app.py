@@ -194,6 +194,12 @@ if FRONTEND_DIR.exists():
         # API and webhook 404s stay as real 404s
         if path.startswith("/api/") or path.startswith("/webhooks/"):
             return JSONResponse(status_code=404, content={"detail": str(exc.detail)})
+        
+        # For /assets/ paths, return real 404 if file doesn't exist
+        # This prevents serving HTML for missing JS/CSS files
+        if path.startswith("/assets/"):
+            return JSONResponse(status_code=404, content={"detail": "Asset not found"})
+        
         # Check if a physical file exists (favicon.ico, manifest.json, etc.)
         file_path = FRONTEND_DIR / path.lstrip("/")
         if file_path.exists() and file_path.is_file():
