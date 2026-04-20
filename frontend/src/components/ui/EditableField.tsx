@@ -93,10 +93,11 @@ export function EditableField({
     setIsEditing(false)
   }
 
-  const save = async () => {
+  const save = async (overrideEditValue?: string) => {
+    const currentEditValue = overrideEditValue ?? editValue
     console.log(`🔧 [EditableField] Starting save for field "${label}"`, {
       originalValue: value,
-      editValue: editValue,
+      editValue: currentEditValue,
       type: type
     })
 
@@ -106,13 +107,13 @@ export function EditableField({
     if (type === 'entity-select') {
       // Compare as numbers (handle null/empty cases)
       const originalNum = value ? Number(value) : null
-      const editNum = editValue ? Number(editValue) : null
+      const editNum = currentEditValue ? Number(currentEditValue) : null
       hasChanges = originalNum !== editNum
       console.log(`🔍 [EditableField] Entity-select comparison: ${originalNum} !== ${editNum} = ${hasChanges}`)
     } else {
       // Compare as strings (default behavior)
-      hasChanges = editValue !== String(value ?? '')
-      console.log(`🔍 [EditableField] String comparison: "${editValue}" !== "${String(value ?? '')}" = ${hasChanges}`)
+      hasChanges = currentEditValue !== String(value ?? '')
+      console.log(`🔍 [EditableField] String comparison: "${currentEditValue}" !== "${String(value ?? '')}" = ${hasChanges}`)
     }
     
     if (!hasChanges) {
@@ -126,17 +127,17 @@ export function EditableField({
     
     try {
       // Convert to appropriate type
-      let finalValue: string | number | null = editValue
-      if (editValue === '' || editValue === undefined) {
+      let finalValue: string | number | null = currentEditValue
+      if (currentEditValue === '' || currentEditValue === undefined) {
         finalValue = null
         console.log(`🔄 [EditableField] Converting empty value to null for "${label}"`)
-      } else if (type === 'entity-select' && editValue) {
-        finalValue = Number(editValue)
-        console.log(`🔄 [EditableField] Converting to number for entity-select "${label}": ${editValue} → ${finalValue}`)
-      } else if (type === 'select' && editValue) {
+      } else if (type === 'entity-select' && currentEditValue) {
+        finalValue = Number(currentEditValue)
+        console.log(`🔄 [EditableField] Converting to number for entity-select "${label}": ${currentEditValue} → ${finalValue}`)
+      } else if (type === 'select' && currentEditValue) {
         // For regular select fields, keep as string (status, source_type, etc.)
-        finalValue = String(editValue)
-        console.log(`🔄 [EditableField] Converting to string for select "${label}": ${editValue} → ${finalValue}`)
+        finalValue = String(currentEditValue)
+        console.log(`🔄 [EditableField] Converting to string for select "${label}": ${currentEditValue} → ${finalValue}`)
       }
 
       console.log(`📤 [EditableField] Calling onSave for "${label}" with value:`, finalValue)
@@ -188,10 +189,10 @@ export function EditableField({
     const newValue = e.target.value
     setEditValue(newValue)
     // For selects, auto-save on selection (no need to blur)
+    // IMPORTANT: pass newValue to save() to avoid stale state reads
     setTimeout(() => {
-      if (!isEditing) return
-      save()
-    }, 50)
+      save(newValue)
+    }, 0)
   }
 
   // Displayed value (when not editing)
