@@ -95,20 +95,9 @@ async def main():
     base_url = "https://kinyan-crm-new-1.onrender.com"
     print(f"🎯 Target: {base_url}")
     
-    # Get YOUR auth token
-    print("\n🔑 I need your auth token to test the fixes.")
-    print("To get it:")
-    print("1. Go to https://kinyan-crm-new-1.onrender.com")
-    print("2. Login normally")
-    print("3. Press F12 (dev tools)")
-    print("4. Go to Application → Local Storage → kinyan-crm-new-1.onrender.com")
-    print("5. Copy the 'auth_token' value")
-    print()
-    
-    auth_token = input("Paste your auth token here: ").strip()
-    if not auth_token:
-        print("❌ No token provided - cannot test")
-        sys.exit(1)
+    # Use the auth token provided by user
+    auth_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyIiwiZW1haWwiOiJBMDUyNzY5ODQyMEBnbWFpbC5jb20iLCJwZXJtaXNzaW9uX2xldmVsIjo0MCwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzc2NzY0NzU5LCJpYXQiOjE3NzY2NzgzNTl9.O6mirxcw9KC5p7iuAkcsiXW0k3Tlr9kqJaSGISwAK0Y"
+    print("🔑 Using provided auth token")
     
     # Get lead ID
     lead_id = await get_lead_id(base_url, auth_token)
