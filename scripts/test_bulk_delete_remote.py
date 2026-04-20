@@ -6,6 +6,7 @@ Tests the bulk delete endpoint directly on the remote server.
 import asyncio
 import aiohttp
 import json
+import ssl
 from typing import Dict, Any, List
 
 

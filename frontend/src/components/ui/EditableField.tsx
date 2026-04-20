@@ -119,6 +119,10 @@ export function EditableField({
       } else if (type === 'entity-select' && editValue) {
         finalValue = Number(editValue)
         console.log(`🔄 [EditableField] Converting to number for entity-select "${label}": ${editValue} → ${finalValue}`)
+      } else if (type === 'select' && editValue) {
+        // For regular select fields, keep as string (status, source_type, etc.)
+        finalValue = String(editValue)
+        console.log(`🔄 [EditableField] Converting to string for select "${label}": ${editValue} → ${finalValue}`)
       }
 
       console.log(`📤 [EditableField] Calling onSave for "${label}" with value:`, finalValue)
