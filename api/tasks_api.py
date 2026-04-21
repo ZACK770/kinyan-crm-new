@@ -88,6 +88,40 @@ def _task_to_dict(t) -> dict:
     }
 
 
+# ── Debug endpoint (for remote debugging) ────────────────
+@router.get("/debug/info")
+async def debug_info(
+    user=Depends(require_permission("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Debug endpoint for remote troubleshooting - admin only."""
+    from db.models import SalesTask
+    from sqlalchemy import func
+
+    # Get task count
+    count_result = await db.execute(select(func.count(SalesTask.id)))
+    task_count = count_result.scalar() or 0
+
+    return {
+        "status": "ok",
+        "task_count": task_count,
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "permission_level": user.permission_level,
+            "role_name": user.role_name,
+        },
+        "permissions": {
+            "tasks": {
+                "view": 10,
+                "create": 20,
+                "edit": 20,
+                "delete": 30,
+            }
+        }
+    }
+
+
 # ── Notifications (for bell icon) — MUST be before /{task_id} ──
 @router.get("/notifications/summary")
 async def task_notifications(
