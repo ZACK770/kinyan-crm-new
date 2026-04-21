@@ -61,6 +61,7 @@ const NAV_SECTIONS: { items: NavItem[] }[] = [
       { to: '/payments', label: 'תשלומים', icon: CreditCard },
       { to: '/collections', label: 'גביה', icon: Receipt },
       { to: '/commitments', label: 'התחייבויות', icon: FileText },
+      { to: '/deliveries', label: 'משלוחים', icon: Package },
     ],
   },
   {

@@ -6,10 +6,10 @@ Write-Host "Stopping processes on port 8000..." -ForegroundColor Yellow
 # Kill any process listening on port 8000
 $connections = Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue
 foreach ($conn in $connections) {
-    $pid = $conn.OwningProcess
-    if ($pid -and $pid -ne 0) {
-        Write-Host "  Killing process $pid" -ForegroundColor Red
-        Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+    $procId = $conn.OwningProcess
+    if ($procId -and $procId -ne 0) {
+        Write-Host "  Killing process $procId" -ForegroundColor Red
+        Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
     }
 }
 
