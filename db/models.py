@@ -1626,3 +1626,24 @@ class ExamRegistration(Base):
     exam_date: Mapped["ExamDate"] = relationship(back_populates="registrations")
     exam: Mapped["Exam"] = relationship()
     examinee: Mapped["Examinee"] = relationship(back_populates="exam_registrations")
+
+
+# ============================================================
+# Delivery (משלומים) — entity for managing deliveries to sold leads
+# ============================================================
+class Delivery(Base):
+    __tablename__ = "deliveries"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    lead_id: Mapped[int] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"), nullable=False)
+    full_name: Mapped[str] = mapped_column(String(300), nullable=False)
+    address: Mapped[Optional[str]] = mapped_column(String(500))
+    city: Mapped[Optional[str]] = mapped_column(String(200))
+    phone: Mapped[Optional[str]] = mapped_column(String(50))
+    email: Mapped[Optional[str]] = mapped_column(String(300))
+    is_sent: Mapped[bool] = mapped_column(Boolean, default=False)
+    sent_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    lead: Mapped["Lead"] = relationship()

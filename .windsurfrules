@@ -5,18 +5,20 @@
 - לא ליצור, לערוך או למחוק קבצי migration ב-`alembic/versions/`
 - גם אם יש אישור כללי להרצת פקודות (auto-run) — זה לא חל על migrations
 - אם צריך migration — להציע את הפקודה ולחכות לאישור מפורש
+- **מדיניות מיגרציות:** המיגרציה חייבת להיות בגישה עתידית ("additive") — אסור לגעת בטבלאות או עמודות קיימות, רק להוסיף חדשות.
 
 ## 2. אסור ליצור קבצי MD בלי אישור מפורש מהמשתמש
 - לא ליצור README, GUIDE, PROPOSAL, CHECKLIST או כל קובץ .md אחר
 - אם צריך לתעד משהו — לשאול קודם
 - תיעוד קיים נמצא ב-`docs/` — לקרוא משם, לא ליצור חדש
 
-## 3. תהליך Deploy ל-Render
-כל push ל-main עושה auto-deploy. **עובדים על בראנץ `fitchers` בלבד!**
+## 3. תהליך עבודה ו-Git
+- **אישור קומיט ופוש:** אסור לבצע `git commit` או `git push` בלי אישור מפורש מהמשתמש לכל פעולה.
+- **עבודה על בראנץ' ייעודי:** כל העבודה והפיושים מתבצעים אך ורק על בראנץ' `feature-deliveries`. אין לעשות פוש ל-`fitchers` או ל-`main`.
 
 ### שינוי בפרונטאנד (frontend/src):
 ```powershell
-cd frontend && npm run build && cd ..
+$env:PATH = "C:\Users\מכירות\nodejs;$env:PATH"; cd frontend; npm run build; cd ..
 ```
 
 ### שינוי ב-DB models (db/models.py):
@@ -26,11 +28,16 @@ $env:DATABASE_URL = "postgresql+asyncpg://crm_new_user:45RsFRWnUuvPQFAttG37PxisV
 & ".venv311\Scripts\python.exe" -m alembic upgrade head
 ```
 
-### תמיד - Push לבראנץ fitchers בלבד:
+### תמיד - Push לבראנץ' feature-deliveries בלבד:
 ```powershell
 git add -A
 git commit -m "תיאור"
-git push origin fitchers
+git push origin feature-deliveries
+```
+
+### הפעלת שרת מקומי (Local Server):
+```powershell
+.venv311\Scripts\Activate.ps1; python -m uvicorn app:app --reload --host 0.0.0.0 --port 8002
 ```
 
 ## 4. סביבת עבודה
@@ -40,24 +47,4 @@ git push origin fitchers
 - `frontend/dist` ו-`alembic/versions/*.py` נמצאים ב-git (לא ב-gitignore)
 - Dev mode: `DEV_SKIP_AUTH=true` (מ-`dev.ps1`)
 - Render URL: https://kinyan-crm-new-1.onrender.com/
-
-## 5. מבנה הפרויקט
-```
-app.py              → FastAPI entry point (API + frontend)
-db/models.py        → כל המודלים
-db/__init__.py      → Engine, Session, Settings
-api/                → FastAPI routers
-services/           → Business logic
-frontend/src/       → React app
-frontend/dist/      → Built frontend (tracked in git)
-alembic/versions/   → Migration files (tracked in git)
-docs/               → כל התיעוד (MD files)
-```
-
-## 6. כללים נוספים
-- לא לשנות DB ידנית — רק דרך Alembic migrations
-- לא למחוק טסטים או להחליש אותם בלי הוראה
-- לא ליצור קבצים זמניים בשורש הפרויקט — להשתמש ב-`scripts/`
-- לבדוק `alembic check` אחרי כל שינוי ב-models.py
-- Port מקומי: 8000
-- Permission levels: pending(0), viewer(10), editor(20), manager(30), admin(40)
+- Port מקומי נוכחי: 8002

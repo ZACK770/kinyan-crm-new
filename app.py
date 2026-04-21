@@ -23,6 +23,7 @@ from api import auth_api, users_api, audit_logs_api, campaigns_api, files_api, s
 from api import course_tracks_api, lecturers_api, messages_api, templates_api, lead_conversion_api, chat_api
 from api import salespeople_api, tasks_api, examinees_api, table_prefs_api, popup_api, webhook_logs_api
 from api import exam_registration_api, export_api, import_api, import_generic_api, topics_api
+from api import deliveries_api
 
 # Frontend build directory
 FRONTEND_DIR = Path(__file__).parent / "frontend" / "dist"
