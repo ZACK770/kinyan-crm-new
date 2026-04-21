@@ -108,8 +108,9 @@ async def update_lead(db: AsyncSession, lead_id: int, **kwargs) -> Lead | None:
             print(f"  - {key}: {current_value} (type: {type(current_value)})")
 
     # Track if status or salesperson_id changed (manual edits by salesperson)
-    is_manual_edit = 'status' in kwargs or 'salesperson_id' in kwargs
-    print(f"🏷️ [SERVICE] Is manual edit (status/salesperson): {is_manual_edit}")
+    # Actually, any update via this service from the UI should probably be considered a manual edit
+    is_manual_edit = True 
+    print(f"🏷️ [SERVICE] Marking as manual edit for last_edited_at update")
 
     # Apply updates
     print(f"🔄 [SERVICE] Applying field updates...")
@@ -117,20 +118,25 @@ async def update_lead(db: AsyncSession, lead_id: int, **kwargs) -> Lead | None:
     for key, value in kwargs.items():
         if hasattr(lead, key):
             old_value = getattr(lead, key)
-            print(f"🔧 [SERVICE] Updating {key}: {old_value} → {value} (type: {type(value)})")
-            setattr(lead, key, value)
-            updated_fields.append(key)
+            if old_value != value:
+                print(f"🔧 [SERVICE] Updating {key}: {old_value} → {value} (type: {type(value)})")
+                setattr(lead, key, value)
+                updated_fields.append(key)
+            else:
+                print(f"ℹ️ [SERVICE] Field {key} value is unchanged, skipping")
         else:
             print(f"⚠️ [SERVICE] Field {key} does not exist on Lead model, skipping")
 
-    print(f"✅ [SERVICE] Updated {len(updated_fields)} fields: {updated_fields}")
+    if not updated_fields:
+        print(f"ℹ️ [SERVICE] No fields were actually changed for lead {lead_id}")
+        return lead
 
-    # Update last_edited_at for manual edits (status/salesperson changes)
+    print(f"✅ [SERVICE] Actually updated {len(updated_fields)} fields: {updated_fields}")
+
+    # Update last_edited_at for manual edits
     if is_manual_edit:
-        from sqlalchemy import func
-        old_edited_at = lead.last_edited_at
-        lead.last_edited_at = func.now()
-        print(f"📅 [SERVICE] Updated last_edited_at: {old_edited_at} → func.now()")
+        lead.last_edited_at = datetime.now()
+        print(f"📅 [SERVICE] Updated last_edited_at to now()")
 
     # Flush changes to database
     print(f"💾 [SERVICE] Flushing changes to database...")

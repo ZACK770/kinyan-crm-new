@@ -25,6 +25,8 @@ const LEAD_STATUSES = [
   'נסלק',
   'תלמיד פעיל',
   'לא רלוונטי',
+  'במעקב',
+  'מתעניין',
 ]
 
 const LEAD_SOURCES = [

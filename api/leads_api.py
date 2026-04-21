@@ -8,8 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_db
 from services import leads as lead_svc
-from services import audit_logs
-from .dependencies import require_entity_access
+from services import google_drive_esign
+from .dependencies import require_entity_access, get_current_user
 from .schemas import LeadCreate, LeadUpdate, SalespersonResponse
 
 router = APIRouter(tags=["leads"])
@@ -167,37 +167,29 @@ async def update_lead(
     user = Depends(require_entity_access("leads", "edit")),
     db: AsyncSession = Depends(get_db)
 ):
-    print(f"🔧 [API] Starting lead update for lead_id={lead_id}")
-    print(f"📥 [API] Request data: {data.model_dump(exclude_unset=True)}")
-    print(f"👤 [API] User: {user.email} (permission_level={user.permission_level})")
-    print(f"🔗 [API] Request URL: {request.url}")
-    print(f"📋 [API] Request headers: {dict(request.headers)}")
-    
     changes = data.model_dump(exclude_unset=True)
-    if 'status' in changes:
-        print(f"🏷️ [API] Status field update detected, value={data.status}")
+    print(f"🔧 [API] update_lead call for lead_id={lead_id}")
+    print(f"📥 [API] Changes: {changes}")
     
-    print(f"📞 [API] Calling lead service to update lead {lead_id}")
     try:
+        print(f"� [API] Executing update_lead with user={user.email}")
         lead = await lead_svc.update_lead(db, lead_id, **changes)
-        print(f"✅ [API] Lead service returned: {lead is not None}")
         
         if not lead:
-            print(f"❌ [API] Lead {lead_id} not found in database")
+            print(f"❌ [API] Lead {lead_id} not found")
             raise HTTPException(404, "Lead not found")
         
-        print(f"💾 [API] Committing database transaction")
+        print(f"💾 [API] Committing changes to lead {lead_id}")
         await db.commit()
-        print(f"✅ [API] Database commit successful")
+        print(f"✅ [API] Transaction committed")
 
-        # Refresh from DB to get server-computed values (updated_at, last_edited_at)
-        # Critical: without this, accessing server-side onupdate fields raises MissingGreenlet
+        # Refresh from DB to get server-computed values
         await db.refresh(lead)
-        print(f"� [API] Lead refreshed from DB (updated_at={lead.updated_at})")
+        print(f"🔄 [API] Lead refreshed. Current state in DB: status='{lead.status}', salesperson_id={lead.salesperson_id}")
 
         # Log lead update
-        print(f"📝 [API] Logging audit trail for lead update")
         try:
+            print(f"📝 [API] Logging audit update for lead {lead_id}")
             await audit_logs.log_update(
                 db=db,
                 user=user,
@@ -207,12 +199,11 @@ async def update_lead(
                 changes=changes,
                 request=request,
             )
-            print(f"✅ [API] Audit log created successfully")
         except Exception as e:
-            print(f"⚠️ [API] Audit log failed (ignored): {type(e).__name__}: {e}")
+            print(f"⚠️ [API] Audit log error (non-fatal): {e}")
 
-        # Return full lead object — inside try so any serialization error is caught
-        return {
+        # Return full lead object
+        resp_data = {
             "id": lead.id,
             "full_name": lead.full_name,
             "family_name": lead.family_name,
@@ -242,16 +233,16 @@ async def update_lead(
             "created_by": lead.created_by,
             "last_edited_at": str(lead.last_edited_at) if lead.last_edited_at else None,
         }
+        print(f"📤 [API] Returning updated lead data: status='{resp_data['status']}', salesperson_id={resp_data['salesperson_id']}")
+        return resp_data
 
-    except HTTPException as e:
-        print(f"❌ [API] HTTP Exception: {e.status_code} - {e.detail}")
+    except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ [API] Unexpected error during lead update: {e}")
-        print(f"❌ [API] Error type: {type(e).__name__}")
-        print(f"❌ [API] Error details: {str(e)}")
+        print(f"❌ [API] CRITICAL ERROR in update_lead: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
         await db.rollback()
-        print(f"🔄 [API] Database rollback completed")
         raise HTTPException(500, f"Internal server error: {str(e)}")
 
 
@@ -737,6 +728,27 @@ async def charge_lead_card_direct(
         raise HTTPException(400, f"סליקה נכשלה: {e.message}")
     except Exception as e:
         raise HTTPException(500, str(e))
+
+
+@router.post("/{lead_id}/send-esignature")
+async def send_esignature(
+    lead_id: int,
+    template_id: str = Query(..., description="Google Drive Template File ID"),
+    user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Send a Google Drive document for eSignature to the lead.
+    """
+    result = await google_drive_esign.send_document_for_signature(
+        db=db,
+        lead_id=lead_id,
+        template_file_id=template_id,
+        user_name=user.full_name
+    )
+    if not result.get("success"):
+        raise HTTPException(400, result.get("error"))
+    return result
 
 
 @router.post("/bulk-delete")

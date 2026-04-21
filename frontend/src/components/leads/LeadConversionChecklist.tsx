@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, Loader2, AlertCircle, UserCheck, Sparkles } from 'lucide-react';
+import { CheckCircle2, Loader2, AlertCircle, UserCheck, Sparkles, FileSignature } from 'lucide-react';
 import styles from './LeadConversionChecklist.module.css';
 import { api } from '@/lib/api';
 
@@ -7,6 +7,7 @@ interface Lead {
   id: number;
   full_name: string;
   phone: string;
+  email?: string;
   status: string;
   approved_terms?: boolean;
   shipping_details_complete?: boolean;
@@ -165,6 +166,31 @@ const LeadConversionChecklist: React.FC<Props> = ({ lead, onUpdate }) => {
               <p className={styles.checklistDescription}>
                 הלקוח אישר את תקנון הקורס
               </p>
+              {lead.email && !lead.approved_terms && (
+                <button
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    if (confirm('האם לשלוח מייל לחתימה על תקנון באמצעות Google Drive?')) {
+                      try {
+                        setLoading(true);
+                        const templateId = '1MDgM2JpanVFPZjoh4dYqm7-53iN5Nb5i';
+                        await api.post(`/leads/${lead.id}/send-esignature?template_id=${templateId}`);
+                        alert('המייל נשלח בהצלחה!');
+                        onUpdate();
+                      } catch (err) {
+                        alert('שגיאה בשליחת המייל');
+                      } finally {
+                        setLoading(false);
+                      }
+                    }
+                  }}
+                  className={styles.esignButton}
+                  disabled={loading}
+                >
+                  <FileSignature size={14} />
+                  <span>שלח לחתימה (Google Drive)</span>
+                </button>
+              )}
             </div>
           </label>
         </div>

@@ -95,10 +95,12 @@ export function EditableField({
 
   const save = async (overrideEditValue?: string) => {
     const currentEditValue = overrideEditValue ?? editValue
-    console.log(`🔧 [EditableField] Starting save for field "${label}"`, {
+    console.log(`🔧 [EditableField] save() triggered for "${label}"`, {
       originalValue: value,
-      editValue: currentEditValue,
-      type: type
+      currentEditValue,
+      type,
+      isEditing,
+      timestamp: new Date().toISOString()
     })
 
     // No changes? Just close
@@ -106,14 +108,16 @@ export function EditableField({
     let hasChanges = false
     if (type === 'entity-select') {
       // Compare as numbers (handle null/empty cases)
-      const originalNum = value ? Number(value) : null
-      const editNum = currentEditValue ? Number(currentEditValue) : null
+      const originalNum = (value !== null && value !== undefined && value !== '') ? Number(value) : null
+      const editNum = (currentEditValue !== null && currentEditValue !== undefined && currentEditValue !== '') ? Number(currentEditValue) : null
       hasChanges = originalNum !== editNum
-      console.log(`🔍 [EditableField] Entity-select comparison: ${originalNum} !== ${editNum} = ${hasChanges}`)
+      console.log(`🔍 [EditableField] Entity-select comparison for "${label}":`, { originalNum, editNum, hasChanges })
     } else {
       // Compare as strings (default behavior)
-      hasChanges = currentEditValue !== String(value ?? '')
-      console.log(`🔍 [EditableField] String comparison: "${currentEditValue}" !== "${String(value ?? '')}" = ${hasChanges}`)
+      const originalStr = String(value ?? '')
+      const editStr = String(currentEditValue ?? '')
+      hasChanges = editStr !== originalStr
+      console.log(`🔍 [EditableField] String comparison for "${label}":`, { originalStr, editStr, hasChanges })
     }
     
     if (!hasChanges) {
@@ -122,45 +126,38 @@ export function EditableField({
       return
     }
 
-    console.log(`💾 [EditableField] Saving changes for "${label}"`)
+    console.log(`💾 [EditableField] Proceeding with save for "${label}"`, { newValue: currentEditValue })
     setSaveStatus('saving')
     
     try {
       // Convert to appropriate type
       let finalValue: string | number | null = currentEditValue
-      if (currentEditValue === '' || currentEditValue === undefined) {
+      if (currentEditValue === '' || currentEditValue === undefined || currentEditValue === null) {
         finalValue = null
-        console.log(`🔄 [EditableField] Converting empty value to null for "${label}"`)
-      } else if (type === 'entity-select' && currentEditValue) {
+        console.log(`🔄 [EditableField] "${label}" empty value → null`)
+      } else if (type === 'entity-select') {
         finalValue = Number(currentEditValue)
-        console.log(`🔄 [EditableField] Converting to number for entity-select "${label}": ${currentEditValue} → ${finalValue}`)
-      } else if (type === 'select' && currentEditValue) {
-        // For regular select fields, keep as string (status, source_type, etc.)
+        console.log(`🔄 [EditableField] "${label}" entity-select → number: ${finalValue}`)
+      } else {
         finalValue = String(currentEditValue)
-        console.log(`🔄 [EditableField] Converting to string for select "${label}": ${currentEditValue} → ${finalValue}`)
+        console.log(`🔄 [EditableField] "${label}" default → string: "${finalValue}"`)
       }
 
-      console.log(`📤 [EditableField] Calling onSave for "${label}" with value:`, finalValue)
+      console.log(`📤 [EditableField] Calling onSave prop for "${label}" with:`, finalValue)
       await onSave(finalValue)
       
-      console.log(`✅ [EditableField] Save successful for "${label}"`)
+      console.log(`✅ [EditableField] onSave completed successfully for "${label}"`)
       setIsEditing(false)
 
       // Show saved indicator briefly
       setSaveStatus('saved')
       savedTimerRef.current = setTimeout(() => {
         setSaveStatus('idle')
-        console.log(`🔄 [EditableField] Reset save status to idle for "${label}"`)
+        console.log(`🔄 [EditableField] Status indicator reset for "${label}"`)
       }, 1500)
     } catch (err) {
       console.error(`❌ [EditableField] Save failed for "${label}":`, err)
-      console.error(`❌ [EditableField] Error details:`, {
-        message: err instanceof Error ? err.message : 'Unknown error',
-        stack: err instanceof Error ? err.stack : undefined,
-        errorObject: err
-      })
       setSaveStatus('idle')
-      // Keep editing open on error
     }
   }
 
@@ -187,9 +184,11 @@ export function EditableField({
   // For selects, save immediately on change (better UX)
   const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newValue = e.target.value
+    console.log(`🖱️ [EditableField] handleSelectChange for "${label}":`, newValue)
     setEditValue(newValue)
     // For selects, auto-save on selection (no need to blur)
     // IMPORTANT: pass newValue to save() to avoid stale state reads
+    console.log(`⏱️ [EditableField] Scheduling immediate save for "${label}"`)
     setTimeout(() => {
       save(newValue)
     }, 0)
