@@ -593,6 +593,25 @@ class LeadProduct(Base):
 
 
 # ============================================================
+# TestLog (תיעוד ניסוי חסימות)
+# ============================================================
+class TestLog(Base):
+    __tablename__ = "test_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    test_type: Mapped[str] = mapped_column(String(50), nullable=False)  # URL 1-4
+    user_id: Mapped[Optional[int]] = mapped_column(Integer)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(100))
+    user_agent: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_test_logs_type", "test_type"),
+        Index("idx_test_logs_user", "user_id"),
+    )
+
+
+# ============================================================
 # Students (תלמידים) — entity 2
 # ============================================================
 class Student(Base):

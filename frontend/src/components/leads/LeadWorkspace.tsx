@@ -21,6 +21,7 @@ import {
   Clock,
   CheckCircle,
   Trash2,
+  ShieldAlert,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, formatDateTime } from '@/lib/status'
@@ -475,6 +476,30 @@ export function LeadWorkspace({
           {onAddInteraction && (
             <button className={`${s.btn} ${s['btn-secondary']} ${s['btn-sm']}`} onClick={onAddInteraction}>
               <MessageSquarePlus size={14} /> הוסף פעילות
+            </button>
+          )}
+          {effectiveLead!.email && (
+            <button 
+              className={`${s.btn} ${s['btn-secondary']} ${s['btn-sm']}`} 
+              style={{ background: '#fef3c7', color: '#92400e', borderColor: '#fcd34d' }}
+              onClick={async () => {
+                const confirmed = await confirm({
+                  title: 'שליחת מייל בדיקת חסימות',
+                  message: `האם לשלוח מייל בדיקת חסימות (נטפרי) לכתובת: ${effectiveLead!.email}?`,
+                  confirmLabel: 'שלח',
+                  cancelLabel: 'ביטול',
+                })
+                if (confirmed) {
+                  try {
+                    await api.post(`/test-netfree/send-test-email?user_id=${effectiveLead!.id}&email=${effectiveLead!.email}`)
+                    alert('מייל בדיקה נשלח בהצלחה!')
+                  } catch (err) {
+                    alert('שגיאה בשליחת המייל')
+                  }
+                }
+              }}
+            >
+              <ShieldAlert size={14} /> שלח טסט נטפרי
             </button>
           )}
         </div>
