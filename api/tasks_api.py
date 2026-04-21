@@ -50,6 +50,24 @@ class ReportCreate(BaseModel):
 
 
 def _task_to_dict(t) -> dict:
+    # Handle reports safely - check if it's loaded before accessing
+    reports_data = []
+    try:
+        # Try to access reports only if it was explicitly loaded (e.g., with selectinload)
+        if hasattr(t, 'reports') and t.reports is not None:
+            reports_data = [
+                {
+                    "id": r.id,
+                    "description": r.description,
+                    "duration": r.duration,
+                    "created_at": str(r.created_at) if r.created_at else None,
+                }
+                for r in t.reports
+            ]
+    except:
+        # If reports triggers lazy load error, return empty list
+        reports_data = []
+
     return {
         "id": t.id,
         "title": t.title,
@@ -66,15 +84,41 @@ def _task_to_dict(t) -> dict:
         "parent_lead_conversion": t.parent_lead_conversion,
         "created_at": str(t.created_at) if t.created_at else None,
         "completed_at": str(t.completed_at) if t.completed_at else None,
-        "reports": [
-            {
-                "id": r.id,
-                "description": r.description,
-                "duration": r.duration,
-                "created_at": str(r.created_at) if r.created_at else None,
+        "reports": reports_data,
+    }
+
+
+# ── Debug endpoint (for remote debugging) ────────────────
+@router.get("/debug/info")
+async def debug_info(
+    user=Depends(require_permission("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Debug endpoint for remote troubleshooting - admin only."""
+    from db.models import SalesTask
+    from sqlalchemy import func
+
+    # Get task count
+    count_result = await db.execute(select(func.count(SalesTask.id)))
+    task_count = count_result.scalar() or 0
+
+    return {
+        "status": "ok",
+        "task_count": task_count,
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "permission_level": user.permission_level,
+            "role_name": user.role_name,
+        },
+        "permissions": {
+            "tasks": {
+                "view": 10,
+                "create": 20,
+                "edit": 20,
+                "delete": 30,
             }
-            for r in (t.reports or [])
-        ],
+        }
     }
 
 
@@ -151,7 +195,7 @@ async def create_task(
         await audit_logs.log_create(
             db=db, user=user, entity_type="tasks", entity_id=task.id,
             description=f"נוצרה משימה: {task.title}",
-            request=request,
+            request=None,  # Pass None to avoid async issues with request object
         )
         return _task_to_dict(task)
     except ValueError as e:

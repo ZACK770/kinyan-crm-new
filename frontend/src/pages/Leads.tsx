@@ -7,14 +7,15 @@ import {
   Pencil,
   MessageSquarePlus,
   UserCheck,
+  ListTodo,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, getSourceLabel, formatDate, formatDateTime } from '@/lib/status'
 import { useModal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
-import { SmartTable, type SmartColumn } from '@/components/ui/SmartTable'
-import { LeadWorkspace } from '@/components/leads'
 import type { Lead, LeadInteraction, Salesperson, Course, Campaign } from '@/types'
+import { type SmartColumn, SmartTable } from '@/components/ui/SmartTable'
+import { LeadWorkspace } from '@/components/leads/LeadWorkspace'
 import s from '@/styles/shared.module.css'
 
 /* ── status badge helper ── */
@@ -206,6 +207,8 @@ function LeadForm({
             <option value="נסלק">נסלק</option>
             <option value="תלמיד פעיל">תלמיד פעיל</option>
             <option value="לא רלוונטי">לא רלוונטי</option>
+            <option value="במעקב">במעקב</option>
+            <option value="מתעניין">מתעניין</option>
           </select>
         </div>
       </div>
@@ -227,7 +230,10 @@ function LeadForm({
 /* ══════════════════════════════════════════════════════════════
    Add Interaction Form
    ══════════════════════════════════════════════════════════════ */
-function InteractionForm({ onSubmit }: { onSubmit: (data: Record<string, unknown>) => void }) {
+function InteractionForm({ onSubmit, onAddTask }: { 
+  onSubmit: (data: Record<string, unknown>) => void;
+  onAddTask?: (description: string) => void;
+}) {
   const [form, setForm] = useState({
     interaction_type: 'call',
     call_status: '',
@@ -241,6 +247,12 @@ function InteractionForm({ onSubmit }: { onSubmit: (data: Record<string, unknown
     const data: Record<string, unknown> = { ...form }
     Object.keys(data).forEach(k => { if (data[k] === '') delete data[k] })
     onSubmit(data)
+  }
+
+  const handleAddTask = (e: React.MouseEvent) => {
+    e.preventDefault()
+    if (!form.description.trim()) return
+    if (onAddTask) onAddTask(form.description)
   }
 
   return (
@@ -272,7 +284,18 @@ function InteractionForm({ onSubmit }: { onSubmit: (data: Record<string, unknown
         <label className={s['form-label']}>תיאור</label>
         <textarea className={s.textarea} value={form.description} onChange={set('description')} rows={3} />
       </div>
-      <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>הוסף</button>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button type="submit" className={`${s.btn} ${s['btn-primary']}`} style={{ flex: 1 }}>הוסף כפעילות</button>
+        <button 
+          type="button" 
+          className={`${s.btn} ${s['btn-secondary']}`} 
+          style={{ flex: 1 }}
+          onClick={handleAddTask}
+          disabled={!form.description.trim()}
+        >
+          <ListTodo size={16} /> הוסף כמשימה
+        </button>
+      </div>
     </form>
   )
 }
@@ -699,8 +722,59 @@ export function LeadsPage() {
               toast.error((err as { message?: string }).message ?? 'שגיאה')
             }
           }}
+          onAddTask={(description) => {
+            closeModal()
+            openAddTask(leadId, description)
+          }}
         />
       ),
+    })
+  }
+
+  /* ── Add Task ── */
+  const openAddTask = (leadId: number, initialDescription: string = '') => {
+    openModal({
+      title: 'הוספת משימה',
+      size: 'md',
+      content: (
+        <form onSubmit={async (e) => {
+          e.preventDefault()
+          const form = e.target as HTMLFormElement
+          const title = (form.elements.namedItem('title') as HTMLInputElement).value
+          const dueDate = (form.elements.namedItem('due_date') as HTMLInputElement).value
+          
+          if (!title || !dueDate) {
+            toast.error('נא למלא כותרת ותאריך תזכורת')
+            return
+          }
+
+          try {
+            await api.post('/tasks/', {
+              lead_id: leadId,
+              title: title,
+              due_date: new Date(dueDate).toISOString(),
+              task_type: 'sales'
+            })
+            toast.success('משימה נוספה')
+            closeModal()
+            // Refresh and reopen detail
+            const fresh = await api.get<Lead>(`leads/${leadId}`)
+            showDetailModal(fresh)
+          } catch (err) {
+            toast.error('שגיאה בהוספת המשימה')
+          }
+        }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className={s['form-group']}>
+            <label className={s['form-label']}>כותרת המשימה</label>
+            <input name="title" className={s.input} defaultValue={initialDescription} required />
+          </div>
+          <div className={s['form-group']}>
+            <label className={s['form-label']}>תאריך ושעת תזכורת</label>
+            <input name="due_date" type="datetime-local" className={s.input} required />
+          </div>
+          <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>שמור משימה</button>
+        </form>
+      )
     })
   }
 
@@ -773,6 +847,8 @@ export function LeadsPage() {
         { value: 'נסלק', label: 'נסלק' },
         { value: 'תלמיד פעיל', label: 'תלמיד פעיל' },
         { value: 'לא רלוונטי', label: 'לא רלוונטי' },
+        { value: 'במעקב', label: 'במעקב' },
+        { value: 'מתעניין', label: 'מתעניין' },
       ],
     },
     {

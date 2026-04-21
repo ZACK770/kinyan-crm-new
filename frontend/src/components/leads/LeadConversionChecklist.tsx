@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, Loader2, AlertCircle, UserCheck, Sparkles } from 'lucide-react';
+import { CheckCircle2, Loader2, AlertCircle, UserCheck, Sparkles, FileSignature } from 'lucide-react';
 import styles from './LeadConversionChecklist.module.css';
 import { api } from '@/lib/api';
 
@@ -7,6 +7,7 @@ interface Lead {
   id: number;
   full_name: string;
   phone: string;
+  email?: string;
   status: string;
   approved_terms?: boolean;
   shipping_details_complete?: boolean;
@@ -165,6 +166,29 @@ const LeadConversionChecklist: React.FC<Props> = ({ lead, onUpdate }) => {
               <p className={styles.checklistDescription}>
                 הלקוח אישר את תקנון הקורס
               </p>
+              {lead.email && !lead.approved_terms && (
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    const templateId = '1MDgM2JpanVFPZjoh4dYqm7-53iN5Nb5i';
+                    const signatureUrl = `https://drive.google.com/file/d/${templateId}/view?requestEsignature=true`;
+                    
+                    // Open document in new tab for manual signature request setup
+                    window.open(signatureUrl, '_blank');
+                    
+                    // Optionally still log the action in CRM
+                    api.post(`/leads/${lead.id}/interactions`, {
+                      interaction_type: 'email',
+                      description: 'נפתח מסמך תקנון להכנת חתימה דיגיטלית (Google Drive)'
+                    }).catch(err => console.error('Failed to log interaction:', err));
+                  }}
+                  className={styles.esignButton}
+                  disabled={loading}
+                >
+                  <FileSignature size={14} />
+                  <span>שלח לחתימה (Google Drive)</span>
+                </button>
+              )}
             </div>
           </label>
         </div>

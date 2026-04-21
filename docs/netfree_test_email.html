@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>ניסוי אישור תקנון</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 30px; text-align: center;">
+        <h2 style="color: #1e40af; margin-bottom: 20px;">בדיקת מערכת אישור תקנון</h2>
+        <p style="margin-bottom: 25px;">שלום רב,<br>לצורך שיפור השירות ובדיקת תקינות מערכת שליחת האישורים, אנו מבקשים ממך ללחוץ על <b>כל אחד</b> מהכפתורים למטה לפי הסדר.</p>
+        
+        <!-- URL 1: Direct CRM -->
+        <div style="margin-bottom: 15px;">
+            <a href="https://kinyan-crm-new-1.onrender.com/api/test-netfree/direct?test_type=URL1_Direct&user_id={{user_id}}" 
+               style="display: inline-block; width: 250px; background-color: #2563eb; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+               כפתור 1: אישור ישיר
+            </a>
+        </div>
+
+        <!-- URL 2: Google Apps Script -->
+        <div style="margin-bottom: 15px;">
+            <a href="https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec?test_type=URL2_Google&user_id={{user_id}}" 
+               style="display: inline-block; width: 250px; background-color: #10b981; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+               כפתור 2: אישור גיבוי א'
+            </a>
+        </div>
+
+        <!-- URL 3: Cloudflare Worker -->
+        <div style="margin-bottom: 15px;">
+            <a href="https://test-netfree.YOUR_SUBDOMAIN.workers.dev/?test_type=URL3_Cloudflare&user_id={{user_id}}" 
+               style="display: inline-block; width: 250px; background-color: #f59e0b; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+               כפתור 3: אישור גיבוי ב'
+            </a>
+        </div>
+
+        <!-- URL 4: External Webhook -->
+        <div style="margin-bottom: 25px;">
+            <a href="https://webhook.site/YOUR_ID?test_type=URL4_External&user_id={{user_id}}" 
+               style="display: inline-block; width: 250px; background-color: #6366f1; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+               כפתור 4: אישור חיצוני
+            </a>
+        </div>
+
+        <p style="font-size: 12px; color: #64748b;">בסיום הלחיצה על כל הכפתורים, המערכת תתעד את התוצאות באופן אוטומטי.</p>
+        
+        <!-- Tracking Pixel -->
+        <img src="https://kinyan-crm-new-1.onrender.com/api/test-netfree/pixel?user_id={{user_id}}" width="1" height="1" style="display:none !important;" />
+    </div>
+    <div style="text-align: center; margin-top: 20px; color: #94a3b8; font-size: 11px;">
+        קניין הוראה — מחלקת טכנולוגיה
+    </div>
+</body>
+</html>

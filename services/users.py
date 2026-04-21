@@ -49,6 +49,7 @@ DEFAULT_ENTITY_PERMISSIONS = {
     "inquiries":   {"view": 10, "create": 10, "edit": 20, "delete": 30},  # salesperson (25) יכול ליצור ולערוך
     "collections": {"view": 10, "create": 20, "edit": 20, "delete": 30},  # salesperson (25) יכול ליצור ולערוך
     "commitments": {"view": 10, "create": 20, "edit": 20, "delete": 30},  # salesperson (25) יכול ליצור ולערוך
+    "tasks":       {"view": 10, "create": 20, "edit": 20, "delete": 30},  # salesperson (25) יכול ליצור ולערוך
     "users":       {"view": 30, "create": 40, "edit": 40, "delete": 40},  # salesperson (25) לא יכול לנהל משתמשים
     "dashboard":   {"view": 10, "create": 40, "edit": 40, "delete": 40},
 }

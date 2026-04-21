@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, type ReactNode, type FormEvent } from 'react'
+import { useToast } from '@/components/ui/Toast'
 import {
   MessageSquarePlus,
   UserCheck,
@@ -17,6 +18,10 @@ import {
   FileText,
   X,
   Paperclip,
+  Clock,
+  CheckCircle,
+  Trash2,
+  ShieldAlert,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, formatDateTime } from '@/lib/status'
@@ -57,6 +62,8 @@ const STATUS_OPTIONS: SelectOption[] = [
   { value: 'נסלק', label: 'נסלק' },
   { value: 'תלמיד פעיל', label: 'תלמיד פעיל' },
   { value: 'לא רלוונטי', label: 'לא רלוונטי' },
+  { value: 'במעקב', label: 'במעקב' },
+  { value: 'מתעניין', label: 'מתעניין' },
 ]
 
 const SOURCE_OPTIONS: SelectOption[] = [
@@ -145,7 +152,8 @@ export function LeadWorkspace({
       field: field,
       value: value,
       valueType: typeof value,
-      leadExists: !!lead
+      leadExists: !!lead,
+      timestamp: new Date().toISOString()
     })
 
     if (!lead) {
@@ -153,25 +161,36 @@ export function LeadWorkspace({
       return
     }
 
-    console.log(`📡 [LeadWorkspace] Making API call to update lead ${lead.id}`, {
-      endpoint: `/leads/${lead.id}`,
-      payload: { [field]: value },
-      leadName: lead.full_name
+    console.log(`📡 [LeadWorkspace] Preparing API call for lead ${lead.id}`, {
+      field,
+      value,
+      currentLocalStatus: localLead?.status,
+      currentPropStatus: lead.status
     })
 
     try {
       const startTime = performance.now()
+      console.log(`🌐 [LeadWorkspace] Sending PATCH request to /api/leads/${lead.id}`, { [field]: value })
       const response = await api.patch<Lead>(`/leads/${lead.id}`, { [field]: value })
       const endTime = performance.now()
 
-      // Update local copy immediately from API response — no waiting for parent refresh
-      setLocalLead(prev => prev ? { ...prev, ...response } : response)
+      console.log(`📥 [LeadWorkspace] Received response from API`, response)
+
+      // Update local copy immediately from API response
+      setLocalLead(prev => {
+        const next = prev ? { ...prev, ...response } : response
+        console.log(`🔄 [LeadWorkspace] Updated localLead state`, {
+          field,
+          oldValue: prev?.[field as keyof Lead],
+          newValue: next[field as keyof Lead]
+        })
+        return next
+      })
 
       console.log(`✅ [LeadWorkspace] API call successful`, {
         duration: `${(endTime - startTime).toFixed(2)}ms`,
         field: field,
-        newValue: value,
-        responseStatus: (response as Lead).status,
+        newValueInResponse: response[field as keyof Lead],
       })
 
       onUpdate()
@@ -457,6 +476,30 @@ export function LeadWorkspace({
           {onAddInteraction && (
             <button className={`${s.btn} ${s['btn-secondary']} ${s['btn-sm']}`} onClick={onAddInteraction}>
               <MessageSquarePlus size={14} /> הוסף פעילות
+            </button>
+          )}
+          {effectiveLead!.email && (
+            <button 
+              className={`${s.btn} ${s['btn-secondary']} ${s['btn-sm']}`} 
+              style={{ background: '#fef3c7', color: '#92400e', borderColor: '#fcd34d' }}
+              onClick={async () => {
+                const confirmed = await confirm({
+                  title: 'שליחת מייל בדיקת חסימות',
+                  message: `האם לשלוח מייל בדיקת חסימות (נטפרי) לכתובת: ${effectiveLead!.email}?`,
+                  confirmLabel: 'שלח',
+                  cancelLabel: 'ביטול',
+                })
+                if (confirmed) {
+                  try {
+                    await api.post(`/test-netfree/send-test-email?user_id=${effectiveLead!.id}&email=${effectiveLead!.email}`)
+                    alert('מייל בדיקה נשלח בהצלחה!')
+                  } catch (err) {
+                    alert('שגיאה בשליחת המייל')
+                  }
+                }
+              }}
+            >
+              <ShieldAlert size={14} /> שלח טסט נטפרי
             </button>
           )}
         </div>
@@ -787,13 +830,126 @@ function InteractionsTab({
   )
 }
 
-// Tasks Tab (placeholder - to be expanded)
-function TasksTab({ leadId: _leadId }: { leadId: number }) {
+// Tasks Tab
+function TasksTab({ leadId }: { leadId: number }) {
+  const [tasks, setTasks] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const toast = useToast()
+
+  const fetchTasks = useCallback(async () => {
+    try {
+      setLoading(true)
+      const data = await api.get<any[]>(`/tasks/?lead_id=${leadId}`)
+      setTasks(data)
+    } catch (err) {
+      console.error('Failed to fetch tasks:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [leadId])
+
+  useEffect(() => {
+    fetchTasks()
+  }, [fetchTasks])
+
+  const toggleTaskStatus = async (task: any) => {
+    try {
+      const newStatus = task.status === 'הושלם' ? 'חדש' : 'הושלם'
+      await api.patch(`/tasks/${task.id}`, { status: newStatus })
+      toast.success(newStatus === 'הושלם' ? 'משימה הושלמה' : 'משימה נפתחה מחדש')
+      fetchTasks()
+    } catch (err) {
+      toast.error('שגיאה בעדכון המשימה')
+    }
+  }
+
+  const deleteTask = async (taskId: number) => {
+    if (!window.confirm('האם למחוק את המשימה?')) return
+    try {
+      await api.delete(`/tasks/${taskId}`)
+      toast.success('משימה נמחקה')
+      fetchTasks()
+    } catch (err) {
+      toast.error('שגיאה במחיקת המשימה')
+    }
+  }
+
+  if (loading) return <div style={{ padding: 20, textAlign: 'center' }}>טוען משימות...</div>
+
+  if (tasks.length === 0) {
+    return (
+      <div className={s['empty-state']}>
+        <ListTodo size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
+        <div>אין משימות מקושרות</div>
+        <div style={{ fontSize: 12, marginTop: 4 }}>משימות שנוספו לליד יופיעו כאן</div>
+      </div>
+    )
+  }
+
   return (
-    <div className={s['empty-state']}>
-      <ListTodo size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
-      <div>אין משימות מקושרות</div>
-      <div style={{ fontSize: 12, marginTop: 4 }}>משימות מכירות קשורות לליד יופיעו כאן</div>
+    <div className={s.workspace__section_content}>
+      <div className={s.task_list} style={{ padding: 16 }}>
+        {tasks.map(task => (
+          <div key={task.id} className={s.task_item} style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 12,
+            padding: '12px',
+            borderBottom: '1px solid var(--color-border-light)',
+            opacity: task.status === 'הושלם' ? 0.6 : 1
+          }}>
+            <button
+              onClick={() => toggleTaskStatus(task)}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                color: task.status === 'הושלם' ? 'var(--color-success)' : 'var(--color-text-muted)'
+              }}
+            >
+              {task.status === 'הושלם' ? <CheckCircle size={20} /> : <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid currentColor' }} />}
+            </button>
+            <div style={{ flex: 1 }}>
+              <div style={{
+                fontWeight: 600,
+                textDecoration: task.status === 'הושלם' ? 'line-through' : 'none',
+                fontSize: 14
+              }}>
+                {task.title}
+              </div>
+              {task.description && (
+                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                  {task.description}
+                </div>
+              )}
+              {task.due_date && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  fontSize: 11,
+                  marginTop: 6,
+                  color: new Date(task.due_date) < new Date() && task.status !== 'הושלם' ? 'var(--color-error)' : 'var(--color-text-muted)'
+                }}>
+                  <Clock size={12} />
+                  תזכורת: {formatDateTime(task.due_date)}
+                  {new Date(task.due_date) < new Date() && task.status !== 'הושלם' && (
+                    <span style={{ fontWeight: 600 }}>(באיחור)</span>
+                  )}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => deleteTask(task.id)}
+              className={s['btn-ghost']}
+              style={{ color: 'var(--color-error)', padding: 4 }}
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
