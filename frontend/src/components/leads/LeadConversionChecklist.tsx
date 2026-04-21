@@ -168,21 +168,19 @@ const LeadConversionChecklist: React.FC<Props> = ({ lead, onUpdate }) => {
               </p>
               {lead.email && !lead.approved_terms && (
                 <button
-                  onClick={async (e) => {
+                  onClick={(e) => {
                     e.preventDefault();
-                    if (confirm('האם לשלוח מייל לחתימה על תקנון באמצעות Google Drive?')) {
-                      try {
-                        setLoading(true);
-                        const templateId = '1MDgM2JpanVFPZjoh4dYqm7-53iN5Nb5i';
-                        await api.post(`/leads/${lead.id}/send-esignature?template_id=${templateId}`);
-                        alert('המייל נשלח בהצלחה!');
-                        onUpdate();
-                      } catch (err) {
-                        alert('שגיאה בשליחת המייל');
-                      } finally {
-                        setLoading(false);
-                      }
-                    }
+                    const templateId = '1MDgM2JpanVFPZjoh4dYqm7-53iN5Nb5i';
+                    const signatureUrl = `https://drive.google.com/file/d/${templateId}/view?requestEsignature=true`;
+                    
+                    // Open document in new tab for manual signature request setup
+                    window.open(signatureUrl, '_blank');
+                    
+                    // Optionally still log the action in CRM
+                    api.post(`/leads/${lead.id}/interactions`, {
+                      interaction_type: 'email',
+                      description: 'נפתח מסמך תקנון להכנת חתימה דיגיטלית (Google Drive)'
+                    }).catch(err => console.error('Failed to log interaction:', err));
                   }}
                   className={styles.esignButton}
                   disabled={loading}

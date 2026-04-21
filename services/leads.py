@@ -600,3 +600,41 @@ async def update_lead_discount(
         "payments_count": payments_count,
         "monthly_payment": monthly_payment,
     }
+
+
+async def bulk_update_leads(db: AsyncSession, lead_ids: list[int], field: str, value: any) -> int:
+    """
+    Update a specific field for multiple leads.
+    """
+    if not lead_ids:
+        return 0
+    
+    # Define allowed fields for bulk update
+    allowed_fields = {
+        "status",
+        "salesperson_id",
+        "course_id",
+        "city",
+        "source_type",
+        "source_name",
+        "campaign_name",
+    }
+    
+    if field not in allowed_fields:
+        raise ValueError(f"Field '{field}' is not allowed for bulk update")
+    
+    # Get leads
+    stmt = select(Lead).where(Lead.id.in_(lead_ids))
+    result = await db.execute(stmt)
+    leads = result.scalars().all()
+    
+    updated_count = 0
+    for lead in leads:
+        if hasattr(lead, field):
+            setattr(lead, field, value)
+            updated_count += 1
+    
+    if updated_count > 0:
+        await db.flush()
+        
+    return updated_count

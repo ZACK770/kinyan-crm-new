@@ -751,6 +751,46 @@ async def send_esignature(
     return result
 
 
+
+class BulkUpdateRequest(BaseModel):
+    ids: list[int]
+    field: str
+    value: str | int | float | bool | None = None
+
+
+@router.post("/bulk-update")
+async def bulk_update_leads(
+    data: BulkUpdateRequest,
+    request: Request,
+    user = Depends(require_entity_access("leads", "edit")),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update multiple leads' fields at once.
+    """
+    try:
+        count = await lead_svc.bulk_update_leads(db, data.ids, data.field, data.value)
+        await db.commit()
+        
+        # Log bulk update
+        await audit_logs.log_update(
+            db=db,
+            user=user,
+            entity_type="leads",
+            entity_id=None,
+            description=f"עדכון גורף של {count} לידים: {data.field}={data.value}",
+            changes={"ids": data.ids, "field": data.field, "value": data.value},
+            request=request,
+        )
+        
+        return {"updated": count}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(500, str(e))
+
+
 @router.post("/bulk-delete")
 async def bulk_delete_leads(
     data: BulkDeleteRequest,
