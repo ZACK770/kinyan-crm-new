@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func
-from db.models import Lead, Student, SalesTask, User
+from db.models import Lead, Student, SalesTask, User, HistoryEntry
 from services.audit_logs import log_action
 
 
@@ -218,25 +218,36 @@ async def handoff_to_class_manager(
     העברה למנהל כיתות - שלב 5
     יוצר 2 משימות אוטומטיות למנהל
     """
+    print(f"[handoff_to_class_manager] Starting for lead_id: {lead_id}, manager_id: {manager_id}")
+    
     result = await session.execute(select(Lead).where(Lead.id == lead_id))
     lead = result.scalar_one_or_none()
     
     if not lead:
+        print(f"[handoff_to_class_manager] Lead not found: {lead_id}")
         return {"success": False, "error": "Lead not found"}
+    
+    print(f"[handoff_to_class_manager] Lead found: {lead.id}, name: {lead.full_name}")
     
     # בדיקה שהמנהל קיים
     manager_result = await session.execute(select(User).where(User.id == manager_id))
     manager = manager_result.scalar_one_or_none()
     
     if not manager:
+        print(f"[handoff_to_class_manager] Manager not found: {manager_id}")
         return {"success": False, "error": "Manager not found"}
+    
+    print(f"[handoff_to_class_manager] Manager found: {manager.id}, name: {manager.full_name}")
     
     lead.handoff_to_manager = True
     lead.handoff_date = datetime.now(timezone.utc)
     lead.handoff_manager_id = manager_id
     lead.updated_at = datetime.now(timezone.utc)
     
+    print(f"[handoff_to_class_manager] Updated lead handoff status")
+    
     # יצירת משימה 1: אישור קבלת משלוח
+    print(f"[handoff_to_class_manager] Creating task 1: אישור קבלת משלוח")
     task1 = SalesTask(
         title=f"אשר קבלת חומרי לימוד/משלוח - {lead.full_name}",
         description=f"וודא שהתלמיד {lead.full_name} (טלפון: {lead.phone}) קיבל את חומרי הלימוד/המשלוח",
@@ -249,8 +260,30 @@ async def handoff_to_class_manager(
         status="חדש"
     )
     session.add(task1)
+    await session.flush()
+    print(f"[handoff_to_class_manager] Task 1 created with ID: {task1.id}")
+    
+    # יצירת HistoryEntry עבור משימה 1
+    print(f"[handoff_to_class_manager] Creating HistoryEntry for task 1")
+    history1 = HistoryEntry(
+        lead_id=lead_id,
+        action_type="משימה נוצרה",
+        description=f"נוצרה משימה: {task1.title}",
+        extra_data={
+            "task_id": task1.id,
+            "task_title": task1.title,
+            "task_status": task1.status,
+            "task_priority": task1.priority,
+            "auto_created": True,
+            "parent_lead_conversion": True,
+        }
+    )
+    session.add(history1)
+    await session.flush()
+    print(f"[handoff_to_class_manager] HistoryEntry 1 created with ID: {history1.id}")
     
     # יצירת משימה 2: וידוא הצטרפות לצ'אט
+    print(f"[handoff_to_class_manager] Creating task 2: וידוא הצטרפות לצ'אט")
     task2 = SalesTask(
         title=f"וודא הצטרפות לצ'אט תלמידים - {lead.full_name}",
         description=f"וודא שהתלמיד {lead.full_name} הצטרף לקבוצת התלמידים ב-{lead.student_chat_platform or 'WhatsApp'}",
@@ -263,8 +296,31 @@ async def handoff_to_class_manager(
         status="חדש"
     )
     session.add(task2)
+    await session.flush()
+    print(f"[handoff_to_class_manager] Task 2 created with ID: {task2.id}")
+    
+    # יצירת HistoryEntry עבור משימה 2
+    print(f"[handoff_to_class_manager] Creating HistoryEntry for task 2")
+    history2 = HistoryEntry(
+        lead_id=lead_id,
+        action_type="משימה נוצרה",
+        description=f"נוצרה משימה: {task2.title}",
+        extra_data={
+            "task_id": task2.id,
+            "task_title": task2.title,
+            "task_status": task2.status,
+            "task_priority": task2.priority,
+            "auto_created": True,
+            "parent_lead_conversion": True,
+        }
+    )
+    session.add(history2)
+    await session.flush()
+    print(f"[handoff_to_class_manager] HistoryEntry 2 created with ID: {history2.id}")
     
     await session.commit()
+    
+    print(f"[handoff_to_class_manager] Transaction committed")
     
     if user_id:
         await log_action(
@@ -275,8 +331,11 @@ async def handoff_to_class_manager(
             entity_id=lead_id,
             details=f"הועבר למנהל: {manager.full_name}"
         )
+        print(f"[handoff_to_class_manager] Audit log created")
     
     await check_and_complete_conversion(session, lead, user_id)
+    
+    print(f"[handoff_to_class_manager] Handoff complete, tasks created: 2")
     
     return {
         "success": True,

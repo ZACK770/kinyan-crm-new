@@ -182,43 +182,65 @@ async def create_task(
     user=Depends(require_entity_access("tasks", "edit")),
     db: AsyncSession = Depends(get_db),
 ):
-    print(f"[create_task] Starting task creation")
-    print(f"[create_task] Request data: {data.model_dump()}")
-    print(f"[create_task] User authenticated: {user.id if user else 'None'}")
+    print(f"[create_task API] Starting task creation")
+    print(f"[create_task API] User: {user.email if user else 'None'}")
+    
+    # Convert data to dict
+    task_data = data.model_dump()
+    print(f"[create_task API] Task data received: {task_data}")
+    
+    # Create task
+    print(f"[create_task API] Calling task_svc.create_task")
     try:
-        print(f"[create_task] Calling task_svc.create_task...")
-        task = await task_svc.create_task(db, **data.model_dump())
-        print(f"[create_task] Task created successfully: ID={task.id}, Title={task.title}")
-        print(f"[create_task] Committing to database...")
-        await db.commit()
-        print(f"[create_task] Database commit successful")
-        
-        # Schedule reminder if task has due_date and send_reminder is True
-        if task.due_date and task.send_reminder:
-            try:
-                await schedule_task_reminder(task.id, task.due_date)
-                print(f"[create_task] Scheduled reminder for task #{task.id} at {task.due_date}")
-            except Exception as e:
-                print(f"[create_task] Failed to schedule reminder: {e}")
-        
-        # Temporarily disable audit logs to debug
-        # await audit_logs.log_create(
-        #     db=db, user=user, entity_type="tasks", entity_id=task.id,
-        #     description=f"נוצרה משימה: {task.title}",
-        #     request=None,
-        # )
-        print(f"[create_task] Converting task to dict for response...")
-        result = _task_to_dict(task)
-        print(f"[create_task] Task creation completed successfully")
-        return result
+        task = await task_svc.create_task(db, **task_data)
+        print(f"[create_task API] Task created with ID: {task.id}, title: {task.title}, lead_id: {task.lead_id}")
     except ValueError as e:
-        print(f"[create_task] ValueError: {e}")
+        print(f"[create_task API] ValueError: {e}")
         raise HTTPException(400, str(e))
     except Exception as e:
-        print(f"[create_task] Unexpected error: {e}")
+        print(f"[create_task API] Unexpected error creating task: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(500, str(e))
+    
+    # Schedule reminder if due_date and send_reminder
+    if task.due_date and task.send_reminder:
+        print(f"[create_task API] Scheduling reminder for task {task.id} at {task.due_date}")
+        try:
+            await schedule_task_reminder(task.id, task.due_date)
+            print(f"[create_task API] Reminder scheduled successfully")
+        except Exception as e:
+            print(f"[create_task API] Error scheduling reminder: {e}")
+    else:
+        print(f"[create_task API] Not scheduling reminder - due_date: {task.due_date}, send_reminder: {task.send_reminder}")
+    
+    # Log task creation
+    print(f"[create_task API] Logging audit log")
+    try:
+        await audit_logs.log_action(
+            db,
+            action="create_task",
+            entity_id=task.id,
+            entity_type="task",
+            details={
+                "title": task.title,
+                "lead_id": task.lead_id,
+                "salesperson_id": task.salesperson_id,
+                "due_date": str(task.due_date) if task.due_date else None,
+                "send_reminder": task.send_reminder,
+            },
+        )
+        print(f"[create_task API] Audit log created")
+    except Exception as e:
+        print(f"[create_task API] Error creating audit log: {e}")
+    
+    await db.commit()
+    print(f"[create_task API] Transaction committed")
+    
+    print(f"[create_task API] Converting task to dict for response...")
+    result = _task_to_dict(task)
+    print(f"[create_task API] Task creation completed successfully")
+    return result
 
 
 # ── Update ───────────────────────────────────────────

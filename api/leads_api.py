@@ -54,6 +54,17 @@ async def list_leads(
             "updated_at": str(l.updated_at) if l.updated_at else None,
             "last_edited_at": str(l.last_edited_at) if l.last_edited_at else None,
             "conversion_date": str(l.conversion_date) if l.conversion_date else None,
+            "interactions": [
+                {
+                    "id": i.id,
+                    "interaction_type": i.interaction_type,
+                    "call_status": i.call_status,
+                    "description": i.description,
+                    "interaction_date": str(i.interaction_date) if i.interaction_date else None,
+                    "created_at": str(i.created_at),
+                }
+                for i in (l.interactions or [])
+            ] if l.interactions else [],
         }
         for l in items
     ]
@@ -91,12 +102,17 @@ async def get_lead(
     user = Depends(require_entity_access("leads", "view")),
     db: AsyncSession = Depends(get_db)
 ):
+    print(f"[get_lead API] Starting for lead_id: {lead_id}")
+    
     result = await lead_svc.get_lead_with_full_history(db, lead_id)
     if not result:
+        print(f"[get_lead API] Lead not found: {lead_id}")
         raise HTTPException(404, "Lead not found")
     
     lead = result["lead"]
     timeline = result["timeline"]
+    
+    print(f"[get_lead API] Returning lead with {len(timeline)} timeline items")
     
     return {
         "id": lead.id,

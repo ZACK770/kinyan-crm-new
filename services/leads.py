@@ -469,15 +469,24 @@ async def get_lead_with_full_history(db: AsyncSession, lead_id: int) -> dict:
     """Get a lead with interactions AND history entries combined."""
     from db.models import HistoryEntry
     
+    print(f"[get_lead_with_full_history] Starting for lead_id: {lead_id}")
+    
     # Get lead with interactions
     lead = await get_lead_with_history(db, lead_id)
     if not lead:
+        print(f"[get_lead_with_full_history] Lead not found: {lead_id}")
         return None
+    
+    print(f"[get_lead_with_full_history] Lead found: {lead.id}, interactions count: {len(lead.interactions or [])}")
     
     # Get history entries for this lead
     history_stmt = select(HistoryEntry).where(HistoryEntry.lead_id == lead_id).order_by(HistoryEntry.created_at.desc())
     history_result = await db.execute(history_stmt)
     history_entries = list(history_result.scalars().all())
+    
+    print(f"[get_lead_with_full_history] History entries count: {len(history_entries)}")
+    for entry in history_entries:
+        print(f"[get_lead_with_full_history]   - Entry ID: {entry.id}, action_type: {entry.action_type}, description: {entry.description}")
     
     # Combine interactions and history entries into a single timeline
     timeline = []
@@ -494,6 +503,8 @@ async def get_lead_with_full_history(db: AsyncSession, lead_id: int) -> dict:
             "created_at": interaction.created_at,
         })
     
+    print(f"[get_lead_with_full_history] Added {len(lead.interactions or [])} interactions to timeline")
+    
     # Add history entries (mapped to interaction format)
     for entry in history_entries:
         timeline.append({
@@ -507,8 +518,14 @@ async def get_lead_with_full_history(db: AsyncSession, lead_id: int) -> dict:
             "extra_data": entry.extra_data,
         })
     
+    print(f"[get_lead_with_full_history] Added {len(history_entries)} history entries to timeline")
+    
     # Sort by created_at
     timeline.sort(key=lambda x: x["created_at"], reverse=True)
+    
+    print(f"[get_lead_with_full_history] Total timeline items after sorting: {len(timeline)}")
+    for item in timeline:
+        print(f"[get_lead_with_full_history]   - Timeline item: type={item['type']}, interaction_type={item.get('interaction_type')}, created_at={item['created_at']}")
     
     return {
         "lead": lead,
@@ -523,8 +540,15 @@ async def list_leads(
     limit: int = 50,
     offset: int = 0,
 ) -> list[Lead]:
-    """List leads with optional filters."""
-    stmt = select(Lead).order_by(Lead.created_at.desc()).limit(limit).offset(offset)
+    """List leads with optional filters. Loads only the last interaction for performance."""
+    # Load leads with their last interaction only (not all interactions for performance)
+    stmt = (
+        select(Lead)
+        .options(selectinload(Lead.interactions))
+        .order_by(Lead.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
 
     if status:
         stmt = stmt.where(Lead.status == status)
@@ -532,7 +556,17 @@ async def list_leads(
         stmt = stmt.where(Lead.salesperson_id == salesperson_id)
 
     result = await db.execute(stmt)
-    return list(result.scalars().all())
+    leads = list(result.scalars().all())
+
+    # Filter to keep only the last interaction for each lead
+    for lead in leads:
+        if lead.interactions:
+            # Sort interactions by created_at (most recent first)
+            lead.interactions.sort(key=lambda x: x.created_at or x.interaction_date, reverse=True)
+            # Keep only the last interaction (most recent)
+            lead.interactions = [lead.interactions[0]]
+
+    return leads
 
 
 async def bulk_delete_leads(db: AsyncSession, lead_ids: list[int]) -> dict:

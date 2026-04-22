@@ -33,18 +33,34 @@ FRONTEND_DIR = Path(__file__).parent / "frontend" / "dist"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup: create tables if needed and start scheduler."""
+    print("[lifespan] Starting application lifespan")
+    
     await init_db()
+    print("[lifespan] Database initialized")
     
     # Start the scheduler
+    print("[lifespan] Starting scheduler service")
     scheduler_service.start()
+    print("[lifespan] Scheduler service started")
     
     # Initialize scheduled tasks
-    await initialize_scheduled_tasks()
+    print("[lifespan] Initializing scheduled tasks")
+    try:
+        await initialize_scheduled_tasks()
+        print("[lifespan] Scheduled tasks initialized")
+    except Exception as e:
+        print(f"[lifespan] Error initializing scheduled tasks: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    print("[lifespan] Application startup complete")
     
     yield
     
     # Shutdown: stop scheduler
+    print("[lifespan] Shutting down scheduler")
     scheduler_service.shutdown()
+    print("[lifespan] Scheduler shutdown complete")
 
 
 app = FastAPI(

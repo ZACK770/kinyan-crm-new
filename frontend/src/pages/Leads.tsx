@@ -715,9 +715,7 @@ export function LeadsPage() {
               await api.post(`leads/${leadId}/interactions`, data)
               toast.success('אינטראקציה נוספה')
               closeModal()
-              // Refresh and reopen detail
-              const fresh = await api.get<Lead>(`leads/${leadId}`)
-              showDetailModal(fresh)
+              fetchLeads()
             } catch (err: unknown) {
               toast.error((err as { message?: string }).message ?? 'שגיאה')
             }
@@ -742,6 +740,7 @@ export function LeadsPage() {
           const form = e.target as HTMLFormElement
           const title = (form.elements.namedItem('title') as HTMLInputElement).value
           const dueDate = (form.elements.namedItem('due_date') as HTMLInputElement).value
+          const sendReminder = (form.elements.namedItem('send_reminder') as HTMLInputElement).checked
           
           if (!title || !dueDate) {
             toast.error('נא למלא כותרת ותאריך תזכורת')
@@ -753,13 +752,12 @@ export function LeadsPage() {
               lead_id: leadId,
               title: title,
               due_date: new Date(dueDate).toISOString(),
-              task_type: 'sales'
+              task_type: 'sales',
+              send_reminder: sendReminder
             })
             toast.success('משימה נוספה')
             closeModal()
-            // Refresh and reopen detail
-            const fresh = await api.get<Lead>(`leads/${leadId}`)
-            showDetailModal(fresh)
+            fetchLeads()
           } catch (err) {
             toast.error('שגיאה בהוספת המשימה')
           }
@@ -771,6 +769,17 @@ export function LeadsPage() {
           <div className={s['form-group']}>
             <label className={s['form-label']}>תאריך ושעת תזכורת</label>
             <input name="due_date" type="datetime-local" className={s.input} required />
+          </div>
+          <div className={s['form-group']}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <input
+                name="send_reminder"
+                type="checkbox"
+                defaultChecked={true}
+                style={{ width: 18, height: 18 }}
+              />
+              <span className={s['form-label']} style={{ margin: 0 }}>שלח מייל תזכורת לשעת המשימה</span>
+            </label>
           </div>
           <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>שמור משימה</button>
         </form>
@@ -900,6 +909,25 @@ export function LeadsPage() {
       editable: false,
       hiddenByDefault: true,
       renderView: r => r.arrival_date ? formatDate(r.arrival_date) : '—'
+    },
+    {
+      key: 'last_activity',
+      header: 'פעילות אחרונה',
+      type: 'text',
+      editable: false,
+      renderView: r => {
+        if (!r.interactions || r.interactions.length === 0) return '—'
+        const last = r.interactions[r.interactions.length - 1]
+        return (
+          <div 
+            style={{ display: 'flex', flexDirection: 'column', gap: 2, cursor: 'help' }}
+            title={last.description || 'אין תיאור'}
+          >
+            <span style={{ fontSize: 12, fontWeight: 500 }}>{last.interaction_type}</span>
+            <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{formatDateTime(last.interaction_date || last.created_at)}</span>
+          </div>
+        )
+      }
     },
     {
       key: 'created_at',
@@ -1382,9 +1410,16 @@ export function LeadsPage() {
       key: '_actions',
       header: '',
       type: 'text',
-      width: 80,
+      width: 120,
       render: r => (
         <div style={{ display: 'flex', gap: 4 }}>
+          <button
+            className={`${s.btn} ${s['btn-ghost']} ${s['btn-xs']}`}
+            onClick={e => { e.stopPropagation(); openAddInteraction(r.id) }}
+            title="הוסף פעילות"
+          >
+            <MessageSquarePlus size={14} strokeWidth={1.5} />
+          </button>
           <button
             className={`${s.btn} ${s['btn-ghost']} ${s['btn-xs']}`}
             onClick={e => { e.stopPropagation(); openDetail(r) }}

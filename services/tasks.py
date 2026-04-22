@@ -112,9 +112,12 @@ async def create_task(db: AsyncSession, **kwargs) -> SalesTask:
     )
     db.add(task)
     await db.flush()
-
-    # Create HistoryEntry if task is linked to a lead
+    
+    print(f"[create_task] Task created with ID: {task.id}, title: {task.title}, lead_id: {task.lead_id}")
+    
+    # Create HistoryEntry if linked to a lead
     if task.lead_id:
+        print(f"[create_task] Creating HistoryEntry for lead_id: {task.lead_id}")
         history = HistoryEntry(
             lead_id=task.lead_id,
             action_type="משימה נוצרה",
@@ -130,7 +133,11 @@ async def create_task(db: AsyncSession, **kwargs) -> SalesTask:
         )
         db.add(history)
         await db.flush()
-
+        print(f"[create_task] HistoryEntry created with ID: {history.id}")
+    else:
+        print(f"[create_task] No lead_id, skipping HistoryEntry creation")
+    
+    print(f"[create_task] Task creation completed successfully")
     return task
 
 
