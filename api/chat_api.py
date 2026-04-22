@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
 
 from db import get_db
-from db.models import User, ChatThread, ChatThreadMember, ChatMessage
+from db.models import User, ChatThread, ChatThreadMember, ChatMessage, ChatMessageReadReceipt
 from api.dependencies import get_current_user, require_permission, DEV_SKIP_AUTH
 from services.auth import decode_access_token
 from services.users import get_user_by_id
@@ -38,6 +38,7 @@ class ThreadResponse(BaseModel):
     last_message: Optional[dict] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+    unread_count: int = 0
 
 
 class MessageResponse(BaseModel):
@@ -52,6 +53,7 @@ class MessageResponse(BaseModel):
     is_pinned: bool = False
     pinned_by_user_id: Optional[int] = None
     created_at: Optional[str] = None
+    is_read: bool = False
 
 
 class SendMessageRequest(BaseModel):
@@ -130,7 +132,7 @@ manager = ChatConnectionManager()
 
 
 # ── Helpers ──────────────────────────────────────────
-def _msg_to_dict(msg: ChatMessage, sender: User | None = None, reply_preview: str | None = None) -> dict:
+def _msg_to_dict(msg: ChatMessage, sender: User | None = None, reply_preview: str | None = None, is_read: bool = False) -> dict:
     return {
         "id": msg.id,
         "thread_id": msg.thread_id,
@@ -143,6 +145,7 @@ def _msg_to_dict(msg: ChatMessage, sender: User | None = None, reply_preview: st
         "is_pinned": msg.is_pinned,
         "pinned_by_user_id": msg.pinned_by_user_id,
         "created_at": str(msg.created_at) if msg.created_at else None,
+        "is_read": is_read,
     }
 
 
@@ -183,6 +186,9 @@ async def _thread_to_dict(db: AsyncSession, thread: ChatThread, current_user_id:
             "created_at": str(lm.created_at) if lm.created_at else None,
         }
 
+    # Unread count
+    unread_count = await chat_svc.get_thread_unread_count(db, thread.id, current_user_id)
+
     return {
         "id": thread.id,
         "thread_type": thread.thread_type,
@@ -192,6 +198,7 @@ async def _thread_to_dict(db: AsyncSession, thread: ChatThread, current_user_id:
         "last_message": last_message,
         "created_at": str(thread.created_at) if thread.created_at else None,
         "updated_at": str(thread.updated_at) if thread.updated_at else None,
+        "unread_count": unread_count,
     }
 
 
@@ -246,8 +253,25 @@ async def get_messages(
         for rm in result.scalars().all():
             reply_previews[rm.id] = rm.content[:60]
 
+    # Collect read receipts for current user
+    message_ids = [m.id for m in messages]
+    read_receipts: set[int] = set()
+    if message_ids and user.id:
+        result = await db.execute(
+            select(ChatMessageReadReceipt.message_id).where(
+                ChatMessageReadReceipt.message_id.in_(message_ids),
+                ChatMessageReadReceipt.user_id == user.id
+            )
+        )
+        read_receipts = {mid for (mid,) in result.all()}
+
     result_list = [
-        _msg_to_dict(m, senders.get(m.sender_user_id), reply_previews.get(m.reply_to_message_id))
+        _msg_to_dict(
+            m,
+            senders.get(m.sender_user_id),
+            reply_previews.get(m.reply_to_message_id),
+            m.id in read_receipts
+        )
         for m in messages
     ]
     result_list.reverse()  # oldest first
@@ -527,19 +551,97 @@ async def get_chat_notifications(
             "created_at": str(msg.created_at) if msg.created_at else None,
         })
 
-    # Also get count of recent messages (last 24h) in user's threads that aren't from the user
-    since = datetime.now(timezone.utc) - timedelta(hours=24)
-
-    count_result = await db.execute(
-        select(func.count(ChatMessage.id)).where(
-            ChatMessage.thread_id.in_(thread_ids),
-            ChatMessage.sender_user_id != user.id,
-            ChatMessage.created_at >= since,
-        )
-    )
-    unread_count = count_result.scalar() or 0
+    # Get total unread count using the new function
+    unread_count = await chat_svc.get_total_unread_count(db, user.id or 0)
 
     return {"notifications": notifications, "unread_count": unread_count}
+
+
+# ── Read Receipts Endpoints ───────────────────────────
+
+@router.post("/messages/{message_id}/read")
+async def mark_message_as_read(
+    message_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Mark a specific message as read by the current user."""
+    success = await chat_svc.mark_message_read(db, message_id, user.id or 0)
+    await db.commit()
+    if not success:
+        raise HTTPException(404, "הודעה לא נמצאה")
+    return {"read": True}
+
+
+@router.post("/threads/{thread_id}/mark-read")
+async def mark_thread_as_read(
+    thread_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Mark all messages in a thread as read by the current user."""
+    if _is_dev_user(user):
+        result = await db.execute(select(ChatThread).where(ChatThread.id == thread_id))
+        thread = result.scalar_one_or_none()
+    else:
+        thread = await chat_svc.get_thread_for_user(db, user, thread_id)
+    if not thread:
+        raise HTTPException(404, "שרשור לא נמצא או אין לך גישה")
+
+    count = await chat_svc.mark_thread_read(db, thread_id, user.id or 0)
+    await db.commit()
+    return {"marked_count": count}
+
+
+@router.get("/threads/{thread_id}/members")
+async def get_thread_members(
+    thread_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get list of thread members for @mention autocomplete."""
+    if _is_dev_user(user):
+        result = await db.execute(select(ChatThread).where(ChatThread.id == thread_id))
+        thread = result.scalar_one_or_none()
+    else:
+        thread = await chat_svc.get_thread_for_user(db, user, thread_id)
+    if not thread:
+        raise HTTPException(404, "שרשור לא נמצא או אין לך גישה")
+
+    result = await db.execute(
+        select(ChatThreadMember, User)
+        .join(User, ChatThreadMember.user_id == User.id)
+        .where(ChatThreadMember.thread_id == thread_id)
+    )
+    members = []
+    for member, u in result.all():
+        members.append({
+            "id": u.id,
+            "name": u.full_name,
+            "avatar": u.avatar_url,
+        })
+    return members
+
+
+@router.delete("/messages/{message_id}")
+async def delete_message(
+    message_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a message (only by sender or admin)."""
+    result = await db.execute(select(ChatMessage).where(ChatMessage.id == message_id))
+    message = result.scalar_one_or_none()
+    if not message:
+        raise HTTPException(404, "הודעה לא נמצאה")
+
+    # Only sender can delete their own message (or admin)
+    if message.sender_user_id != user.id and not user.is_superuser:
+        raise HTTPException(403, "אין לך הרשאה למחוק הודעה זו")
+
+    await db.delete(message)
+    await db.commit()
+    return {"deleted": True}
 
 
 # ── WebSocket endpoint ───────────────────────────────

@@ -17,6 +17,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from db import init_db
+from services.scheduler import scheduler_service
+from services.tasks_scheduler import initialize_scheduled_tasks
 from api import leads_api, students_api, courses_api, dashboard_api, webhooks_api
 from api import inquiries_api, exams_api, payments_api, expenses_api, attendance_api, collections_api
 from api import auth_api, users_api, audit_logs_api, campaigns_api, files_api, sales_assignment_api
@@ -30,9 +32,19 @@ FRONTEND_DIR = Path(__file__).parent / "frontend" / "dist"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: create tables if needed."""
+    """Startup: create tables if needed and start scheduler."""
     await init_db()
+    
+    # Start the scheduler
+    scheduler_service.start()
+    
+    # Initialize scheduled tasks
+    await initialize_scheduled_tasks()
+    
     yield
+    
+    # Shutdown: stop scheduler
+    scheduler_service.shutdown()
 
 
 app = FastAPI(

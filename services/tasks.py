@@ -7,7 +7,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from db.models import SalesTask, TaskReport
+from db.models import SalesTask, TaskReport, HistoryEntry
 
 ALLOWED_TASK_STATUSES = {"חדש", "בטיפול", "הושלם", "בוטל"}
 ALLOWED_TASK_TYPES = {"sales", "class_management", "shipping", "general"}
@@ -108,9 +108,29 @@ async def create_task(db: AsyncSession, **kwargs) -> SalesTask:
         student_id=kwargs.get("student_id"),
         auto_created=kwargs.get("auto_created", False),
         parent_lead_conversion=kwargs.get("parent_lead_conversion", False),
+        send_reminder=kwargs.get("send_reminder", True),
     )
     db.add(task)
     await db.flush()
+
+    # Create HistoryEntry if task is linked to a lead
+    if task.lead_id:
+        history = HistoryEntry(
+            lead_id=task.lead_id,
+            action_type="משימה נוצרה",
+            description=f"נוצרה משימה: {task.title}",
+            extra_data={
+                "task_id": task.id,
+                "task_title": task.title,
+                "task_status": task.status,
+                "task_due_date": str(task.due_date) if task.due_date else None,
+                "task_priority": task.priority,
+                "send_reminder": task.send_reminder,
+            }
+        )
+        db.add(history)
+        await db.flush()
+
     return task
 
 
@@ -122,24 +142,37 @@ async def update_task(db: AsyncSession, task_id: int, **kwargs) -> SalesTask | N
     if not task:
         return None
 
+    # Track status change for history entry
+    old_status = task.status
+
+    # Validate status if provided
     if "status" in kwargs and kwargs["status"] is not None:
         if kwargs["status"] not in ALLOWED_TASK_STATUSES:
             raise ValueError(f"סטטוס משימה לא חוקי: {kwargs['status']}")
-        # Auto-set completed_at
-        if kwargs["status"] == "הושלם" and not task.completed_at:
-            task.completed_at = datetime.now(timezone.utc)
-        elif kwargs["status"] != "הושלם":
-            task.completed_at = None
 
-    if "task_type" in kwargs and kwargs["task_type"] is not None:
-        if kwargs["task_type"] not in ALLOWED_TASK_TYPES:
-            raise ValueError(f"סוג משימה לא חוקי: {kwargs['task_type']}")
-
+    # Update fields
     for key, value in kwargs.items():
-        if hasattr(task, key):
+        if hasattr(task, key) and value is not None:
             setattr(task, key, value)
-
+    
     await db.flush()
+    
+    # Create HistoryEntry for status change if linked to a lead
+    if task.lead_id and old_status != task.status:
+        history = HistoryEntry(
+            lead_id=task.lead_id,
+            action_type="סטטוס משימה השתנה",
+            description=f"סטטוס משימה שונה מ-{old_status} ל-{task.status}",
+            extra_data={
+                "task_id": task.id,
+                "task_title": task.title,
+                "old_status": old_status,
+                "new_status": task.status,
+            }
+        )
+        db.add(history)
+        await db.flush()
+    
     return task
 
 

@@ -799,6 +799,7 @@ class SalesTask(Base):
     assigned_to_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))  # For class manager or other users
     auto_created: Mapped[bool] = mapped_column(Boolean, default=False)  # Auto-created by system
     parent_lead_conversion: Mapped[bool] = mapped_column(Boolean, default=False)  # Part of lead conversion process
+    send_reminder: Mapped[bool] = mapped_column(Boolean, default=True)  # Send reminder email at due date
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
@@ -1452,6 +1453,29 @@ class ChatMessage(Base):
     thread: Mapped["ChatThread"] = relationship(back_populates="messages")
     sender: Mapped["User"] = relationship(foreign_keys=[sender_user_id])
     reply_to: Mapped[Optional["ChatMessage"]] = relationship(remote_side="ChatMessage.id", foreign_keys=[reply_to_message_id])
+    read_receipts: Mapped[List["ChatMessageReadReceipt"]] = relationship(back_populates="message", cascade="all, delete-orphan")
+
+
+# ============================================================
+# ChatMessageReadReceipt (מעקב קריאת הודעות)
+# ============================================================
+class ChatMessageReadReceipt(Base):
+    __tablename__ = "chat_message_read_receipts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    message_id: Mapped[int] = mapped_column(ForeignKey("chat_messages.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    read_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("message_id", "user_id", name="uq_chat_msg_read_receipt"),
+        Index("idx_chat_read_msg", "message_id"),
+        Index("idx_chat_read_user", "user_id"),
+        Index("idx_chat_read_at", "read_at"),
+    )
+
+    message: Mapped["ChatMessage"] = relationship(back_populates="read_receipts")
+    user: Mapped["User"] = relationship()
 
 
 # ============================================================

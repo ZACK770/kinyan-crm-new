@@ -98,6 +98,12 @@ async def get_db():
         yield session
 
 
+async def get_async_session():
+    """Async generator that yields DB sessions."""
+    async with SessionLocal() as session:
+        yield session
+
+
 async def init_db():
     """Create all tables (for dev/first deploy)."""
     from db.models import Base as _  # noqa: ensure models are imported
