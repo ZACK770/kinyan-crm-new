@@ -6,7 +6,7 @@ from typing import Optional
 from sqlalchemy import select, and_, or_, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import User, Salesperson, ChatThread, ChatThreadMember, ChatMessage
+from db.models import User, Salesperson, ChatThread, ChatThreadMember, ChatMessage, ChatMessageReadReceipt
 
 
 async def _get_salesperson_ids_for_users(db: AsyncSession, user_ids: list[int]) -> dict[int, int]:
@@ -215,3 +215,125 @@ async def unpin_message(db: AsyncSession, thread_id: int, message_id: int) -> bo
     msg.pinned_at = None
     await db.flush()
     return True
+
+
+async def mark_message_read(db: AsyncSession, message_id: int, user_id: int) -> bool:
+    """Mark a specific message as read by a user."""
+    # Check if message exists
+    msg_result = await db.execute(select(ChatMessage).where(ChatMessage.id == message_id))
+    msg = msg_result.scalar_one_or_none()
+    if not msg:
+        return False
+
+    # Check if already read
+    existing = await db.execute(
+        select(ChatMessageReadReceipt).where(
+            ChatMessageReadReceipt.message_id == message_id,
+            ChatMessageReadReceipt.user_id == user_id
+        )
+    )
+    if existing.scalar_one_or_none():
+        return True  # Already read
+
+    # Create read receipt
+    receipt = ChatMessageReadReceipt(
+        message_id=message_id,
+        user_id=user_id,
+        read_at=func.now()
+    )
+    db.add(receipt)
+    await db.flush()
+    return True
+
+
+async def mark_thread_read(db: AsyncSession, thread_id: int, user_id: int) -> int:
+    """Mark all messages in a thread as read by a user. Returns count of messages marked."""
+    # Get all message IDs in this thread that the user hasn't read yet
+    # Exclude messages sent by the user themselves
+    stmt = (
+        select(ChatMessage.id)
+        .where(
+            ChatMessage.thread_id == thread_id,
+            ChatMessage.sender_user_id != user_id
+        )
+    )
+    msg_result = await db.execute(stmt)
+    message_ids = [mid for (mid,) in msg_result.all()]
+
+    if not message_ids:
+        return 0
+
+    # Get already read message IDs
+    existing_result = await db.execute(
+        select(ChatMessageReadReceipt.message_id).where(
+            ChatMessageReadReceipt.message_id.in_(message_ids),
+            ChatMessageReadReceipt.user_id == user_id
+        )
+    )
+    already_read = {mid for (mid,) in existing_result.all()}
+
+    # Mark the rest as read
+    to_mark = [mid for mid in message_ids if mid not in already_read]
+    for mid in to_mark:
+        receipt = ChatMessageReadReceipt(
+            message_id=mid,
+            user_id=user_id,
+            read_at=func.now()
+        )
+        db.add(receipt)
+
+    await db.flush()
+    return len(to_mark)
+
+
+async def get_thread_unread_count(db: AsyncSession, thread_id: int, user_id: int) -> int:
+    """Get count of unread messages in a thread for a user."""
+    # Count messages in thread not sent by user and not yet read
+    stmt = (
+        select(func.count(ChatMessage.id))
+        .outerjoin(
+            ChatMessageReadReceipt,
+            and_(
+                ChatMessageReadReceipt.message_id == ChatMessage.id,
+                ChatMessageReadReceipt.user_id == user_id
+            )
+        )
+        .where(
+            ChatMessage.thread_id == thread_id,
+            ChatMessage.sender_user_id != user_id,
+            ChatMessageReadReceipt.id.is_(None)
+        )
+    )
+    result = await db.execute(stmt)
+    return result.scalar() or 0
+
+
+async def get_total_unread_count(db: AsyncSession, user_id: int) -> int:
+    """Get total count of unread messages across all user's threads."""
+    # Get all thread IDs user belongs to
+    member_result = await db.execute(
+        select(ChatThreadMember.thread_id).where(ChatThreadMember.user_id == user_id)
+    )
+    thread_ids = [tid for (tid,) in member_result.all()]
+
+    if not thread_ids:
+        return 0
+
+    # Count unread messages across all these threads
+    stmt = (
+        select(func.count(ChatMessage.id))
+        .outerjoin(
+            ChatMessageReadReceipt,
+            and_(
+                ChatMessageReadReceipt.message_id == ChatMessage.id,
+                ChatMessageReadReceipt.user_id == user_id
+            )
+        )
+        .where(
+            ChatMessage.thread_id.in_(thread_ids),
+            ChatMessage.sender_user_id != user_id,
+            ChatMessageReadReceipt.id.is_(None)
+        )
+    )
+    result = await db.execute(stmt)
+    return result.scalar() or 0

@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback, type FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Plus, CheckSquare, ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, getPriority, formatDate } from '@/lib/status'
 import { useToast } from '@/components/ui/Toast'
-import { DataTable, type Column } from '@/components/ui/DataTable'
+import { SmartTable, type SmartColumn } from '@/components/ui/SmartTable'
 import type { SalesTask, Salesperson } from '@/types'
 import s from '@/styles/shared.module.css'
 
@@ -35,13 +36,14 @@ function TaskForm({
     student_id: '',
     priority: '2',
     due_date: '',
+    send_reminder: true,
   })
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(prev => ({ ...prev, [key]: e.target.value }))
 
   const handle = (e: FormEvent) => {
     e.preventDefault()
-    const data: Record<string, unknown> = { title: form.title, priority: Number(form.priority) }
+    const data: Record<string, unknown> = { title: form.title, priority: Number(form.priority), send_reminder: form.send_reminder }
     if (form.description) data.description = form.description
     if (form.salesperson_id) data.salesperson_id = Number(form.salesperson_id)
     if (form.lead_id) data.lead_id = Number(form.lead_id)
@@ -88,6 +90,17 @@ function TaskForm({
           <input className={s.input} type="date" value={form.due_date} onChange={set('due_date')} dir="ltr" />
         </div>
       </div>
+      <div className={s['form-group']}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={form.send_reminder}
+            onChange={e => setForm(prev => ({ ...prev, send_reminder: e.target.checked }))}
+            style={{ width: 18, height: 18 }}
+          />
+          <span className={s['form-label']} style={{ margin: 0 }}>שלח מייל תזכורת לשעת המשימה</span>
+        </label>
+      </div>
       <div style={{ display: 'flex', gap: 8, paddingTop: 8 }}>
         <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>צור משימה</button>
         {onCancel && (
@@ -103,11 +116,11 @@ function TaskForm({
    ══════════════════════════════════════════════════════════════ */
 export function TasksPage() {
   const toast = useToast()
+  const navigate = useNavigate()
 
   const [tasks, setTasks] = useState<SalesTask[]>([])
   const [salespersons, setSalespersons] = useState<Salesperson[]>([])
   const [loading, setLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState('')
 
   // Workspace view state
   type ViewMode = 'list' | 'create'
@@ -115,19 +128,28 @@ export function TasksPage() {
 
   const backToList = () => setViewMode('list')
 
+  const handleRowClick = (task: SalesTask) => {
+    // If task is linked to a lead, navigate to lead with tasks tab
+    if (task.lead_id) {
+      navigate(`/leads/${task.lead_id}?tab=tasks`)
+    } else {
+      toast.info('משימה זו לא מקושרת לליד')
+    }
+  }
+
   const fetchTasks = useCallback(async () => {
     setLoading(true)
     try {
       // Tasks may be returned through dashboard salespeople endpoint or a dedicated one
       // For now we attempt to get from a general tasks endpoint
       const data = await api.get<SalesTask[]>('leads/tasks').catch(() => [] as SalesTask[])
-      setTasks(statusFilter ? data.filter(t => t.status === statusFilter) : data)
+      setTasks(data)
     } catch {
       setTasks([])
     } finally {
       setLoading(false)
     }
-  }, [statusFilter])
+  }, [])
 
   useEffect(() => { fetchTasks() }, [fetchTasks])
   useEffect(() => {
@@ -140,17 +162,70 @@ export function TasksPage() {
     setViewMode('create')
   }
 
-  const columns: Column<SalesTask>[] = [
-    { key: 'title', header: 'כותרת' },
-    { key: 'status', header: 'סטטוס', render: r => <Badge entity="task" value={r.status} /> },
-    { key: 'priority', header: 'עדיפות', render: r => <PriorityBadge value={r.priority} /> },
+  const columns: SmartColumn<SalesTask>[] = [
+    {
+      key: 'title',
+      header: 'כותרת',
+      type: 'text',
+      sortable: true,
+      filterable: true,
+    },
+    {
+      key: 'status',
+      header: 'סטטוס',
+      type: 'select',
+      options: [
+        { value: 'חדש', label: 'חדש' },
+        { value: 'בטיפול', label: 'בטיפול' },
+        { value: 'הושלם', label: 'הושלם' },
+        { value: 'בוטל', label: 'בוטל' },
+      ],
+      renderView: r => <Badge entity="task" value={r.status} />,
+      sortable: true,
+      filterable: true,
+    },
+    {
+      key: 'priority',
+      header: 'עדיפות',
+      type: 'select',
+      options: [
+        { value: 0, label: 'רגיל' },
+        { value: 1, label: 'נמוך' },
+        { value: 2, label: 'גבוה' },
+        { value: 3, label: 'דחוף' },
+      ],
+      renderView: r => <PriorityBadge value={r.priority} />,
+      sortable: true,
+      filterable: true,
+    },
     {
       key: 'salesperson_id',
       header: 'איש מכירות',
-      render: r => salespersons.find(sp => sp.id === r.salesperson_id)?.name ?? '—',
+      type: 'select',
+      options: salespersons.map(sp => ({ value: sp.id, label: sp.name })),
+      renderView: r => salespersons.find(sp => sp.id === r.salesperson_id)?.name ?? '—',
+      sortable: true,
+      filterable: true,
     },
-    { key: 'due_date', header: 'יעד', render: r => formatDate(r.due_date), className: s.muted },
-    { key: 'created_at', header: 'נוצר', render: r => formatDate(r.created_at), className: s.muted },
+    {
+      key: 'due_date',
+      header: 'יעד',
+      type: 'datetime',
+      renderView: r => formatDate(r.due_date),
+      className: s.muted,
+      sortable: true,
+      filterable: true,
+    },
+    {
+      key: 'created_at',
+      header: 'נוצר',
+      type: 'datetime',
+      renderView: r => formatDate(r.created_at),
+      className: s.muted,
+      sortable: true,
+      filterable: true,
+      hiddenByDefault: true,
+    },
   ]
 
   // Show workspace for create
@@ -195,22 +270,19 @@ export function TasksPage() {
       </div>
 
       <div className={s.card}>
-        <div className={s.toolbar}>
-          <select className={`${s.select} ${s['select-sm']}`} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-            <option value="">כל הסטטוסים</option>
-            <option value="new">חדש</option>
-            <option value="in_progress">בביצוע</option>
-            <option value="completed">הושלם</option>
-            <option value="cancelled">בוטל</option>
-          </select>
-        </div>
-        <DataTable
+        <SmartTable
           columns={columns}
           data={tasks}
           loading={loading}
           emptyText="אין משימות"
           emptyIcon={<CheckSquare size={40} strokeWidth={1.5} />}
           keyExtractor={r => r.id}
+          onRowClick={handleRowClick}
+          storageKey="tasks_table_v1"
+          searchPlaceholder="חיפוש לפי כותרת..."
+          searchFields={[
+            { key: 'title', label: 'כותרת', weight: 3 },
+          ]}
         />
       </div>
     </div>

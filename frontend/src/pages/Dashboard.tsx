@@ -66,6 +66,9 @@ export const Dashboard: FC = () => {
   // Daily closures state
   const [closuresData, setClosuresData] = useState<any>(null)
   const [closuresLoading, setClosuresLoading] = useState(false)
+  
+  // Task notifications state
+  const [taskNotificationShown, setTaskNotificationShown] = useState(false)
 
   const loadData = useCallback(async () => {
     try {
@@ -110,6 +113,27 @@ export const Dashboard: FC = () => {
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
+
+  // Check for open tasks on mount
+  useEffect(() => {
+    const checkOpenTasks = async () => {
+      try {
+        const result = await api.get<{ tasks: any[]; count: number }>('/api/tasks/popup-notifications')
+        if (result.count > 0 && !taskNotificationShown) {
+          toast.info(`יש לך ${result.count} משימות פתוחות. לחץ כאן לצפייה`, {
+            duration: 5000,
+            onClick: () => {
+              window.location.href = '/tasks'
+            }
+          })
+          setTaskNotificationShown(true)
+        }
+      } catch (err) {
+        // Silently fail - notifications are not critical
+      }
+    }
+    checkOpenTasks()
+  }, [taskNotificationShown, toast])
 
   // Load salespeople for filters
   useEffect(() => {

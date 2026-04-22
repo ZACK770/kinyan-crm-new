@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef, useCallback, type FC } from 'react'
+import React, { useState, useEffect, useRef, useCallback, type FC } from 'react'
 import {
   MessageCircle, X, Send, ChevronLeft, Plus, Users, Pin,
   Search, Reply, Lock, UserPlus, Trash2, Paperclip, Download, Smile, FileText, Image as ImageIcon,
+  Check, CheckCheck,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
@@ -38,6 +39,7 @@ interface Thread {
   last_message: LastMessage | null
   created_at?: string | null
   updated_at?: string | null
+  unread_count: number
 }
 
 interface Message {
@@ -52,6 +54,7 @@ interface Message {
   is_pinned: boolean
   pinned_by_user_id?: number | null
   created_at?: string | null
+  is_read: boolean
 }
 
 interface FileAttachment {
@@ -120,6 +123,17 @@ export const ChatWidget: FC = () => {
 
   const isManager = (user?.permission_level ?? 0) >= 30
 
+  // ── Mention autocomplete state ──
+  const [threadMembers, setThreadMembers] = useState<{id: number, name: string, avatar?: string | null}[]>([])
+  const [mentionQuery, setMentionQuery] = useState('')
+  const [showMentionSuggestions, setShowMentionSuggestions] = useState(false)
+  const [mentionCursorIndex, setMentionCursorIndex] = useState(0)
+
+  // Filter members based on mention query
+  const filteredMembers = threadMembers.filter(m =>
+    m.name.toLowerCase().includes(mentionQuery.toLowerCase())
+  )
+
   // ── Load threads ──
   const loadThreads = useCallback(async () => {
     try {
@@ -141,6 +155,14 @@ export const ChatWidget: FC = () => {
       // Track all loaded message IDs for dedup
       seenMsgIds.current = new Set(data.map(m => m.id))
     } catch {} finally { setLoading(false) }
+  }, [])
+
+  // ── Load thread members for @mentions ──
+  const loadThreadMembers = useCallback(async (threadId: number) => {
+    try {
+      const data = await api.get<{id: number, name: string, avatar?: string | null}[]>(`/chat/threads/${threadId}/members`)
+      setThreadMembers(data)
+    } catch {}
   }, [])
 
   // ── WebSocket connection ──
@@ -211,8 +233,17 @@ export const ChatWidget: FC = () => {
     setShowMembers(false)
     setContextMenu(null)
     await loadMessages(thread.id)
+    await loadThreadMembers(thread.id)
+    // Mark all messages as read
+    if (thread.unread_count > 0) {
+      try {
+        await api.post(`/chat/threads/${thread.id}/mark-read`)
+        // Refresh threads to update unread counts
+        await loadThreads()
+      } catch {}
+    }
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }), 100)
-  }, [loadMessages])
+  }, [loadMessages, loadThreads, loadThreadMembers])
 
   // ── Send message ──
   const sendMessage = useCallback(async () => {
@@ -271,6 +302,67 @@ export const ChatWidget: FC = () => {
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }, [activeThread])
+
+  // ── Handle input change for @mention autocomplete ──
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setInput(value)
+
+    // Detect @ symbol and show autocomplete
+    const cursorPos = e.target.selectionStart || value.length
+    const textBeforeCursor = value.substring(0, cursorPos)
+
+    // Find the last @ symbol
+    const lastAtIndex = textBeforeCursor.lastIndexOf('@')
+
+    if (lastAtIndex !== -1) {
+      // Check if there's a space after the @ (meaning it's not part of a mention)
+      const textAfterAt = textBeforeCursor.substring(lastAtIndex + 1)
+      const hasSpaceBeforeAt = lastAtIndex > 0 && textBeforeCursor[lastAtIndex - 1] === ' '
+      const hasSpaceAfterAt = textAfterAt.includes(' ')
+
+      if (!hasSpaceAfterAt && (lastAtIndex === 0 || hasSpaceBeforeAt)) {
+        const query = textAfterAt.toLowerCase()
+        setMentionQuery(query)
+        setShowMentionSuggestions(true)
+        setMentionCursorIndex(0)
+        return
+      }
+    }
+
+    setShowMentionSuggestions(false)
+    setMentionQuery('')
+  }, [])
+
+  // ── Handle mention selection ──
+  const handleSelectMention = useCallback((member: {id: number, name: string}) => {
+    const cursorPos = inputRef.current?.selectionStart || input.length
+    const textBeforeCursor = input.substring(0, cursorPos)
+    const textAfterCursor = input.substring(cursorPos)
+
+    const lastAtIndex = textBeforeCursor.lastIndexOf('@')
+    if (lastAtIndex !== -1) {
+      const newText = textBeforeCursor.substring(0, lastAtIndex) + `@${member.name} ` + textAfterCursor
+      setInput(newText)
+      setShowMentionSuggestions(false)
+      setMentionQuery('')
+      // Focus back on input
+      setTimeout(() => {
+        inputRef.current?.focus()
+        const newCursorPos = lastAtIndex + member.name.length + 2
+        inputRef.current?.setSelectionRange(newCursorPos, newCursorPos)
+      }, 0)
+    }
+  }, [input])
+
+  // ── Handle delete message ──
+  const handleDeleteMessage = useCallback(async (messageId: number) => {
+    if (!confirm('למחוק את הודעה?')) return
+    try {
+      await api.delete(`/chat/messages/${messageId}`)
+      setMessages(prev => prev.filter(m => m.id !== messageId))
+    } catch { alert('שגיאה במחיקת הודעה') }
+  }, [])
 
   // ── Start DM ──
   const startDM = useCallback(async (targetUserId: number) => {
@@ -396,15 +488,6 @@ export const ChatWidget: FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages.length])
 
-  // ── Time format ──
-  const formatTime = (dateStr?: string | null) => {
-    if (!dateStr) return ''
-    try {
-      const d = new Date(dateStr)
-      return d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
-    } catch { return '' }
-  }
-
   const filteredUsers = availableUsers.filter(u =>
     u.full_name.includes(searchUsers) || u.role_name?.includes(searchUsers)
   )
@@ -468,16 +551,14 @@ export const ChatWidget: FC = () => {
               <span>כל אנשי המכירות</span>
             </button>
 
-            {isManager && (
-              <div className={styles.newGroupSection}>
-                <input
-                  className={styles.chatInput}
-                  placeholder="שם קבוצה חדשה..."
-                  value={newGroupTitle}
-                  onChange={e => setNewGroupTitle(e.target.value)}
-                />
-              </div>
-            )}
+            <div className={styles.newGroupSection}>
+              <input
+                className={styles.chatInput}
+                placeholder="שם קבוצה חדשה..."
+                value={newGroupTitle}
+                onChange={e => setNewGroupTitle(e.target.value)}
+              />
+            </div>
 
             <div className={styles.userSearch}>
               <Search size={14} />
@@ -495,7 +576,7 @@ export const ChatWidget: FC = () => {
                     {u.avatar_url ? <img src={u.avatar_url} alt="" /> : u.full_name[0]}
                   </div>
                   <div className={styles.userName}>{u.full_name}</div>
-                  {isManager && newGroupTitle.trim() ? (
+                  {newGroupTitle.trim() ? (
                     <label className={styles.userCheck}>
                       <input
                         type="checkbox"
@@ -515,7 +596,7 @@ export const ChatWidget: FC = () => {
               ))}
             </div>
 
-            {isManager && newGroupTitle.trim() && selectedUserIds.length > 0 && (
+            {newGroupTitle.trim() && selectedUserIds.length > 0 && (
               <button className={styles.createGroupBtn} onClick={createGroup}>
                 צור קבוצה ({selectedUserIds.length} חברים)
               </button>
@@ -533,17 +614,16 @@ export const ChatWidget: FC = () => {
                   {m.avatar_url ? <img src={m.avatar_url} alt="" /> : m.full_name[0]}
                 </div>
                 <span>{m.full_name}</span>
-                {isManager && m.user_id !== user.id && (
+                {m.user_id !== user.id && (
                   <button className={styles.removeMemberBtn} onClick={() => removeMember(m.user_id)}>
                     <Trash2 size={12} />
                   </button>
                 )}
               </div>
             ))}
-            {isManager && (
-              <>
-                <div className={styles.addMemberTitle}>הוסף חבר</div>
-                {availableUsers
+            <>
+              <div className={styles.addMemberTitle}>הוסף חבר</div>
+              {availableUsers
                   .filter(u => !activeThread.members.some(m => m.user_id === u.id))
                   .map(u => (
                     <div key={u.id} className={styles.memberItem}>
@@ -556,8 +636,7 @@ export const ChatWidget: FC = () => {
                       </button>
                     </div>
                   ))}
-              </>
-            )}
+            </>
           </div>
         )}
 
@@ -606,9 +685,14 @@ export const ChatWidget: FC = () => {
                     </div>
                   )}
                 </div>
-                {t.last_message?.created_at && (
-                  <div className={styles.threadTime}>{formatTime(t.last_message.created_at)}</div>
-                )}
+                <div className={styles.threadMeta}>
+                  {t.last_message?.created_at && (
+                    <div className={styles.threadTime}>{formatTime(t.last_message.created_at)}</div>
+                  )}
+                  {t.unread_count > 0 && (
+                    <span className={styles.threadUnreadBadge}>{t.unread_count > 99 ? '99+' : t.unread_count}</span>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -622,59 +706,80 @@ export const ChatWidget: FC = () => {
                 <div className={styles.loadingMsg}>טוען הודעות...</div>
               ) : messages.length === 0 ? (
                 <div className={styles.emptyMessages}>אין הודעות עדיין. שלח את ההודעה הראשונה!</div>
-              ) : messages.map(m => (
-                <div
-                  key={m.id}
-                  className={clsx(
-                    styles.message,
-                    m.sender_user_id === user?.id && styles.messageMine,
-                    m.is_pinned && styles.messagePinned,
-                  )}
-                  onDoubleClick={(e) => handleDoubleClick(m, e)}
-                  onContextMenu={(e) => handleContextMenu(m, e)}
-                >
-                  {m.is_pinned && <div className={styles.pinIndicator}><Pin size={10} /> מוצמד</div>}
-                  {m.reply_to_preview && (
-                    <div className={styles.replyPreview}>
-                      <Reply size={10} />
-                      <span>{m.reply_to_preview}</span>
-                    </div>
-                  )}
-                  <div className={styles.msgBubble}>
-                    {m.sender_user_id !== user?.id && (
-                      <div className={styles.msgSender}>{m.sender_name}</div>
+              ) : messages.map((m, idx) => {
+                // Check if we need to show a date separator (day changed from previous message)
+                const showDateSeparator = idx === 0 || (
+                  m.created_at && messages[idx - 1]?.created_at &&
+                  new Date(m.created_at).toDateString() !== new Date(messages[idx - 1].created_at).toDateString()
+                )
+
+                return (
+                  <React.Fragment key={m.id}>
+                    {showDateSeparator && m.created_at && (
+                      <div className={styles.dateSeparator}>
+                        {formatDate(m.created_at)}
+                      </div>
                     )}
-                    {(() => {
-                      const fileInfo = parseFileFromContent(m.content)
-                      if (fileInfo) {
-                        const isImage = fileInfo.content_type?.startsWith('image/')
-                        return (
-                          <div className={styles.fileAttachment}>
-                            <div className={styles.fileIcon}>
-                              {isImage ? <ImageIcon size={18} /> : <FileText size={18} />}
-                            </div>
-                            <div className={styles.fileInfo}>
-                              <span className={styles.fileName}>{fileInfo.filename}</span>
-                              <span className={styles.fileSize}>{formatFileSize(fileInfo.size_bytes)}</span>
-                            </div>
-                            <a
-                              href={`/api/files/${fileInfo.id}/download`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className={styles.fileDownload}
-                              onClick={e => e.stopPropagation()}
-                            >
-                              <Download size={14} />
-                            </a>
-                          </div>
-                        )
-                      }
-                      return <div className={styles.msgContent}>{m.content}</div>
-                    })()}
-                    <div className={styles.msgTime}>{formatTime(m.created_at)}</div>
-                  </div>
-                </div>
-              ))}
+                    <div
+                      className={clsx(
+                        styles.message,
+                        m.sender_user_id === user?.id && styles.messageMine,
+                        m.is_pinned && styles.messagePinned,
+                      )}
+                      onDoubleClick={(e) => handleDoubleClick(m, e)}
+                      onContextMenu={(e) => handleContextMenu(m, e)}
+                    >
+                      {m.is_pinned && <div className={styles.pinIndicator}><Pin size={10} /> מוצמד</div>}
+                      {m.reply_to_preview && (
+                        <div className={styles.replyPreview}>
+                          <Reply size={10} />
+                          <span>{m.reply_to_preview}</span>
+                        </div>
+                      )}
+                      <div className={styles.msgBubble}>
+                        {m.sender_user_id !== user?.id && (
+                          <div className={styles.msgSender}>{m.sender_name}</div>
+                        )}
+                        {(() => {
+                          const fileInfo = parseFileFromContent(m.content)
+                          if (fileInfo) {
+                            const isImage = fileInfo.content_type?.startsWith('image/')
+                            return (
+                              <div className={styles.fileAttachment}>
+                                <div className={styles.fileIcon}>
+                                  {isImage ? <ImageIcon size={18} /> : <FileText size={18} />}
+                                </div>
+                                <div className={styles.fileInfo}>
+                                  <span className={styles.fileName}>{fileInfo.filename}</span>
+                                  <span className={styles.fileSize}>{formatFileSize(fileInfo.size_bytes)}</span>
+                                </div>
+                                <a
+                                  href={`/api/files/${fileInfo.id}/download`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className={styles.fileDownload}
+                                  onClick={e => e.stopPropagation()}
+                                >
+                                  <Download size={14} />
+                                </a>
+                              </div>
+                            )
+                          }
+                          return <div className={styles.msgContent}>{renderMessageContent(m.content)}</div>
+                        })()}
+                        <div className={styles.msgTime}>
+                          {formatTime(m.created_at)}
+                          {m.sender_user_id === user?.id && (
+                            <span className={styles.msgReadStatus}>
+                              {m.is_read ? <CheckCheck size={14} /> : <Check size={14} />}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </React.Fragment>
+                )
+              })}
               <div ref={messagesEndRef} />
             </div>
 
@@ -703,10 +808,27 @@ export const ChatWidget: FC = () => {
               <input
                 ref={inputRef}
                 className={styles.chatInput}
-                placeholder="הקלד הודעה..."
+                placeholder="הקלד הודעה... (@ לתיוג)"
                 value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
+                onChange={handleInputChange}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    if (showMentionSuggestions && mentionCursorIndex < filteredMembers.length) {
+                      handleSelectMention(filteredMembers[mentionCursorIndex])
+                    } else {
+                      sendMessage()
+                    }
+                  } else if (e.key === 'ArrowDown' && showMentionSuggestions) {
+                    e.preventDefault()
+                    setMentionCursorIndex(prev => Math.min(prev + 1, filteredMembers.length - 1))
+                  } else if (e.key === 'ArrowUp' && showMentionSuggestions) {
+                    e.preventDefault()
+                    setMentionCursorIndex(prev => Math.max(prev - 1, 0))
+                  } else if (e.key === 'Escape') {
+                    setShowMentionSuggestions(false)
+                  }
+                }}
               />
               <button className={styles.emojiToggle} onClick={() => setShowEmoji(v => !v)} title="אימוג'י">
                 <Smile size={18} />
@@ -719,6 +841,30 @@ export const ChatWidget: FC = () => {
                 <Send size={16} />
               </button>
             </div>
+
+            {/* @Mention Autocomplete Dropdown */}
+            {showMentionSuggestions && (
+              <div className={styles.mentionDropdown}>
+                {filteredMembers.length === 0 ? (
+                  <div className={styles.mentionNoResults}>לא נמצאו תוצאות</div>
+                ) : (
+                  filteredMembers.map((member, idx) => (
+                    <div
+                      key={member.id}
+                      className={clsx(styles.mentionItem, idx === mentionCursorIndex && styles.mentionItemActive)}
+                      onClick={() => handleSelectMention(member)}
+                    >
+                      {member.avatar ? (
+                        <img src={member.avatar} alt={member.name} className={styles.mentionAvatar} />
+                      ) : (
+                        <div className={styles.mentionAvatarPlaceholder}>{member.name[0]}</div>
+                      )}
+                      <span className={styles.mentionName}>{member.name}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </>
         )}
       </div>
@@ -740,6 +886,11 @@ export const ChatWidget: FC = () => {
           {isManager && (
             <button onClick={() => togglePin(contextMenu.msg)}>
               <Pin size={13} /> {contextMenu.msg.is_pinned ? 'בטל הצמדה' : 'הצמד'}
+            </button>
+          )}
+          {(contextMenu.msg.sender_user_id === user?.id || user?.is_superuser) && (
+            <button onClick={() => { handleDeleteMessage(contextMenu.msg.id); setContextMenu(null) }}>
+              <Trash2 size={13} /> מחק
             </button>
           )}
         </div>
