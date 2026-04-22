@@ -134,6 +134,8 @@ export const ChatWidget: FC = () => {
     m.name.toLowerCase().includes(mentionQuery.toLowerCase())
   )
 
+  console.log('[Chat] Filtered members:', { threadMembers: threadMembers.length, mentionQuery, filteredMembers: filteredMembers.length, showMentionSuggestions })
+
   // ── Load threads ──
   const loadThreads = useCallback(async () => {
     try {
@@ -161,8 +163,11 @@ export const ChatWidget: FC = () => {
   const loadThreadMembers = useCallback(async (threadId: number) => {
     try {
       const data = await api.get<{id: number, name: string, avatar?: string | null}[]>(`/chat/threads/${threadId}/members`)
+      console.log('[Chat] Loaded thread members:', data)
       setThreadMembers(data)
-    } catch {}
+    } catch (e) {
+      console.error('[Chat] Failed to load thread members:', e)
+    }
   }, [])
 
   // ── WebSocket connection ──
@@ -315,24 +320,29 @@ export const ChatWidget: FC = () => {
     // Find the last @ symbol
     const lastAtIndex = textBeforeCursor.lastIndexOf('@')
 
+    console.log('[Chat] Input change:', { value, lastAtIndex, threadMembers: threadMembers.length })
+
     if (lastAtIndex !== -1) {
       // Check if there's a space after the @ (meaning it's not part of a mention)
       const textAfterAt = textBeforeCursor.substring(lastAtIndex + 1)
       const hasSpaceBeforeAt = lastAtIndex > 0 && textBeforeCursor[lastAtIndex - 1] === ' '
       const hasSpaceAfterAt = textAfterAt.includes(' ')
 
+      console.log('[Chat] @ detected:', { textAfterAt, hasSpaceBeforeAt, hasSpaceAfterAt })
+
       if (!hasSpaceAfterAt && (lastAtIndex === 0 || hasSpaceBeforeAt)) {
         const query = textAfterAt.toLowerCase()
         setMentionQuery(query)
         setShowMentionSuggestions(true)
         setMentionCursorIndex(0)
+        console.log('[Chat] Showing mention suggestions')
         return
       }
     }
 
     setShowMentionSuggestions(false)
     setMentionQuery('')
-  }, [])
+  }, [threadMembers.length])
 
   // ── Handle mention selection ──
   const handleSelectMention = useCallback((member: {id: number, name: string}) => {
@@ -487,6 +497,42 @@ export const ChatWidget: FC = () => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages.length])
+
+  // ── Time format ──
+  const formatTime = (dateStr?: string | null) => {
+    if (!dateStr) return ''
+    try {
+      const d = new Date(dateStr)
+      return d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+    } catch { return '' }
+  }
+
+  const formatDate = (dateStr?: string | null) => {
+    if (!dateStr) return ''
+    const date = new Date(dateStr)
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    if (date.toDateString() === today.toDateString()) {
+      return 'היום'
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return 'אתמול'
+    } else {
+      return date.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit' })
+    }
+  }
+
+  // Render message content with @mentions highlighted in blue
+  const renderMessageContent = (content: string) => {
+    const parts = content.split(/(@\S+)/g)
+    return parts.map((part, idx) => {
+      if (part.startsWith('@')) {
+        return <span key={idx} className={styles.mentionHighlight}>{part}</span>
+      }
+      return part
+    })
+  }
 
   const filteredUsers = availableUsers.filter(u =>
     u.full_name.includes(searchUsers) || u.role_name?.includes(searchUsers)
@@ -840,31 +886,31 @@ export const ChatWidget: FC = () => {
               <button className={styles.sendBtn} onClick={sendMessage} disabled={!input.trim()}>
                 <Send size={16} />
               </button>
-            </div>
 
-            {/* @Mention Autocomplete Dropdown */}
-            {showMentionSuggestions && (
-              <div className={styles.mentionDropdown}>
-                {filteredMembers.length === 0 ? (
-                  <div className={styles.mentionNoResults}>לא נמצאו תוצאות</div>
-                ) : (
-                  filteredMembers.map((member, idx) => (
-                    <div
-                      key={member.id}
-                      className={clsx(styles.mentionItem, idx === mentionCursorIndex && styles.mentionItemActive)}
-                      onClick={() => handleSelectMention(member)}
-                    >
-                      {member.avatar ? (
-                        <img src={member.avatar} alt={member.name} className={styles.mentionAvatar} />
-                      ) : (
-                        <div className={styles.mentionAvatarPlaceholder}>{member.name[0]}</div>
-                      )}
-                      <span className={styles.mentionName}>{member.name}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
+              {/* @Mention Autocomplete Dropdown */}
+              {showMentionSuggestions && (
+                <div className={styles.mentionDropdown}>
+                  {filteredMembers.length === 0 ? (
+                    <div className={styles.mentionNoResults}>לא נמצאו תוצאות</div>
+                  ) : (
+                    filteredMembers.map((member, idx) => (
+                      <div
+                        key={member.id}
+                        className={clsx(styles.mentionItem, idx === mentionCursorIndex && styles.mentionItemActive)}
+                        onClick={() => handleSelectMention(member)}
+                      >
+                        {member.avatar ? (
+                          <img src={member.avatar} alt={member.name} className={styles.mentionAvatar} />
+                        ) : (
+                          <div className={styles.mentionAvatarPlaceholder}>{member.name[0]}</div>
+                        )}
+                        <span className={styles.mentionName}>{member.name}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>

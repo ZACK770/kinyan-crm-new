@@ -465,6 +465,57 @@ async def get_lead_with_history(db: AsyncSession, lead_id: int) -> Lead | None:
     return result.scalar_one_or_none()
 
 
+async def get_lead_with_full_history(db: AsyncSession, lead_id: int) -> dict:
+    """Get a lead with interactions AND history entries combined."""
+    from db.models import HistoryEntry
+    
+    # Get lead with interactions
+    lead = await get_lead_with_history(db, lead_id)
+    if not lead:
+        return None
+    
+    # Get history entries for this lead
+    history_stmt = select(HistoryEntry).where(HistoryEntry.lead_id == lead_id).order_by(HistoryEntry.created_at.desc())
+    history_result = await db.execute(history_stmt)
+    history_entries = list(history_result.scalars().all())
+    
+    # Combine interactions and history entries into a single timeline
+    timeline = []
+    
+    # Add interactions
+    for interaction in lead.interactions or []:
+        timeline.append({
+            "id": f"interaction_{interaction.id}",
+            "type": "interaction",
+            "interaction_type": interaction.interaction_type,
+            "description": interaction.description,
+            "call_status": interaction.call_status,
+            "user_name": interaction.user_name,
+            "created_at": interaction.created_at,
+        })
+    
+    # Add history entries (mapped to interaction format)
+    for entry in history_entries:
+        timeline.append({
+            "id": f"history_{entry.id}",
+            "type": "history",
+            "interaction_type": entry.action_type,
+            "description": entry.description,
+            "call_status": None,
+            "user_name": None,
+            "created_at": entry.created_at,
+            "extra_data": entry.extra_data,
+        })
+    
+    # Sort by created_at
+    timeline.sort(key=lambda x: x["created_at"], reverse=True)
+    
+    return {
+        "lead": lead,
+        "timeline": timeline,
+    }
+
+
 async def list_leads(
     db: AsyncSession,
     status: str | None = None,

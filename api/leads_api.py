@@ -91,9 +91,13 @@ async def get_lead(
     user = Depends(require_entity_access("leads", "view")),
     db: AsyncSession = Depends(get_db)
 ):
-    lead = await lead_svc.get_lead_with_history(db, lead_id)
-    if not lead:
+    result = await lead_svc.get_lead_with_full_history(db, lead_id)
+    if not result:
         raise HTTPException(404, "Lead not found")
+    
+    lead = result["lead"]
+    timeline = result["timeline"]
+    
     return {
         "id": lead.id,
         "full_name": lead.full_name,
@@ -122,17 +126,7 @@ async def get_lead(
         "created_at": str(lead.created_at),
         "updated_at": str(lead.updated_at) if lead.updated_at else None,
         "created_by": lead.created_by,
-        "interactions": [
-            {
-                "id": i.id,
-                "interaction_type": i.interaction_type,
-                "description": i.description,
-                "call_status": i.call_status,
-                "user_name": i.user_name,
-                "created_at": str(i.created_at),
-            }
-            for i in (lead.interactions or [])
-        ],
+        "interactions": timeline,
     }
 
 

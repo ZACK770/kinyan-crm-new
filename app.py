@@ -63,7 +63,6 @@ app.add_middleware(
 )
 
 # --- API Routes ---
-app.include_router(test_netfree_api.router)
 app.include_router(leads_api.router, prefix="/api/leads", tags=["leads"])
 app.include_router(lead_conversion_api.router)  # Lead conversion endpoints (uses /api/leads prefix)
 app.include_router(students_api.router, prefix="/api/students", tags=["students"])
