@@ -3,7 +3,7 @@ Task Scheduler Service - Manages scheduled task-related operations
 Uses the generic SchedulerService for task reminders and daily summaries.
 """
 import logging
-from datetime import datetime, time
+from datetime import datetime, time, timezone, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -23,6 +23,7 @@ async def send_task_reminder_at_due_date(task_id: int):
     Args:
         task_id: ID of the task to send reminder for
     """
+    print(f"[send_task_reminder_at_due_date] Starting for task #{task_id}")
     try:
         async for db in get_async_session():
             from .tasks_email_service import send_task_reminder_email
@@ -51,18 +52,32 @@ async def schedule_task_reminder(task_id: int, due_date: datetime):
     print(f"[schedule_task_reminder] Removing existing job if any")
     scheduler_service.remove_job(job_id)
     
+    # Convert due_date to Asia/Jerusalem timezone if it's naive or in UTC
+    if due_date.tzinfo is None:
+        # Naive datetime - assume it's already in local time (Asia/Jerusalem)
+        # Just add the timezone info without converting
+        due_date_jerusalem = due_date.replace(tzinfo=timezone(timedelta(hours=3)))
+    elif due_date.tzinfo == timezone.utc:
+        # UTC datetime - convert to Asia/Jerusalem
+        due_date_jerusalem = due_date.astimezone(timezone(timedelta(hours=3)))
+    else:
+        # Already has timezone - convert to Asia/Jerusalem if different
+        due_date_jerusalem = due_date.astimezone(timezone(timedelta(hours=3)))
+    
+    print(f"[schedule_task_reminder] Converted due_date to Asia/Jerusalem: {due_date_jerusalem}")
+    
     # Schedule new job
     print(f"[schedule_task_reminder] Scheduling new job")
     try:
         scheduler_service.add_date_job(
             func=send_task_reminder_at_due_date,
             job_id=job_id,
-            run_date=due_date,
+            run_date=due_date_jerusalem,
             args=(task_id,),
-            description=f"Task reminder for task #{task_id} at {due_date}"
+            description=f"Task reminder for task #{task_id} at {due_date_jerusalem}"
         )
         print(f"[schedule_task_reminder] Job scheduled successfully")
-        logger.info(f"[task_scheduler] Scheduled reminder for task #{task_id} at {due_date}")
+        logger.info(f"[task_scheduler] Scheduled reminder for task #{task_id} at {due_date_jerusalem}")
     except Exception as e:
         print(f"[schedule_task_reminder] Error scheduling job: {e}")
         logger.error(f"[task_scheduler] Error scheduling reminder for task #{task_id}: {e}")

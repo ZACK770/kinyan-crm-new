@@ -6,6 +6,7 @@ import { App } from './App'
 import { ToastProvider } from './components/ui/Toast'
 import { ModalProvider } from './components/ui/Modal'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
+import { TaskReminderProvider } from './components/ui/TaskReminderProvider'
 import './styles/globals.css'
 
 // Global version marker - helps verify cache/deployment
@@ -18,7 +19,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <AuthProvider>
           <ToastProvider>
             <ModalProvider>
-              <App />
+              <TaskReminderProvider>
+                <App />
+              </TaskReminderProvider>
             </ModalProvider>
           </ToastProvider>
         </AuthProvider>

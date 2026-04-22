@@ -115,15 +115,29 @@ class SchedulerService:
             description: Human-readable description of the job
         """
         try:
+            # If run_date already has timezone, don't specify timezone in DateTrigger
+            if run_date.tzinfo is not None:
+                trigger = DateTrigger(run_date=run_date)
+                print(f"[scheduler] Adding job {job_id} with timezone-aware run_date: {run_date}")
+            else:
+                trigger = DateTrigger(run_date=run_date, timezone='Asia/Jerusalem')
+                print(f"[scheduler] Adding job {job_id} with naive run_date: {run_date}, using Asia/Jerusalem timezone")
+            
             self.scheduler.add_job(
                 func,
-                DateTrigger(run_date=run_date, timezone='Asia/Jerusalem'),
+                trigger,
                 id=job_id,
                 args=args,
                 kwargs=kwargs,
                 replace_existing=replace_existing,
                 description=description
             )
+            
+            # Log the job's next run time
+            job = self.scheduler.get_job(job_id)
+            if job:
+                print(f"[scheduler] Job {job_id} scheduled, next run time: {job.next_run_time}")
+            
             logger.info(f"[scheduler] Added date job: {job_id} - {run_date}")
         except Exception as e:
             logger.error(f"[scheduler] Failed to add date job {job_id}: {e}")

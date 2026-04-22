@@ -918,12 +918,30 @@ export function LeadsPage() {
       renderView: r => {
         if (!r.interactions || r.interactions.length === 0) return '—'
         const last = r.interactions[r.interactions.length - 1]
+
+        // Translate interaction types to Hebrew
+        const typeTranslations: Record<string, string> = {
+          'call': 'שיחה',
+          'ivr_call': 'שיחת IVR',
+          'website_form': 'טופס אתר',
+          'outbound_call': 'שיחה יוצאת',
+          'whatsapp': 'וואטסאפ',
+          'email': 'מייל',
+          'generic': 'פעילות',
+          'sms': 'SMS',
+        }
+
+        // If description exists, show it directly (manual interaction)
+        // Otherwise show the interaction type
+        const typeText = typeTranslations[last.interaction_type] || last.interaction_type
+
         return (
-          <div 
-            style={{ display: 'flex', flexDirection: 'column', gap: 2, cursor: 'help' }}
-            title={last.description || 'אין תיאור'}
-          >
-            <span style={{ fontSize: 12, fontWeight: 500 }}>{last.interaction_type}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {last.description ? (
+              <span style={{ fontSize: 12, fontWeight: 500 }}>{last.description}</span>
+            ) : (
+              <span style={{ fontSize: 12, fontWeight: 500 }}>{typeText}</span>
+            )}
             <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{formatDateTime(last.interaction_date || last.created_at)}</span>
           </div>
         )

@@ -25,6 +25,7 @@ async def send_task_reminder_email(
     Returns:
         True if email sent successfully, False otherwise
     """
+    print(f"[send_task_reminder_email] Starting for task #{task_id}")
     # Get task with salesperson
     stmt = (
         select(SalesTask)

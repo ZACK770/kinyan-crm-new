@@ -541,10 +541,15 @@ async def list_leads(
     offset: int = 0,
 ) -> list[Lead]:
     """List leads with optional filters. Loads only the last interaction for performance."""
-    # Load leads with their last interaction only (not all interactions for performance)
+    from db.models import LeadInteraction
+    from sqlalchemy.orm import joinedload
+
+    # Load leads with their interactions
     stmt = (
         select(Lead)
-        .options(selectinload(Lead.interactions))
+        .options(
+            joinedload(Lead.interactions)
+        )
         .order_by(Lead.created_at.desc())
         .limit(limit)
         .offset(offset)
@@ -556,14 +561,13 @@ async def list_leads(
         stmt = stmt.where(Lead.salesperson_id == salesperson_id)
 
     result = await db.execute(stmt)
-    leads = list(result.scalars().all())
+    leads = list(result.unique().scalars().all())
 
     # Filter to keep only the last interaction for each lead
     for lead in leads:
-        if lead.interactions:
-            # Sort interactions by created_at (most recent first)
-            lead.interactions.sort(key=lambda x: x.created_at or x.interaction_date, reverse=True)
-            # Keep only the last interaction (most recent)
+        if lead.interactions and len(lead.interactions) > 0:
+            # Sort interactions by created_at desc and keep only the first
+            lead.interactions.sort(key=lambda x: x.created_at, reverse=True)
             lead.interactions = [lead.interactions[0]]
 
     return leads

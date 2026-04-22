@@ -386,7 +386,12 @@ async def add_interaction(
     user = Depends(require_entity_access("leads", "edit")),
     db: AsyncSession = Depends(get_db)
 ):
-    interaction = await lead_svc.add_interaction(db, lead_id, **data.model_dump())
+    # Pass user_name from authenticated user if not provided
+    interaction_data = data.model_dump()
+    if not interaction_data.get("user_name") and user:
+        interaction_data["user_name"] = user.full_name
+    
+    interaction = await lead_svc.add_interaction(db, lead_id, **interaction_data)
     await db.commit()
     return {"id": interaction.id}
 

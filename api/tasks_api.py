@@ -426,3 +426,56 @@ async def get_popup_notifications(
     }
 
 
+@router.get("/due-reminders")
+async def get_due_reminders(
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get tasks that are due now and have send_reminder=True.
+    Used for popup notifications in the frontend.
+    """
+    from db.models import Salesperson
+    from datetime import datetime, timezone, timedelta
+    
+    user_id = user.id if user else None
+    if not user_id:
+        return []
+    
+    # Find salesperson linked to this user
+    sp_result = await db.execute(
+        select(Salesperson.id).where(Salesperson.user_id == user_id)
+    )
+    salesperson_id = sp_result.scalar_one_or_none()
+    
+    if not salesperson_id:
+        return []
+    
+    # Get tasks for this salesperson with send_reminder=True and due_date <= now
+    items = await task_svc.list_tasks(
+        db,
+        salesperson_id=salesperson_id,
+        limit=50,
+    )
+    
+    # Filter for due tasks with reminders
+    now = datetime.now(timezone.utc)
+    due_tasks = [
+        t for t in items 
+        if t.send_reminder 
+        and t.due_date 
+        and t.due_date <= now
+        and t.status not in ["הושלם", "בוטל"]
+    ]
+    
+    return [
+        {
+            "id": t.id,
+            "title": t.title,
+            "description": t.description,
+            "due_date": t.due_date.isoformat() if t.due_date else None,
+        }
+        for t in due_tasks
+    ]
+
+
