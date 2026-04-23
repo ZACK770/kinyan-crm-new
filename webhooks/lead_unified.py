@@ -46,7 +46,27 @@ def detect_source(data: dict) -> str:
     
     # WhatsApp: Green-API has typeWebhook or senderData
     if "typeWebhook" in data or "senderData" in data:
-        return "whatsapp"
+        # Green-API sometimes wraps in an array even if not detected by _unwrap_array
+        if isinstance(data, list) and len(data) > 0:
+            data = data[0]
+        
+        # If it's a quote/reply, the text might be in quotedMessage
+        message_data = data.get("messageData", {})
+        text_data = message_data.get("textMessageData", {})
+        text = text_data.get("textMessage")
+        
+        # Fallback for extendedTextMessage (links/replies)
+        if not text:
+            extended_data = message_data.get("extendedTextMessageData", {})
+            text = extended_data.get("text")
+            
+        if text:
+            return "whatsapp"
+        
+        # If we have senderData but no text yet, it might be a different message type
+        # We still want to label it as whatsapp if it has the structure
+        if "senderData" in data:
+            return "whatsapp"
     
     # Generic fallback
     return "generic"

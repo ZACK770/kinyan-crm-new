@@ -26,8 +26,23 @@ def parse_whatsapp_payload(data: dict) -> dict:
     """
     sender_data = data.get("senderData", {})
     message_data = data.get("messageData", {})
-    text_data = message_data.get("textMessageData", {})
     
+    # Try different text fields in Green-API payload
+    text = ""
+    
+    # 1. Standard text message
+    text_data = message_data.get("textMessageData", {})
+    text = text_data.get("textMessage", "")
+    
+    # 2. Extended text message (links, quotes, etc)
+    if not text:
+        extended_data = message_data.get("extendedTextMessageData", {})
+        text = extended_data.get("text", "")
+        
+    # 3. Caption (for images/files)
+    if not text:
+        text = message_data.get("caption", "")
+
     # Extract phone and strip @c.us suffix
     sender = sender_data.get("sender", "")
     phone = sender.split("@")[0] if "@" in sender else sender
@@ -37,9 +52,9 @@ def parse_whatsapp_payload(data: dict) -> dict:
         "phone": phone,
         "source_type": "whatsapp",
         "source_name": "whatsapp",
-        "source_message": text_data.get("textMessage", ""),
+        "source_message": text,
         "interaction_type": "whatsapp_message",
-        "description": text_data.get("textMessage", "")
+        "description": text if text else "הודעת וואטסאפ (ללא טקסט)"
     }
 
 async def handle_whatsapp_webhook(data: dict) -> dict:
