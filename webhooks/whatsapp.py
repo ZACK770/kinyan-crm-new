@@ -38,7 +38,8 @@ def parse_whatsapp_payload(data: dict) -> dict:
         "source_type": "whatsapp",
         "source_name": "whatsapp",
         "source_message": text_data.get("textMessage", ""),
-        "interaction_type": "whatsapp_message"
+        "interaction_type": "whatsapp_message",
+        "description": text_data.get("textMessage", "")
     }
 
 async def handle_whatsapp_webhook(data: dict) -> dict:
