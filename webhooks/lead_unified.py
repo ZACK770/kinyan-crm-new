@@ -13,6 +13,7 @@ import logging
 
 from webhooks.elementor import parse_elementor_payload
 from webhooks.yemot import parse_yemot_payload
+from webhooks.whatsapp import parse_whatsapp_payload
 from webhooks.generic import parse_generic_payload
 from db import get_db
 from services.leads import process_incoming_lead
@@ -43,6 +44,10 @@ def detect_source(data: dict) -> str:
     if any(k in data for k in yemot_keys):
         return "yemot"
     
+    # WhatsApp: Green-API has typeWebhook or senderData
+    if "typeWebhook" in data or "senderData" in data:
+        return "whatsapp"
+    
     # Generic fallback
     return "generic"
 
@@ -53,6 +58,8 @@ def parse_by_source(data: dict, source: str) -> dict:
         return parse_elementor_payload(data)
     elif source == "yemot":
         return parse_yemot_payload(data)
+    elif source == "whatsapp":
+        return parse_whatsapp_payload(data)
     else:
         return parse_generic_payload(data)
 
