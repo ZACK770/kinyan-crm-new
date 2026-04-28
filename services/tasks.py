@@ -264,12 +264,14 @@ async def get_task_notifications(
 # ============================================================
 async def get_task_metrics(db: AsyncSession) -> dict:
     """Get aggregated task metrics for the dashboard."""
+    print("[DEBUG] get_task_metrics service started")
     from db.models import Salesperson, User
     from sqlalchemy import case, literal_column
 
     now = datetime.now(timezone.utc)
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
+    print("[DEBUG] Getting tasks by status")
     # Total tasks by status
     status_stmt = (
         select(
@@ -280,6 +282,7 @@ async def get_task_metrics(db: AsyncSession) -> dict:
     )
     status_result = await db.execute(status_stmt)
     by_status = {row.status: row.count for row in status_result}
+    print(f"[DEBUG] by_status: {by_status}")
 
     # Tasks by user (assigned_to_user_id) - only open tasks
     user_stmt = (

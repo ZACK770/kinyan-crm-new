@@ -500,6 +500,15 @@ async def get_task_metrics(
     Get aggregated task metrics for the dashboard.
     Returns statistics by status, user, salesperson, priority, type, and more.
     """
-    return await task_svc.get_task_metrics(db)
+    print("[DEBUG] get_task_metrics called")
+    try:
+        result = await task_svc.get_task_metrics(db)
+        print(f"[DEBUG] get_task_metrics returned: {result}")
+        return result
+    except Exception as e:
+        print(f"[DEBUG] Error in get_task_metrics: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
