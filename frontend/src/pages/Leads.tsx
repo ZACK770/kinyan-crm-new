@@ -491,11 +491,28 @@ export function LeadsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
 
   // Auto-open create form when ?create=true (from entity '+' button)
+  // Auto-open lead when ?id=X (from task click)
   useEffect(() => {
-    if (searchParams.get('create') === 'true') {
+    const createParam = searchParams.get('create')
+    const idParam = searchParams.get('id')
+    
+    if (createParam === 'true') {
       setViewMode('create')
       setSelectedLead(null)
       setSearchParams({}, { replace: true })
+    } else if (idParam) {
+      // Load and open the specific lead
+      const loadLead = async () => {
+        try {
+          const lead = await api.get<Lead>(`leads/${idParam}`)
+          setSelectedLead(lead)
+          setViewMode('list')  // Not 'create' — we have a selected lead
+          setSearchParams({}, { replace: true })
+        } catch {
+          toast.error('שגיאה בטעינת פרטי ליד')
+        }
+      }
+      loadLead()
     }
   }, [searchParams, setSearchParams])
 

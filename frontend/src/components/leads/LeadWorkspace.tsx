@@ -1,27 +1,22 @@
 import { useState, useCallback, useEffect, useMemo, type ReactNode, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useToast } from '@/components/ui/Toast'
 import {
-  MessageSquarePlus,
-  UserCheck,
-  ArrowLeft,
-  CreditCard,
-  ListTodo,
-  MessageCircle,
-  History,
-  Save,
-  ChevronDown,
+  Phone,
   Mail,
-  Send,
-  CheckCircle2,
-  XCircle,
-  Upload,
-  FileText,
+  MapPin,
+  User,
+  Calendar,
+  CreditCard,
+  History,
+  MessageCircle,
+  ListTodo,
   X,
-  Paperclip,
-  Clock,
-  CheckCircle,
-  Trash2,
-  ShieldAlert,
+  Check,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  Plus,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, formatDateTime } from '@/lib/status'
@@ -124,6 +119,16 @@ export function LeadWorkspace({
   const [activeTab, setActiveTab] = useState<TabId>('interactions')
   const [isSaving, setIsSaving] = useState(false)
   const { confirm } = useModal()
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Auto-switch tab based on URL param
+  useEffect(() => {
+    const tabParam = searchParams.get('tab')
+    if (tabParam && ['interactions', 'tasks', 'payments', 'conversion', 'inquiries', 'emails'].includes(tabParam)) {
+      setActiveTab(tabParam as TabId)
+      setSearchParams({}, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   // Local copy of lead — updated immediately from PATCH response
   // Prevents stale display values while parent async-refreshes

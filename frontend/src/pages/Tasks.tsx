@@ -129,9 +129,9 @@ export function TasksPage() {
   const backToList = () => setViewMode('list')
 
   const handleRowClick = (task: SalesTask) => {
-    // If task is linked to a lead, navigate to lead with tasks tab
+    // If task is linked to a lead, navigate to leads page with lead ID and tasks tab
     if (task.lead_id) {
-      navigate(`/leads/${task.lead_id}?tab=tasks`)
+      navigate(`/leads?id=${task.lead_id}&tab=tasks`)
     } else {
       toast.info('משימה זו לא מקושרת לליד')
     }
