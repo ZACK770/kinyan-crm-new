@@ -833,6 +833,7 @@ class SalesTask(Base):
 
     salesperson: Mapped[Optional["Salesperson"]] = relationship(back_populates="tasks")
     assigned_to_user: Mapped[Optional["User"]] = relationship(foreign_keys=[assigned_to_user_id])
+    lead: Mapped[Optional["Lead"]] = relationship(foreign_keys=[lead_id])
     reports: Mapped[List["TaskReport"]] = relationship(back_populates="task", cascade="all, delete-orphan")
 
 
