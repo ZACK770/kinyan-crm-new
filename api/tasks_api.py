@@ -493,7 +493,7 @@ async def get_due_reminders(
 # ── Metrics Dashboard ───────────────────────────────────────
 @router.get("/metrics")
 async def get_task_metrics(
-    user=Depends(require_entity_access("tasks", "view")),
+    user=Depends(require_permission("viewer")),
     db: AsyncSession = Depends(get_db),
 ):
     """
