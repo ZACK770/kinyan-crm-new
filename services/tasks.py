@@ -28,7 +28,11 @@ async def list_tasks(
     limit: int = 200,
     offset: int = 0,
 ) -> list[SalesTask]:
-    stmt = select(SalesTask).options(selectinload(SalesTask.reports))
+    from db.models import Lead
+    stmt = select(SalesTask).options(
+        selectinload(SalesTask.reports),
+        selectinload(SalesTask.lead)
+    )
 
     if status:
         stmt = stmt.where(SalesTask.status == status)

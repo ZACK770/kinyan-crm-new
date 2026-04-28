@@ -152,7 +152,7 @@ export function TasksPage() {
 
   useEffect(() => { fetchTasks() }, [fetchTasks])
   useEffect(() => {
-    api.get<Salesperson[]>('dashboard/salespeople').catch(() => []).then(data => {
+    api.get<Salesperson[]>('dashboard/salespeople/list').catch(() => []).then(data => {
       if (Array.isArray(data)) setSalespersons(data as Salesperson[])
     })
   }, [])
@@ -207,6 +207,31 @@ export function TasksPage() {
       filterable: true,
     },
     {
+      key: 'lead.full_name',
+      header: 'שם ליד',
+      type: 'text',
+      renderView: r => (r as any).lead?.full_name ?? '—',
+      sortable: false,
+      filterable: true,
+    },
+    {
+      key: 'lead.phone',
+      header: 'טלפון ליד',
+      type: 'text',
+      renderView: r => (r as any).lead?.phone ?? '—',
+      sortable: false,
+      filterable: true,
+    },
+    {
+      key: 'lead.email',
+      header: 'מייל ליד',
+      type: 'text',
+      renderView: r => (r as any).lead?.email ?? '—',
+      sortable: false,
+      filterable: true,
+      hiddenByDefault: true,
+    },
+    {
       key: 'due_date',
       header: 'יעד',
       type: 'datetime',
@@ -217,13 +242,12 @@ export function TasksPage() {
     },
     {
       key: 'created_at',
-      header: 'נוצר',
+      header: 'תאריך יצירה',
       type: 'datetime',
       renderView: r => formatDate(r.created_at),
       className: s.muted,
       sortable: true,
       filterable: true,
-      hiddenByDefault: true,
     },
   ]
 

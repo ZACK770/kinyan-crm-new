@@ -60,6 +60,16 @@ def _task_to_dict(t) -> dict:
     reports_data = []  # Don't lazy load in async context
     print(f"[_task_to_dict] Task #{t.id} converted successfully")
 
+    # Extract lead details if available
+    lead_data = None
+    if hasattr(t, 'lead') and t.lead:
+        lead_data = {
+            "id": t.lead.id,
+            "full_name": t.lead.full_name,
+            "phone": t.lead.phone,
+            "email": t.lead.email,
+        }
+
     return {
         "id": t.id,
         "title": t.title,
@@ -78,6 +88,7 @@ def _task_to_dict(t) -> dict:
         "created_at": str(t.created_at) if t.created_at else None,
         "completed_at": str(t.completed_at) if t.completed_at else None,
         "reports": reports_data,
+        "lead": lead_data,
     }
 
 

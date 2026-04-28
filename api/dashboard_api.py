@@ -65,7 +65,7 @@ async def salespeople_stats(
     user = Depends(require_permission("manager")),
     db: AsyncSession = Depends(get_db)
 ):
-    """Per-salesperson stats."""
+    """Per-salesperson stats (manager only)."""
     people = await sales_svc.get_active_salespeople(db)
     result = []
     for sp in people:
@@ -78,6 +78,25 @@ async def salespeople_stats(
             "open_tasks": len(dashboard["open_tasks"]),
         })
     return result
+
+
+@router.get("/salespeople/list")
+async def salespeople_list(
+    user = Depends(require_permission("viewer")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Simple list of all salespeople (viewer permission)."""
+    people = await sales_svc.get_all_salespeople(db)
+    return [
+        {
+            "id": sp.id,
+            "name": sp.name,
+            "email": sp.email,
+            "phone": sp.phone,
+            "is_active": sp.is_active,
+        }
+        for sp in people
+    ]
 
 
 @router.get("/advanced")
