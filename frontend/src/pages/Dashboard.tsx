@@ -120,7 +120,7 @@ export const Dashboard: FC = () => {
       try {
         const result = await api.get<{ tasks: any[]; count: number }>('/api/tasks/popup-notifications')
         if (result.count > 0 && !taskNotificationShown) {
-          toast.info(`יש לך ${result.count} משימות פתוחות. לחץ כאן לצפייה`, {
+          toast.info(`יש לך ${result.count} משימות פתוחות. לחץ כאן לצפייה`, undefined, {
             duration: 5000,
             onClick: () => {
               window.location.href = '/tasks'
