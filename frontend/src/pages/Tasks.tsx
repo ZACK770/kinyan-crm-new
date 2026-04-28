@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, CheckSquare, ArrowRight } from 'lucide-react'
+import { Plus, CheckSquare, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, getPriority, formatDate } from '@/lib/status'
 import { useToast } from '@/components/ui/Toast'
 import { SmartTable, type SmartColumn } from '@/components/ui/SmartTable'
+import { TaskMetricsDashboard } from '@/components/ui/TaskMetricsDashboard'
 import type { SalesTask, Salesperson } from '@/types'
 import s from '@/styles/shared.module.css'
 
@@ -122,6 +123,11 @@ export function TasksPage() {
   const [salespersons, setSalespersons] = useState<Salesperson[]>([])
   const [loading, setLoading] = useState(true)
 
+  // Metrics dashboard state
+  const [showMetrics, setShowMetrics] = useState(false)
+  const [metricsData, setMetricsData] = useState<any>(null)
+  const [metricsLoading, setMetricsLoading] = useState(false)
+
   // Workspace view state
   type ViewMode = 'list' | 'create'
   const [viewMode, setViewMode] = useState<ViewMode>('list')
@@ -159,6 +165,21 @@ export function TasksPage() {
 
   const openCreate = () => {
     setViewMode('create')
+  }
+
+  const toggleMetrics = async () => {
+    if (!showMetrics && !metricsData) {
+      setMetricsLoading(true)
+      try {
+        const data = await api.get('tasks/metrics')
+        setMetricsData(data)
+      } catch (err: unknown) {
+        toast.error('שגיאה בטעינת מטריקות')
+      } finally {
+        setMetricsLoading(false)
+      }
+    }
+    setShowMetrics(!showMetrics)
   }
 
   const columns: SmartColumn<SalesTask>[] = [
@@ -286,11 +307,26 @@ export function TasksPage() {
       <div className={s['page-header']}>
         <h1 className={s['page-title']}>משימות</h1>
         <div className={s['page-actions']}>
+          <button
+            className={`${s.btn} ${s['btn-secondary']}`}
+            onClick={toggleMetrics}
+            style={{ marginLeft: 8 }}
+          >
+            {showMetrics ? <ChevronUp size={16} strokeWidth={1.5} /> : <ChevronDown size={16} strokeWidth={1.5} />}
+            {showMetrics ? 'הסתר מטריקות' : 'הצג מטריקות'}
+          </button>
           <button className={`${s.btn} ${s['btn-primary']}`} onClick={openCreate}>
             <Plus size={16} strokeWidth={1.5} /> משימה חדשה
           </button>
         </div>
       </div>
+
+      {/* Metrics Dashboard */}
+      {showMetrics && (
+        <div className={s.card} style={{ padding: 24, marginBottom: 16 }}>
+          <TaskMetricsDashboard data={metricsData} loading={metricsLoading} />
+        </div>
+      )}
 
       <div className={s.card}>
         <SmartTable

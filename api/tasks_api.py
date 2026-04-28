@@ -448,37 +448,37 @@ async def get_due_reminders(
     """
     from db.models import Salesperson
     from datetime import datetime, timezone, timedelta
-    
+
     user_id = user.id if user else None
     if not user_id:
         return []
-    
+
     # Find salesperson linked to this user
     sp_result = await db.execute(
         select(Salesperson.id).where(Salesperson.user_id == user_id)
     )
     salesperson_id = sp_result.scalar_one_or_none()
-    
+
     if not salesperson_id:
         return []
-    
+
     # Get tasks for this salesperson with send_reminder=True and due_date <= now
     items = await task_svc.list_tasks(
         db,
         salesperson_id=salesperson_id,
         limit=50,
     )
-    
+
     # Filter for due tasks with reminders
     now = datetime.now(timezone.utc)
     due_tasks = [
-        t for t in items 
-        if t.send_reminder 
-        and t.due_date 
+        t for t in items
+        if t.send_reminder
+        and t.due_date
         and t.due_date <= now
         and t.status not in ["הושלם", "בוטל"]
     ]
-    
+
     return [
         {
             "id": t.id,
@@ -488,5 +488,18 @@ async def get_due_reminders(
         }
         for t in due_tasks
     ]
+
+
+# ── Metrics Dashboard ───────────────────────────────────────
+@router.get("/metrics")
+async def get_task_metrics(
+    user=Depends(require_entity_access("tasks", "view")),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get aggregated task metrics for the dashboard.
+    Returns statistics by status, user, salesperson, priority, type, and more.
+    """
+    return await task_svc.get_task_metrics(db)
 
 
