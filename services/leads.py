@@ -430,8 +430,37 @@ async def process_incoming_lead(db: AsyncSession, **kwargs) -> dict:
         
         # Update salesperson if explicitly provided (e.g., from Yemot Folder routing)
         if kwargs.get("salesperson_id"):
-            existing.salesperson_id = kwargs["salesperson_id"]
-            await db.flush()
+            old_sp_id = existing.salesperson_id
+            new_sp_id = kwargs["salesperson_id"]
+            
+            if old_sp_id != new_sp_id:
+                # Get salesperson names for the history log
+                old_sp_name = ""
+                new_sp_name = ""
+                
+                if old_sp_id:
+                    old_sp_stmt = select(Salesperson).where(Salesperson.id == old_sp_id)
+                    old_sp_result = await db.execute(old_sp_stmt)
+                    old_sp = old_sp_result.scalar_one_or_none()
+                    old_sp_name = old_sp.name if old_sp else f"ID {old_sp_id}"
+                
+                if new_sp_id:
+                    new_sp_stmt = select(Salesperson).where(Salesperson.id == new_sp_id)
+                    new_sp_result = await db.execute(new_sp_stmt)
+                    new_sp = new_sp_result.scalar_one_or_none()
+                    new_sp_name = new_sp.name if new_sp else f"ID {new_sp_id}"
+                
+                # Update the salesperson
+                existing.salesperson_id = new_sp_id
+                await db.flush()
+                
+                # Add interaction to history
+                await add_interaction(
+                    db,
+                    existing.id,
+                    interaction_type="salesperson_change",
+                    description=f"איש מכירות עודכן מ '{old_sp_name}' ל '{new_sp_name}' (וובהוק)"
+                )
         
         await db.commit()
         return {
