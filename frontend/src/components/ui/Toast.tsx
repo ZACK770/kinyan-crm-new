@@ -26,13 +26,19 @@ interface ToastItem {
   message?: string
   duration: number
   exiting?: boolean
+  onClick?: () => void
+}
+
+interface ToastOptions {
+  duration?: number
+  onClick?: () => void
 }
 
 interface ToastContextType {
-  success: (title: string, message?: string) => void
-  error: (title: string, message?: string) => void
-  warning: (title: string, message?: string) => void
-  info: (title: string, message?: string) => void
+  success: (title: string, message?: string, options?: ToastOptions) => void
+  error: (title: string, message?: string, options?: ToastOptions) => void
+  warning: (title: string, message?: string, options?: ToastOptions) => void
+  info: (title: string, message?: string, options?: ToastOptions) => void
 }
 
 const ToastContext = createContext<ToastContextType | null>(null)
@@ -84,11 +90,19 @@ const ToastItemComponent: FC<{
 
   const Icon = ICONS[item.type]
 
+  const handleClick = () => {
+    if (item.onClick) {
+      item.onClick()
+    }
+    onDismiss(item.id)
+  }
+
   return (
     <div
       className={clsx(styles.toast, styles[item.type], item.exiting && styles.exiting)}
-      onClick={() => onDismiss(item.id)}
+      onClick={handleClick}
       role="alert"
+      style={item.onClick ? { cursor: 'pointer' } : undefined}
     >
       <div className={styles.icon}>
         <Icon size={18} strokeWidth={1.5} />
@@ -114,10 +128,10 @@ export const ToastProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<ToastItem[]>([])
   const idRef = useRef(0)
 
-  const addToast = useCallback((type: ToastType, title: string, message?: string) => {
+  const addToast = useCallback((type: ToastType, title: string, message?: string, options?: ToastOptions) => {
     const id = `toast-${++idRef.current}`
-    const duration = DURATIONS[type]
-    const newToast: ToastItem = { id, type, title, message, duration }
+    const duration = options?.duration ?? DURATIONS[type]
+    const newToast: ToastItem = { id, type, title, message, duration, onClick: options?.onClick }
 
     setToasts((prev) => {
       const next = [newToast, ...prev]
@@ -143,10 +157,10 @@ export const ToastProvider: FC<{ children: ReactNode }> = ({ children }) => {
   // Without useMemo, ctx changes every render, causing useCallback deps to change,
   // which triggers useEffect, which fetches, which on error shows toast, which re-renders...
   const ctx: ToastContextType = useMemo(() => ({
-    success: (title, message) => addToast('success', title, message),
-    error: (title, message) => addToast('error', title, message),
-    warning: (title, message) => addToast('warning', title, message),
-    info: (title, message) => addToast('info', title, message),
+    success: (title, message, options) => addToast('success', title, message, options),
+    error: (title, message, options) => addToast('error', title, message, options),
+    warning: (title, message, options) => addToast('warning', title, message, options),
+    info: (title, message, options) => addToast('info', title, message, options),
   }), [addToast])
 
   return (
