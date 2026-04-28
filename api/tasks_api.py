@@ -511,5 +511,84 @@ async def send_daily_summary_all(
     return result
 
 
+# ── Bulk Operations ───────────────────────────────────────
+class BulkUpdateRequest(BaseModel):
+    ids: list[int]
+    field: str
+    value: str | int | float | bool | None = None
+
+
+class BulkDeleteRequest(BaseModel):
+    ids: list[int]
+
+
+@router.post("/bulk-update")
+async def bulk_update_tasks(
+    data: BulkUpdateRequest,
+    request: Request,
+    user=Depends(require_entity_access("tasks", "edit")),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update multiple tasks' fields at once.
+    """
+    try:
+        count = await task_svc.bulk_update_tasks(db, data.ids, data.field, data.value)
+        await db.commit()
+        
+        # Log bulk update
+        await audit_logs.log_update(
+            db=db,
+            user=user,
+            entity_type="tasks",
+            entity_id=None,
+            description=f"עדכון גורף של {count} משימות: {data.field}={data.value}",
+            changes={"ids": data.ids, "field": data.field, "value": data.value},
+            request=request,
+        )
+        
+        return {"updated": count}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(500, str(e))
+
+
+@router.post("/bulk-delete")
+async def bulk_delete_tasks(
+    data: BulkDeleteRequest,
+    request: Request,
+    user=Depends(require_entity_access("tasks", "delete")),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Delete multiple tasks by their IDs.
+    Requires delete permission on tasks entity.
+    """
+    try:
+        result = await task_svc.bulk_delete_tasks(db, data.ids)
+        
+        if not result["success"]:
+            raise HTTPException(400, result.get("error", "Bulk delete failed"))
+        
+        await db.commit()
+        
+        # Log bulk deletion
+        await audit_logs.log_delete(
+            db=db,
+            user=user,
+            entity_type="tasks",
+            entity_id=None,  # Multiple entities
+            description=f"מחיקה קבוצתית של {result['deleted_count']} משימות: {data.ids}",
+            request=request,
+        )
+        
+        return result
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(500, str(e))
+
+
 
 

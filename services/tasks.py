@@ -203,6 +203,55 @@ async def delete_task(db: AsyncSession, task_id: int) -> bool:
 
 
 # ============================================================
+# Bulk Operations
+# ============================================================
+async def bulk_update_tasks(db: AsyncSession, task_ids: list[int], field: str, value: any) -> int:
+    """
+    Update a specific field for multiple tasks.
+    """
+    if not task_ids:
+        return 0
+    
+    allowed = {
+        "status": ALLOWED_TASK_STATUSES,
+        "priority": None,  # numeric, no validation needed
+        "salesperson_id": None,
+        "assigned_to_user_id": None,
+    }
+    
+    if field not in allowed:
+        raise ValueError(f"Field '{field}' is not allowed for bulk update")
+    
+    if allowed[field] is not None and value not in allowed[field]:
+        raise ValueError(f"Value '{value}' is not allowed for field '{field}'")
+    
+    from sqlalchemy import update as sa_update
+    stmt = sa_update(SalesTask).where(SalesTask.id.in_(task_ids)).values({field: value})
+    result = await db.execute(stmt)
+    return result.rowcount
+
+
+async def bulk_delete_tasks(db: AsyncSession, task_ids: list[int]) -> dict:
+    """
+    Delete multiple tasks by their IDs.
+    """
+    from sqlalchemy import delete as sa_delete
+    
+    if not task_ids:
+        return {"success": True, "deleted_count": 0}
+    
+    # Delete task reports first
+    await db.execute(sa_delete(TaskReport).where(TaskReport.task_id.in_(task_ids)))
+    
+    # Delete tasks
+    stmt = sa_delete(SalesTask).where(SalesTask.id.in_(task_ids))
+    result = await db.execute(stmt)
+    deleted_count = result.rowcount
+    
+    return {"success": True, "deleted_count": deleted_count}
+
+
+# ============================================================
 # Task Reports
 # ============================================================
 async def add_report(db: AsyncSession, task_id: int, **kwargs) -> TaskReport:

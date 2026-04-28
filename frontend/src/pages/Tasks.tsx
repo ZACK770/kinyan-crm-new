@@ -156,6 +156,29 @@ export function TasksPage() {
     }
   }, [])
 
+  /* ── Bulk Actions ── */
+  const handleBulkUpdate = async (selectedTasks: SalesTask[], field: string, value: unknown) => {
+    try {
+      const ids = selectedTasks.map(t => t.id)
+      await api.post('tasks/bulk-update', { ids, field, value })
+      toast.success(`עודכנו ${ids.length} משימות`)
+      fetchTasks()
+    } catch (err) {
+      toast.error('שגיאה בעדכון מרובה')
+    }
+  }
+
+  const handleBulkDelete = async (selectedTasks: SalesTask[]) => {
+    try {
+      const ids = selectedTasks.map(t => t.id)
+      await api.post('tasks/bulk-delete', { ids })
+      toast.success(`נמחקו ${ids.length} משימות`)
+      fetchTasks()
+    } catch (err) {
+      toast.error('שגיאה במחיקה')
+    }
+  }
+
   useEffect(() => { fetchTasks() }, [fetchTasks])
   useEffect(() => {
     api.get<Salesperson[]>('dashboard/salespeople/list').catch(() => []).then(data => {
@@ -337,6 +360,8 @@ export function TasksPage() {
           emptyIcon={<CheckSquare size={40} strokeWidth={1.5} />}
           keyExtractor={r => r.id}
           onRowClick={handleRowClick}
+          onBulkUpdate={handleBulkUpdate}
+          onDelete={handleBulkDelete}
           storageKey="tasks_table_v1"
           searchPlaceholder="חיפוש לפי כותרת..."
           searchFields={[
