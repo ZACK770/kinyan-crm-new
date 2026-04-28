@@ -140,9 +140,8 @@ export function TasksPage() {
   const fetchTasks = useCallback(async () => {
     setLoading(true)
     try {
-      // Tasks may be returned through dashboard salespeople endpoint or a dedicated one
-      // For now we attempt to get from a general tasks endpoint
-      const data = await api.get<SalesTask[]>('leads/tasks').catch(() => [] as SalesTask[])
+      // Get tasks from the dedicated tasks endpoint
+      const data = await api.get<SalesTask[]>('tasks/').catch(() => [] as SalesTask[])
       setTasks(data)
     } catch {
       setTasks([])
@@ -245,7 +244,7 @@ export function TasksPage() {
             salespersons={salespersons}
             onSubmit={async data => {
               try {
-                await api.post('leads/tasks', data)
+                await api.post('tasks/', data)
                 toast.success('משימה נוצרה')
                 fetchTasks()
                 backToList()

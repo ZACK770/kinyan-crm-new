@@ -43,7 +43,8 @@ async def list_tasks(
     if task_type:
         stmt = stmt.where(SalesTask.task_type == task_type)
 
-    stmt = stmt.order_by(SalesTask.created_at.desc()).offset(offset).limit(limit)
+    # Default sort: due_date ascending (tasks due soonest first), then created_at descending
+    stmt = stmt.order_by(SalesTask.due_date.asc().nulls_last(), SalesTask.created_at.desc()).offset(offset).limit(limit)
     result = await db.execute(stmt)
     return list(result.scalars().all())
 
