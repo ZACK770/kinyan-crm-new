@@ -144,6 +144,123 @@ async def task_notifications(
     return await task_svc.get_task_notifications(db, user_id, salesperson_id)
 
 
+# ── Popup Notifications ───────────────────────────────────
+@router.get("/popup-notifications")
+async def get_popup_notifications(
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get open tasks for the current user (salesperson) to show as popup notification.
+    Returns tasks with status 'חדש' or 'בטיפול' assigned to this user.
+    """
+    from db.models import Salesperson
+
+    user_id = user.id if user else None
+    if not user_id:
+        return {"tasks": [], "count": 0}
+
+    # Find salesperson linked to this user
+    sp_result = await db.execute(
+        select(Salesperson.id).where(Salesperson.user_id == user_id)
+    )
+    salesperson_id = sp_result.scalar_one_or_none()
+
+    if not salesperson_id:
+        return {"tasks": [], "count": 0}
+
+    # Get open tasks for this salesperson
+    items = await task_svc.list_tasks(
+        db,
+        salesperson_id=salesperson_id,
+        status=None,  # Will filter in query
+        limit=50,
+    )
+
+    # Filter for open tasks only
+    open_tasks = [t for t in items if t.status in ["חדש", "בטיפול"]]
+
+    return {
+        "tasks": [_task_to_dict(t) for t in open_tasks],
+        "count": len(open_tasks),
+    }
+
+
+@router.get("/due-reminders")
+async def get_due_reminders(
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get tasks that are due now and have send_reminder=True.
+    Used for popup notifications in the frontend.
+    """
+    from db.models import Salesperson
+    from datetime import datetime, timezone, timedelta
+    from .dependencies import get_current_user
+
+    user = await get_current_user(db)
+    user_id = user.id if user else None
+    if not user_id:
+        return []
+
+    # Find salesperson linked to this user
+    sp_result = await db.execute(
+        select(Salesperson.id).where(Salesperson.user_id == user_id)
+    )
+    salesperson_id = sp_result.scalar_one_or_none()
+
+    if not salesperson_id:
+        return []
+
+    # Get tasks for this salesperson with send_reminder=True and due_date <= now
+    items = await task_svc.list_tasks(
+        db,
+        salesperson_id=salesperson_id,
+        limit=50,
+    )
+
+    # Filter for due tasks with reminders
+    now = datetime.now(timezone.utc)
+    due_tasks = [
+        t for t in items
+        if t.send_reminder
+        and t.due_date
+        and t.due_date <= now
+        and t.status not in ["הושלם", "בוטל"]
+    ]
+
+    return [
+        {
+            "id": t.id,
+            "title": t.title,
+            "description": t.description,
+            "due_date": t.due_date.isoformat() if t.due_date else None,
+        }
+        for t in due_tasks
+    ]
+
+
+# ── Metrics Dashboard ───────────────────────────────────────
+@router.get("/metrics")
+async def get_task_metrics(
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get aggregated task metrics for the dashboard.
+    Returns statistics by status, user, salesperson, priority, type, and more.
+    """
+    print("[DEBUG] get_task_metrics called")
+    try:
+        result = await task_svc.get_task_metrics(db)
+        print(f"[DEBUG] get_task_metrics returned: {result}")
+        return result
+    except Exception as e:
+        print(f"[DEBUG] Error in get_task_metrics: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
 # ── List ─────────────────────────────────────────────
 @router.get("/")
 async def list_tasks(
@@ -395,120 +512,5 @@ async def send_daily_summary_all(
     return result
 
 
-# ── Popup Notifications ───────────────────────────────────
-@router.get("/popup-notifications")
-async def get_popup_notifications(
-    user=Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Get open tasks for the current user (salesperson) to show as popup notification.
-    Returns tasks with status 'חדש' or 'בטיפול' assigned to this user.
-    """
-    from db.models import Salesperson
-    
-    user_id = user.id if user else None
-    if not user_id:
-        return {"tasks": [], "count": 0}
-    
-    # Find salesperson linked to this user
-    sp_result = await db.execute(
-        select(Salesperson.id).where(Salesperson.user_id == user_id)
-    )
-    salesperson_id = sp_result.scalar_one_or_none()
-    
-    if not salesperson_id:
-        return {"tasks": [], "count": 0}
-    
-    # Get open tasks for this salesperson
-    items = await task_svc.list_tasks(
-        db,
-        salesperson_id=salesperson_id,
-        status=None,  # Will filter in query
-        limit=50,
-    )
-    
-    # Filter for open tasks only
-    open_tasks = [t for t in items if t.status in ["חדש", "בטיפול"]]
-    
-    return {
-        "tasks": [_task_to_dict(t) for t in open_tasks],
-        "count": len(open_tasks),
-    }
-
-
-@router.get("/due-reminders")
-async def get_due_reminders(
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Get tasks that are due now and have send_reminder=True.
-    Used for popup notifications in the frontend.
-    """
-    from db.models import Salesperson
-    from datetime import datetime, timezone, timedelta
-    from .dependencies import get_current_user
-
-    user = await get_current_user(db)
-    user_id = user.id if user else None
-    if not user_id:
-        return []
-
-    # Find salesperson linked to this user
-    sp_result = await db.execute(
-        select(Salesperson.id).where(Salesperson.user_id == user_id)
-    )
-    salesperson_id = sp_result.scalar_one_or_none()
-
-    if not salesperson_id:
-        return []
-
-    # Get tasks for this salesperson with send_reminder=True and due_date <= now
-    items = await task_svc.list_tasks(
-        db,
-        salesperson_id=salesperson_id,
-        limit=50,
-    )
-
-    # Filter for due tasks with reminders
-    now = datetime.now(timezone.utc)
-    due_tasks = [
-        t for t in items
-        if t.send_reminder
-        and t.due_date
-        and t.due_date <= now
-        and t.status not in ["הושלם", "בוטל"]
-    ]
-
-    return [
-        {
-            "id": t.id,
-            "title": t.title,
-            "description": t.description,
-            "due_date": t.due_date.isoformat() if t.due_date else None,
-        }
-        for t in due_tasks
-    ]
-
-
-# ── Metrics Dashboard ───────────────────────────────────────
-@router.get("/metrics")
-async def get_task_metrics(
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Get aggregated task metrics for the dashboard.
-    Returns statistics by status, user, salesperson, priority, type, and more.
-    """
-    print("[DEBUG] get_task_metrics called")
-    try:
-        result = await task_svc.get_task_metrics(db)
-        print(f"[DEBUG] get_task_metrics returned: {result}")
-        return result
-    except Exception as e:
-        print(f"[DEBUG] Error in get_task_metrics: {e}")
-        import traceback
-        traceback.print_exc()
-        raise
 
 
