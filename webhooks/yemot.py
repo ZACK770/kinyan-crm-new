@@ -33,6 +33,14 @@ FOLDER_TO_PRODUCT = {
     "6": "סמיכה",
 }
 
+# Folder suffix (1/2/55/X) → salesperson mapping
+# Used for Shluchot HaTor queue routing
+FOLDER_SUFFIX_TO_SALESPERSON = {
+    "1": 1,  # ישראל ברים
+    "2": 5,  # נתנאל גפנר
+    "3": 2,  # שלמה גרוס
+}
+
 
 def parse_yemot_payload(data: dict) -> dict:
     """
@@ -80,6 +88,13 @@ def parse_yemot_payload(data: dict) -> dict:
         parsed["ivr_product"] = product
         parsed["form_product"] = product
         parsed["requested_course"] = product
+
+    # Check for Shluchot HaTor queue routing (Folder format: 1/2/55/X)
+    # If Folder starts with "1/2/55/", the last number determines salesperson
+    if folder.startswith("1/2/55/"):
+        suffix = folder.split("/")[-1]
+        if suffix in FOLDER_SUFFIX_TO_SALESPERSON:
+            parsed["salesperson_id"] = FOLDER_SUFFIX_TO_SALESPERSON[suffix]
 
     # Call answered status
     queue_status = data.get("QueueStatus", data.get("hangupCause", data.get("ApiHangupCause", "")))

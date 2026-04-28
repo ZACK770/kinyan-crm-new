@@ -436,7 +436,16 @@ async def process_incoming_lead(db: AsyncSession, **kwargs) -> dict:
     else:
         # New lead → create + assign + interaction
         lead = await create_lead(db, **kwargs)
-        sp = await assign_salesperson(db, lead.id, phone)
+        
+        # Only auto-assign if salesperson_id was not explicitly provided
+        if not kwargs.get("salesperson_id"):
+            sp = await assign_salesperson(db, lead.id, phone)
+        else:
+            # Load the assigned salesperson for the response
+            sp_stmt = select(Salesperson).where(Salesperson.id == lead.salesperson_id)
+            sp_result = await db.execute(sp_stmt)
+            sp = sp_result.scalar_one_or_none()
+        
         await add_interaction(db, lead.id, **kwargs)
         await db.commit()
         return {
