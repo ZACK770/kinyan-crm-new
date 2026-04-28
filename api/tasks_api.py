@@ -439,7 +439,7 @@ async def get_popup_notifications(
 
 @router.get("/due-reminders")
 async def get_due_reminders(
-    user=Depends(get_current_user),
+    user=Depends(require_permission("viewer")),
     db: AsyncSession = Depends(get_db),
 ):
     """
