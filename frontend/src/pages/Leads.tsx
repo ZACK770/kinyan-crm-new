@@ -1002,7 +1002,7 @@ export function LeadsPage() {
       header: 'הערות',
       type: 'text',
       hiddenByDefault: true,
-      editable: false,
+      editable: true,
     },
     {
       key: 'source_message',
