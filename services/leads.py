@@ -427,6 +427,12 @@ async def process_incoming_lead(db: AsyncSession, **kwargs) -> dict:
     if existing:
         # Existing lead → add interaction
         await add_interaction(db, existing.id, **kwargs)
+        
+        # Update salesperson if explicitly provided (e.g., from Yemot Folder routing)
+        if kwargs.get("salesperson_id"):
+            existing.salesperson_id = kwargs["salesperson_id"]
+            await db.flush()
+        
         await db.commit()
         return {
             "success": True,
