@@ -439,7 +439,6 @@ async def get_popup_notifications(
 
 @router.get("/due-reminders")
 async def get_due_reminders(
-    user=Depends(require_permission("viewer")),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -448,7 +447,9 @@ async def get_due_reminders(
     """
     from db.models import Salesperson
     from datetime import datetime, timezone, timedelta
+    from .dependencies import get_current_user
 
+    user = await get_current_user(db)
     user_id = user.id if user else None
     if not user_id:
         return []
@@ -493,7 +494,6 @@ async def get_due_reminders(
 # ── Metrics Dashboard ───────────────────────────────────────
 @router.get("/metrics")
 async def get_task_metrics(
-    user=Depends(require_permission("viewer")),
     db: AsyncSession = Depends(get_db),
 ):
     """
