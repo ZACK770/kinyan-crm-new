@@ -29,6 +29,8 @@ import {
   loadSavedFilters,
   saveSavedFilters
 } from './filterUtils'
+import { getGlobalTablePrefs, setGlobalTablePrefs, deleteGlobalTablePrefs } from '@/lib/api'
+import { useAuth } from '@/contexts/AuthContext'
 import s from './SmartTable.module.css'
 import shared from '@/styles/shared.module.css'
 
@@ -59,6 +61,10 @@ export function SmartTable<T>({
   const searchSelect = onSearchSelect ?? onRowClick
   const defaultPgSize = defaultPageSize ?? 100
   const pgSizeOpts = pageSizeOptions ?? [50, 100, 200]
+
+  // Auth context
+  const { user, hasPermission } = useAuth()
+  const isAdmin = hasPermission(40)
 
   // Shift-click selection tracking
   const lastSelectedIndexRef = useRef<number | null>(null)
@@ -109,6 +115,41 @@ export function SmartTable<T>({
       setColumnOrder(defaultOrder)
     }
   }, [columns, storageKey, defaultPgSize])
+
+  // Load global filters from API
+  useEffect(() => {
+    if (!storageKey) return
+
+    const loadGlobalFilters = async () => {
+      try {
+        const response = await getGlobalTablePrefs(storageKey)
+        if (response.data && response.data.filters) {
+          const globalFilter: SavedFilter = {
+            id: 'global',
+            name: response.data.name || 'פילטר גלובלי',
+            filters: response.data.filters,
+            columns: response.data.columns || [],
+            columnOrder: response.data.columnOrder || [],
+            createdAt: response.data.createdAt || new Date().toISOString(),
+            isGlobal: true,
+            updatedBy: response.data.updatedBy,
+            updatedAt: response.data.updatedAt,
+          }
+
+          setSavedFilters(prev => {
+            // Remove existing global filter if any
+            const withoutGlobal = prev.filter(f => !f.isGlobal)
+            return [...withoutGlobal, globalFilter]
+          })
+        }
+      } catch (error) {
+        // Global filters might not exist, that's okay
+        console.log('No global filters found for', storageKey)
+      }
+    }
+
+    loadGlobalFilters()
+  }, [storageKey])
 
   // Save state to storage
   useEffect(() => {
@@ -194,22 +235,50 @@ export function SmartTable<T>({
   }
 
   // Handle filter save
-  const handleSaveFilter = useCallback((name: string, currentFilters: Filter[]) => {
+  const handleSaveFilter = useCallback(async (name: string, currentFilters: Filter[], isGlobal = false) => {
     const newFilter: SavedFilter = {
-      id: generateId(),
+      id: isGlobal ? 'global' : generateId(),
       name,
       filters: currentFilters,
       columns: visibleColumns,
       columnOrder,
       createdAt: new Date().toISOString(),
+      isGlobal,
+      updatedBy: isGlobal ? user?.full_name : undefined,
+      updatedAt: isGlobal ? new Date().toISOString() : undefined,
     }
-    const updated = [...savedFilters, newFilter]
-    setSavedFilters(updated)
-    setActiveSavedFilterId(newFilter.id)
-    if (storageKey) {
-      saveSavedFilters(storageKey, updated)
+
+    if (isGlobal && storageKey) {
+      // Save to API
+      try {
+        await setGlobalTablePrefs(storageKey, {
+          name,
+          filters: currentFilters,
+          columns: visibleColumns,
+          columnOrder,
+          createdAt: newFilter.createdAt,
+          updatedBy: newFilter.updatedBy,
+          updatedAt: newFilter.updatedAt,
+        })
+        setSavedFilters(prev => {
+          const withoutGlobal = prev.filter(f => !f.isGlobal)
+          return [...withoutGlobal, newFilter]
+        })
+        setActiveSavedFilterId(newFilter.id)
+      } catch (error) {
+        console.error('Failed to save global filter:', error)
+        throw error
+      }
+    } else {
+      // Save to localStorage
+      const updated = [...savedFilters.filter(f => !f.isGlobal), newFilter]
+      setSavedFilters(updated)
+      setActiveSavedFilterId(newFilter.id)
+      if (storageKey) {
+        saveSavedFilters(storageKey, updated)
+      }
     }
-  }, [savedFilters, visibleColumns, columnOrder, storageKey])
+  }, [savedFilters, visibleColumns, columnOrder, storageKey, user?.full_name])
 
   // Handle filter load
   const handleLoadFilter = useCallback((savedFilter: SavedFilter) => {
@@ -220,14 +289,33 @@ export function SmartTable<T>({
   }, [])
 
   // Handle filter delete
-  const handleDeleteSavedFilter = useCallback((id: string) => {
-    const updated = savedFilters.filter(f => f.id !== id)
-    setSavedFilters(updated)
-    if (activeSavedFilterId === id) setActiveSavedFilterId(null)
-    if (storageKey) {
-      saveSavedFilters(storageKey, updated)
+  const handleDeleteSavedFilter = useCallback(async (id: string) => {
+    const filterToDelete = savedFilters.find(f => f.id === id)
+
+    if (filterToDelete?.isGlobal) {
+      if (!isAdmin) {
+        console.error('Only admins can delete global filters')
+        return
+      }
+      if (!storageKey) return
+
+      try {
+        await deleteGlobalTablePrefs(storageKey)
+        setSavedFilters(prev => prev.filter(f => f.id !== id))
+        if (activeSavedFilterId === id) setActiveSavedFilterId(null)
+      } catch (error) {
+        console.error('Failed to delete global filter:', error)
+        throw error
+      }
+    } else {
+      const updated = savedFilters.filter(f => f.id !== id)
+      setSavedFilters(updated)
+      if (activeSavedFilterId === id) setActiveSavedFilterId(null)
+      if (storageKey) {
+        saveSavedFilters(storageKey, updated)
+      }
     }
-  }, [savedFilters, activeSavedFilterId, storageKey])
+  }, [savedFilters, activeSavedFilterId, storageKey, isAdmin])
 
   // Handle sorting
   const handleSort = (columnKey: string) => {
@@ -337,6 +425,7 @@ export function SmartTable<T>({
             onSaveFilter={handleSaveFilter}
             onLoadFilter={handleLoadFilter}
             onDeleteSavedFilter={handleDeleteSavedFilter}
+            isAdmin={isAdmin}
           />
           <ColumnManager
             columns={columns}

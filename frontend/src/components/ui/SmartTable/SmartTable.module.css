@@ -353,6 +353,39 @@
   color: var(--color-error);
 }
 
+/* Global filter styles */
+.globalFilter {
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.globalBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--color-primary);
+  color: #fff;
+  border-radius: 999px;
+}
+
+.globalMeta {
+  display: block;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.saveGlobalCheckbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-top: 4px;
+}
+
 /* --- Column Manager --- */
 .columnManager {
   position: relative;

@@ -203,3 +203,37 @@ class ApiClient {
 }
 
 export const api = new ApiClient()
+
+// ============================================================
+// Global Table Preferences API
+// ============================================================
+
+export interface GlobalTablePrefResponse {
+  storage_key: string
+  data: any
+}
+
+export interface GlobalTablePrefRequest {
+  data: any
+}
+
+/**
+ * Get global table preferences by storage key
+ */
+export async function getGlobalTablePrefs(storageKey: string): Promise<GlobalTablePrefResponse> {
+  return api.get<GlobalTablePrefResponse>(`/table-prefs/global?storage_key=${encodeURIComponent(storageKey)}`)
+}
+
+/**
+ * Set global table preferences (admin only)
+ */
+export async function setGlobalTablePrefs(storageKey: string, data: any): Promise<GlobalTablePrefResponse> {
+  return api.put<GlobalTablePrefResponse>(`/table-prefs/global?storage_key=${encodeURIComponent(storageKey)}`, { data })
+}
+
+/**
+ * Delete global table preferences (admin only)
+ */
+export async function deleteGlobalTablePrefs(storageKey: string): Promise<{ ok: boolean }> {
+  return api.delete<{ ok: boolean }>(`/table-prefs/global?storage_key=${encodeURIComponent(storageKey)}`)
+}
