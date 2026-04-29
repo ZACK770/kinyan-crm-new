@@ -3,6 +3,7 @@ import { Header } from './Header'
 import { Sidebar } from './Sidebar'
 import { ChatWidget } from '../chat/ChatWidget'
 import { SalesSimulator } from '../chat/SalesSimulator'
+import { ConversionCelebration } from '../ConversionCelebration'
 import styles from './AppLayout.module.css'
 import clsx from 'clsx'
 
@@ -38,6 +39,7 @@ export const AppLayout: FC<AppLayoutProps> = ({ children }) => {
 
       <ChatWidget />
       <SalesSimulator />
+      <ConversionCelebration />
     </div>
   )
 }

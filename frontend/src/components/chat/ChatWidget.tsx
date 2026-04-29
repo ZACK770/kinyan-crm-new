@@ -55,6 +55,8 @@ interface Message {
   pinned_by_user_id?: number | null
   created_at?: string | null
   is_read: boolean
+  read_by_count?: number
+  total_members?: number
 }
 
 interface FileAttachment {
@@ -62,6 +64,14 @@ interface FileAttachment {
   filename: string
   size_bytes: number
   content_type?: string
+}
+
+interface ReadReceipt {
+  user_id: number
+  full_name: string
+  avatar_url?: string | null
+  read_at: string | null
+  is_read: boolean
 }
 
 const EMOJI_LIST = [
@@ -114,6 +124,7 @@ export const ChatWidget: FC = () => {
   const [contextMenu, setContextMenu] = useState<{ msg: Message; x: number; y: number } | null>(null)
   const [showEmoji, setShowEmoji] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [readReceiptsModal, setReadReceiptsModal] = useState<{ messageId: number; receipts: ReadReceipt[] } | null>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const wsRef = useRef<WebSocket | null>(null)
@@ -157,6 +168,14 @@ export const ChatWidget: FC = () => {
       // Track all loaded message IDs for dedup
       seenMsgIds.current = new Set(data.map(m => m.id))
     } catch {} finally { setLoading(false) }
+  }, [])
+
+  // ── Load read receipts for a message ──
+  const loadReadReceipts = useCallback(async (messageId: number) => {
+    try {
+      const data = await api.get<{ receipts: ReadReceipt[] }>(`/chat/messages/${messageId}/read-receipts`)
+      setReadReceiptsModal({ messageId, receipts: data.receipts })
+    } catch {}
   }, [])
 
   // ── Load thread members for @mentions ──
@@ -210,6 +229,20 @@ export const ChatWidget: FC = () => {
           setMessages(prev => prev.map(m =>
             m.id === data.message_id ? { ...m, is_pinned: false } : m
           ))
+        } else if (data.type === 'message_read') {
+          // Update message read status
+          setMessages(prev => prev.map(m => {
+            if (m.id === data.message_id) {
+              // Increment read count if not already counted
+              const currentReadCount = m.read_by_count || 0
+              return {
+                ...m,
+                read_by_count: currentReadCount + 1,
+                is_read: true
+              }
+            }
+            return m
+          }))
         }
       } catch {}
     }
@@ -816,8 +849,21 @@ export const ChatWidget: FC = () => {
                         <div className={styles.msgTime}>
                           {formatTime(m.created_at)}
                           {m.sender_user_id === user?.id && (
-                            <span className={styles.msgReadStatus}>
-                              {m.is_read ? <CheckCheck size={14} /> : <Check size={14} />}
+                            <span
+                              className={styles.msgReadStatus}
+                              onClick={() => loadReadReceipts(m.id)}
+                              title="לחץ לראות מי קרא"
+                            >
+                              {m.read_by_count === m.total_members ? (
+                                <CheckCheck size={14} />
+                              ) : m.read_by_count > 0 ? (
+                                <Check size={14} />
+                              ) : (
+                                <Check size={14} opacity={0.5} />
+                              )}
+                              {m.read_by_count > 0 && m.total_members > 0 && (
+                                <span className={styles.readCount}>{m.read_by_count}/{m.total_members}</span>
+                              )}
                             </span>
                           )}
                         </div>
@@ -939,6 +985,44 @@ export const ChatWidget: FC = () => {
               <Trash2 size={13} /> מחק
             </button>
           )}
+        </div>
+      )}
+
+      {/* ── Read Receipts Modal ── */}
+      {readReceiptsModal && (
+        <div className={styles.modalOverlay} onClick={() => setReadReceiptsModal(null)}>
+          <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h3>מי קרא את ההודעה</h3>
+              <button onClick={() => setReadReceiptsModal(null)}><X size={20} /></button>
+            </div>
+            <div className={styles.modalBody}>
+              {readReceiptsModal.receipts.length === 0 ? (
+                <div className={styles.emptyReceipts}>אף אחד לא קרא עדיין</div>
+              ) : (
+                readReceiptsModal.receipts.map(r => (
+                  <div key={r.user_id} className={styles.receiptItem}>
+                    <div className={styles.receiptAvatar}>
+                      {r.avatar_url ? <img src={r.avatar_url} alt="" /> : r.full_name[0]}
+                    </div>
+                    <div className={styles.receiptInfo}>
+                      <div className={styles.receiptName}>{r.full_name}</div>
+                      {r.is_read && r.read_at && (
+                        <div className={styles.receiptTime}>
+                          {new Date(r.read_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      )}
+                    </div>
+                    {r.is_read ? (
+                      <div className={styles.receiptStatus read><CheckCheck size={16} /></div>
+                    ) : (
+                      <div className={styles.receiptStatus unread}><Check size={16} opacity={0.3} /></div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       )}
     </>

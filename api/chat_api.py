@@ -132,7 +132,7 @@ manager = ChatConnectionManager()
 
 
 # ── Helpers ──────────────────────────────────────────
-def _msg_to_dict(msg: ChatMessage, sender: User | None = None, reply_preview: str | None = None, is_read: bool = False) -> dict:
+def _msg_to_dict(msg: ChatMessage, sender: User | None = None, reply_preview: str | None = None, is_read: bool = False, read_by_count: int = 0, total_members: int = 0) -> dict:
     return {
         "id": msg.id,
         "thread_id": msg.thread_id,
@@ -146,6 +146,8 @@ def _msg_to_dict(msg: ChatMessage, sender: User | None = None, reply_preview: st
         "pinned_by_user_id": msg.pinned_by_user_id,
         "created_at": str(msg.created_at) if msg.created_at else None,
         "is_read": is_read,
+        "read_by_count": read_by_count,
+        "total_members": total_members,
     }
 
 
@@ -238,6 +240,12 @@ async def get_messages(
 
     messages = await chat_svc.list_messages(db, thread_id, limit=limit, before_id=before_id)
 
+    # Get total thread members count
+    members_result = await db.execute(
+        select(func.count(ChatThreadMember.id)).where(ChatThreadMember.thread_id == thread_id)
+    )
+    total_members = members_result.scalar() or 0
+
     # Collect senders
     sender_ids = list({m.sender_user_id for m in messages})
     senders: dict[int, User] = {}
@@ -265,12 +273,24 @@ async def get_messages(
         )
         read_receipts = {mid for (mid,) in result.all()}
 
+    # Collect read counts for each message
+    read_counts: dict[int, int] = {}
+    if message_ids:
+        result = await db.execute(
+            select(ChatMessageReadReceipt.message_id, func.count(ChatMessageReadReceipt.id))
+            .where(ChatMessageReadReceipt.message_id.in_(message_ids))
+            .group_by(ChatMessageReadReceipt.message_id)
+        )
+        read_counts = {mid: count for mid, count in result.all()}
+
     result_list = [
         _msg_to_dict(
             m,
             senders.get(m.sender_user_id),
             reply_previews.get(m.reply_to_message_id),
-            m.id in read_receipts
+            m.id in read_receipts,
+            read_counts.get(m.id, 0),
+            total_members
         )
         for m in messages
     ]
@@ -315,7 +335,13 @@ async def send_message(
         if rm:
             reply_preview = rm.content[:60]
 
-    msg_dict = _msg_to_dict(msg, sender_for_dict, reply_preview)
+    # Get total members count
+    members_result = await db.execute(
+        select(func.count(ChatThreadMember.id)).where(ChatThreadMember.thread_id == thread_id)
+    )
+    total_members = members_result.scalar() or 0
+
+    msg_dict = _msg_to_dict(msg, sender_for_dict, reply_preview, False, 0, total_members)
 
     # Broadcast via WebSocket
     await manager.broadcast_to_thread(thread_id, {
@@ -570,6 +596,19 @@ async def mark_message_as_read(
     await db.commit()
     if not success:
         raise HTTPException(404, "הודעה לא נמצאה")
+
+    # Get thread_id for broadcasting
+    msg_result = await db.execute(select(ChatMessage).where(ChatMessage.id == message_id))
+    message = msg_result.scalar_one_or_none()
+    if message:
+        # Broadcast read receipt update to thread
+        await manager.broadcast_to_thread(message.thread_id, {
+            "type": "message_read",
+            "message_id": message_id,
+            "user_id": user.id,
+            "user_name": user.full_name,
+        })
+
     return {"read": True}
 
 
@@ -621,6 +660,58 @@ async def get_thread_members(
             "avatar": u.avatar_url,
         })
     return members
+
+
+@router.get("/messages/{message_id}/read-receipts")
+async def get_message_read_receipts(
+    message_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get list of users who read a specific message."""
+    # Verify message exists and user has access
+    msg_result = await db.execute(select(ChatMessage).where(ChatMessage.id == message_id))
+    message = msg_result.scalar_one_or_none()
+    if not message:
+        raise HTTPException(404, "הודעה לא נמצאה")
+
+    # Verify user is member of the thread
+    if _is_dev_user(user):
+        thread_result = await db.execute(select(ChatThread).where(ChatThread.id == message.thread_id))
+        thread = thread_result.scalar_one_or_none()
+    else:
+        thread = await chat_svc.get_thread_for_user(db, user, message.thread_id)
+
+    if not thread:
+        raise HTTPException(403, "אין לך גישה להודעה זו")
+
+    # Get all thread members
+    members_result = await db.execute(
+        select(ChatThreadMember, User)
+        .join(User, User.id == ChatThreadMember.user_id)
+        .where(ChatThreadMember.thread_id == message.thread_id)
+    )
+    members = [(m, u) for m, u in members_result.all()]
+
+    # Get read receipts for this message
+    receipts_result = await db.execute(
+        select(ChatMessageReadReceipt).where(ChatMessageReadReceipt.message_id == message_id)
+    )
+    receipts = {r.user_id: r.read_at for r in receipts_result.scalars().all()}
+
+    # Build response with read status for each member
+    receipts_list = []
+    for member, user_obj in members:
+        read_at = receipts.get(member.user_id)
+        receipts_list.append({
+            "user_id": member.user_id,
+            "full_name": user_obj.full_name,
+            "avatar_url": user_obj.avatar_url,
+            "read_at": str(read_at) if read_at else None,
+            "is_read": read_at is not None
+        })
+
+    return {"receipts": receipts_list}
 
 
 @router.delete("/messages/{message_id}")

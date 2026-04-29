@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db import get_db
 from services import leads as lead_svc
 from services import google_drive_esign
+from services import audit_logs
 from .dependencies import require_entity_access, get_current_user
 from .schemas import LeadCreate, LeadUpdate, SalespersonResponse
 
@@ -804,6 +805,65 @@ async def bulk_update_leads(
     except Exception as e:
         await db.rollback()
         raise HTTPException(500, str(e))
+
+
+@router.get("/recent-conversions")
+async def get_recent_conversions(
+    limit: int = Query(10, le=50, ge=1),
+    user = Depends(require_entity_access("leads", "view")),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get recent leads with completed payments (conversions).
+    Used for displaying celebration notifications.
+    """
+    from sqlalchemy import select
+    from db.models import Lead, Salesperson, Course
+    
+    # Query leads with payment_completed=True, ordered by payment_completed_date desc
+    stmt = (
+        select(Lead)
+        .where(Lead.payment_completed == True)
+        .order_by(Lead.payment_completed_date.desc())
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    leads = result.scalars().all()
+    
+    # Build response with related data
+    conversions = []
+    for lead in leads:
+        # Get salesperson name
+        salesperson_name = None
+        if lead.salesperson_id:
+            sp_stmt = select(Salesperson).where(Salesperson.id == lead.salesperson_id)
+            sp_result = await db.execute(sp_stmt)
+            sp = sp_result.scalar_one_or_none()
+            salesperson_name = sp.name if sp else None
+        
+        # Get course name
+        course_name = None
+        if lead.selected_course_id:
+            c_stmt = select(Course).where(Course.id == lead.selected_course_id)
+            c_result = await db.execute(c_stmt)
+            c = c_result.scalar_one_or_none()
+            course_name = c.name if c else None
+        
+        conversions.append({
+            "id": lead.id,
+            "full_name": lead.full_name,
+            "family_name": lead.family_name,
+            "phone": lead.phone,
+            "payment_completed_date": str(lead.payment_completed_date) if lead.payment_completed_date else None,
+            "payment_completed_amount": float(lead.payment_completed_amount) if lead.payment_completed_amount else None,
+            "payment_completed_method": lead.payment_completed_method,
+            "payment_reference": lead.payment_reference,
+            "salesperson_name": salesperson_name,
+            "course_name": course_name,
+            "selected_price": float(lead.selected_price) if lead.selected_price else None,
+        })
+    
+    return conversions
 
 
 @router.post("/bulk-delete")
