@@ -10,7 +10,7 @@ import { TaskReminderProvider } from './components/ui/TaskReminderProvider'
 import './styles/globals.css'
 
 // Global version marker - helps verify cache/deployment
-console.log('🚀 Kinyan CRM Frontend v1.3.2 - 2026-04-20 14:06 - EditableField fix for select stale state')
+console.log('[VERSION] Kinyan CRM Frontend v1.3.3 - 2026-04-29 23:00 - Fixed all circular dependencies in ChatWidget')
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
