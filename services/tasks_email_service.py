@@ -4,7 +4,7 @@ Sends reminder emails for tasks and daily summaries.
 """
 from datetime import datetime, timezone
 from typing import List, Optional
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import SalesTask, Salesperson
@@ -16,7 +16,7 @@ async def send_task_reminder_email(
     task_id: int,
 ) -> bool:
     """
-    Send a reminder email for a specific task to the assigned salesperson.
+    Send a reminder email for a specific task to the assigned salesperson or user.
     
     Args:
         db: Database session
@@ -43,17 +43,37 @@ async def send_task_reminder_email(
         print(f"[task_reminder] Task #{task_id} has send_reminder=False, skipping")
         return False
     
-    if not task.salesperson_id:
-        print(f"[task_reminder] Task #{task_id} has no salesperson assigned")
-        return False
+    # Determine recipient: salesperson or assigned user
+    to_email = None
+    recipient_name = None
     
-    # Get salesperson
-    sp_stmt = select(Salesperson).where(Salesperson.id == task.salesperson_id)
-    sp_result = await db.execute(sp_stmt)
-    salesperson = sp_result.scalar_one_or_none()
-    
-    if not salesperson or not salesperson.email:
-        print(f"[task_reminder] Salesperson #{task.salesperson_id} not found or has no email")
+    if task.assigned_to_user_id:
+        # Send to assigned user
+        from db.models import User
+        user_stmt = select(User).where(User.id == task.assigned_to_user_id)
+        user_result = await db.execute(user_stmt)
+        user = user_result.scalar_one_or_none()
+        if user and user.email:
+            to_email = user.email
+            recipient_name = user.full_name or user.email
+            print(f"[task_reminder] Sending to assigned user: {recipient_name}")
+        else:
+            print(f"[task_reminder] User #{task.assigned_to_user_id} not found or has no email")
+            return False
+    elif task.salesperson_id:
+        # Send to salesperson
+        sp_stmt = select(Salesperson).where(Salesperson.id == task.salesperson_id)
+        sp_result = await db.execute(sp_stmt)
+        salesperson = sp_result.scalar_one_or_none()
+        if salesperson and salesperson.email:
+            to_email = salesperson.email
+            recipient_name = salesperson.name
+            print(f"[task_reminder] Sending to salesperson: {recipient_name}")
+        else:
+            print(f"[task_reminder] Salesperson #{task.salesperson_id} not found or has no email")
+            return False
+    else:
+        print(f"[task_reminder] Task #{task_id} has no salesperson or user assigned")
         return False
     
     # Format due date
@@ -101,16 +121,16 @@ async def send_task_reminder_email(
 Kinyan CRM — קניין הוראה"""
     
     success = await email_service.send_email(
-        to_email=salesperson.email,
+        to_email=to_email,
         subject=subject,
         html_body=html_body,
         text_body=text_body,
     )
     
     if success:
-        print(f"[task_reminder] Email sent to {salesperson.email} for task #{task_id}")
+        print(f"[task_reminder] Email sent to {to_email} for task #{task_id}")
     else:
-        print(f"[task_reminder] Failed to send email to {salesperson.email} for task #{task_id}")
+        print(f"[task_reminder] Failed to send email to {to_email} for task #{task_id}")
     
     return success
 
@@ -118,35 +138,68 @@ Kinyan CRM — קניין הוראה"""
 async def send_daily_summary_email(
     db: AsyncSession,
     salesperson_id: int,
+    user_id: int | None = None,
 ) -> bool:
     """
-    Send a daily summary email with all tasks for today to a salesperson.
-    
+    Send a daily summary email with all tasks for today to a salesperson or user.
+
     Args:
         db: Database session
-        salesperson_id: ID of the salesperson
-    
+        salesperson_id: ID of the salesperson (optional if user_id provided)
+        user_id: ID of the user (optional, for class managers etc.)
+
     Returns:
         True if email sent successfully, False otherwise
     """
-    # Get salesperson
-    sp_stmt = select(Salesperson).where(Salesperson.id == salesperson_id)
-    sp_result = await db.execute(sp_stmt)
-    salesperson = sp_result.scalar_one_or_none()
-    
-    if not salesperson or not salesperson.email:
-        print(f"[daily_summary] Salesperson #{salesperson_id} not found or has no email")
+    # Determine recipient
+    to_email = None
+    recipient_name = None
+
+    if user_id:
+        # Send to user
+        from db.models import User
+        user_stmt = select(User).where(User.id == user_id)
+        user_result = await db.execute(user_stmt)
+        user = user_result.scalar_one_or_none()
+        if user and user.email:
+            to_email = user.email
+            recipient_name = user.full_name or user.email
+            print(f"[daily_summary] Sending to user: {recipient_name}")
+        else:
+            print(f"[daily_summary] User #{user_id} not found or has no email")
+            return False
+    elif salesperson_id:
+        # Send to salesperson
+        sp_stmt = select(Salesperson).where(Salesperson.id == salesperson_id)
+        sp_result = await db.execute(sp_stmt)
+        salesperson = sp_result.scalar_one_or_none()
+        if salesperson and salesperson.email:
+            to_email = salesperson.email
+            recipient_name = salesperson.name
+            print(f"[daily_summary] Sending to salesperson: {recipient_name}")
+        else:
+            print(f"[daily_summary] Salesperson #{salesperson_id} not found or has no email")
+            return False
+    else:
+        print(f"[daily_summary] No recipient provided")
         return False
-    
+
     # Get today's date range (UTC)
     now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     today_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
-    
+
     # Get tasks for today (due today OR created today and still open)
+    # Filter by salesperson_id OR assigned_to_user_id
+    conditions = []
+    if salesperson_id:
+        conditions.append(SalesTask.salesperson_id == salesperson_id)
+    if user_id:
+        conditions.append(SalesTask.assigned_to_user_id == user_id)
+
     stmt = (
         select(SalesTask)
-        .where(SalesTask.salesperson_id == salesperson_id)
+        .where(or_(*conditions))
         .where(
             (SalesTask.due_date >= today_start) & (SalesTask.due_date <= today_end) |
             (SalesTask.created_at >= today_start) & (SalesTask.created_at <= today_end)
@@ -244,16 +297,16 @@ Kinyan CRM — קניין הוראה"""
 Kinyan CRM — קניין הוראה"""
     
     success = await email_service.send_email(
-        to_email=salesperson.email,
+        to_email=to_email,
         subject=subject,
         html_body=html_body,
         text_body=text_body,
     )
-    
+
     if success:
-        print(f"[daily_summary] Email sent to {salesperson.email} for salesperson #{salesperson_id}")
+        print(f"[daily_summary] Email sent to {to_email}")
     else:
-        print(f"[daily_summary] Failed to send email to {salesperson.email} for salesperson #{salesperson_id}")
+        print(f"[daily_summary] Failed to send email to {to_email}")
     
     return success
 

@@ -100,6 +100,23 @@ async def create_task(db: AsyncSession, **kwargs) -> SalesTask:
     if task_type not in ALLOWED_TASK_TYPES:
         raise ValueError(f"סוג משימה לא חוקי: {task_type}")
 
+    # Auto-populate salesperson_id from lead if not provided
+    lead_id = kwargs.get("lead_id")
+    salesperson_id = kwargs.get("salesperson_id")
+    
+    if lead_id and not salesperson_id:
+        print(f"[create_task] Auto-fetching salesperson_id from lead #{lead_id}")
+        from db.models import Lead
+        lead_stmt = select(Lead).where(Lead.id == lead_id)
+        lead_result = await db.execute(lead_stmt)
+        lead = lead_result.scalar_one_or_none()
+        if lead and lead.salesperson_id:
+            salesperson_id = lead.salesperson_id
+            kwargs["salesperson_id"] = salesperson_id
+            print(f"[create_task] Set salesperson_id={salesperson_id} from lead #{lead_id}")
+        else:
+            print(f"[create_task] Lead #{lead_id} has no salesperson_id")
+
     task = SalesTask(
         title=kwargs["title"],
         description=kwargs.get("description"),
