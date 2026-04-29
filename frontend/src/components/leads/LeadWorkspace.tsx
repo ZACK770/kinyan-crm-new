@@ -820,7 +820,10 @@ function InteractionsTab({
         {interactions.map(interaction => (
           <div key={interaction.id} className={s['timeline-item']}>
             <div className={s['timeline-dot']} style={{
-              background: interaction.interaction_type === 'call' ? 'var(--color-primary)' : 'var(--color-border)'
+              background:
+                interaction.interaction_type === 'call' ? 'var(--color-primary)' :
+                interaction.interaction_type === 'note' ? 'var(--color-secondary)' :
+                'var(--color-border)'
             }} />
             <div className={s['timeline-content']}>
               <div className={s['timeline-date']}>

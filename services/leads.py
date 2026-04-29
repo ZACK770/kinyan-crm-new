@@ -76,32 +76,32 @@ async def create_lead(db: AsyncSession, **kwargs) -> Lead:
 # ============================================================
 # Update
 # ============================================================
-async def update_lead(db: AsyncSession, lead_id: int, **kwargs) -> Lead | None:
+async def update_lead(db: AsyncSession, lead_id: int, user_name: str | None = None, **kwargs) -> Lead | None:
     """Update lead fields."""
     from datetime import datetime
 
-    print(f"🔧 [SERVICE] Starting update_lead for lead_id={lead_id}")
-    print(f"📥 [SERVICE] Update kwargs: {kwargs}")
-    print(f"📊 [SERVICE] Number of fields to update: {len(kwargs)}")
+    print(f"[SERVICE] Starting update_lead for lead_id={lead_id}")
+    print(f"[SERVICE] Update kwargs: {kwargs}")
+    print(f"[SERVICE] Number of fields to update: {len(kwargs)}")
     
     # Query the lead
-    print(f"🔍 [SERVICE] Querying database for lead {lead_id}")
+    print(f"[SERVICE] Querying database for lead {lead_id}")
     stmt = select(Lead).where(Lead.id == lead_id)
-    
+
     try:
         result = await db.execute(stmt)
-        print(f"✅ [SERVICE] Database query executed successfully")
+        print(f"[SERVICE] Database query executed successfully")
     except Exception as e:
-        print(f"❌ [SERVICE] Database query failed: {e}")
+        print(f"[SERVICE] Database query failed: {e}")
         raise
-    
+
     lead = result.scalar_one_or_none()
     if not lead:
-        print(f"❌ [SERVICE] Lead {lead_id} not found in database")
+        print(f"[SERVICE] Lead {lead_id} not found in database")
         return None
 
-    print(f"✅ [SERVICE] Lead found: {lead.full_name} (current status: {lead.status})")
-    print(f"📊 [SERVICE] Lead current values before update:")
+    print(f"[SERVICE] Lead found: {lead.full_name} (current status: {lead.status})")
+    print(f"[SERVICE] Lead current values before update:")
     for key in kwargs.keys():
         if hasattr(lead, key):
             current_value = getattr(lead, key)
@@ -109,51 +109,72 @@ async def update_lead(db: AsyncSession, lead_id: int, **kwargs) -> Lead | None:
 
     # Track if status or salesperson_id changed (manual edits by salesperson)
     # Actually, any update via this service from the UI should probably be considered a manual edit
-    is_manual_edit = True 
-    print(f"🏷️ [SERVICE] Marking as manual edit for last_edited_at update")
+    is_manual_edit = True
+    print(f"[SERVICE] Marking as manual edit for last_edited_at update")
 
     # Apply updates
-    print(f"🔄 [SERVICE] Applying field updates...")
+    print(f"[SERVICE] Applying field updates...")
     updated_fields = []
     for key, value in kwargs.items():
         if hasattr(lead, key):
             old_value = getattr(lead, key)
             if old_value != value:
-                print(f"🔧 [SERVICE] Updating {key}: {old_value} → {value} (type: {type(value)})")
+                print(f"[SERVICE] Updating {key}: {old_value} → {value} (type: {type(value)})")
                 setattr(lead, key, value)
                 updated_fields.append(key)
             else:
-                print(f"ℹ️ [SERVICE] Field {key} value is unchanged, skipping")
+                print(f"[SERVICE] Field {key} value is unchanged, skipping")
         else:
-            print(f"⚠️ [SERVICE] Field {key} does not exist on Lead model, skipping")
+            print(f"[SERVICE] Field {key} does not exist on Lead model, skipping")
 
     if not updated_fields:
-        print(f"ℹ️ [SERVICE] No fields were actually changed for lead {lead_id}")
+        print(f"[SERVICE] No fields were actually changed for lead {lead_id}")
         return lead
 
-    print(f"✅ [SERVICE] Actually updated {len(updated_fields)} fields: {updated_fields}")
+    print(f"[SERVICE] Actually updated {len(updated_fields)} fields: {updated_fields}")
 
     # Update last_edited_at for manual edits
     if is_manual_edit:
         lead.last_edited_at = datetime.now()
-        print(f"📅 [SERVICE] Updated last_edited_at to now()")
+        print(f"[SERVICE] Updated last_edited_at to now()")
+
+    # Auto-mark payment as completed when status changes to 'נסלק'
+    if 'status' in updated_fields and lead.status == 'נסלק':
+        if not lead.payment_completed:
+            lead.payment_completed = True
+            lead.payment_completed_date = datetime.now()
+            print(f"[SERVICE] Auto-marked payment_completed=True for status='נסלק'")
+        else:
+            print(f"[SERVICE] Payment already completed, skipping auto-mark")
+
+    # Create interaction if notes field was updated
+    if 'notes' in updated_fields and lead.notes:
+        print(f"[SERVICE] Creating interaction for notes update")
+        await add_interaction(
+            db=db,
+            lead_id=lead_id,
+            interaction_type='note',
+            description=lead.notes,
+            user_name=user_name
+        )
+        print(f"[SERVICE] Interaction created for notes update")
 
     # Flush changes to database
-    print(f"💾 [SERVICE] Flushing changes to database...")
+    print(f"[SERVICE] Flushing changes to database...")
     try:
         await db.flush()
-        print(f"✅ [SERVICE] Database flush successful")
+        print(f"[SERVICE] Database flush successful")
     except Exception as e:
-        print(f"❌ [SERVICE] Database flush failed: {e}")
+        print(f"[SERVICE] Database flush failed: {e}")
         raise
 
     # Verify updates
-    print(f"🔍 [SERVICE] Verifying updates after flush:")
+    print(f"[SERVICE] Verifying updates after flush:")
     for key in updated_fields:
         new_value = getattr(lead, key)
         print(f"  - {key}: {new_value}")
-    
-    print(f"✅ [SERVICE] Lead update completed successfully for lead {lead_id}")
+
+    print(f"[SERVICE] Lead update completed successfully for lead {lead_id}")
     return lead
 
 
