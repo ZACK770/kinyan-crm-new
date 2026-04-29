@@ -248,18 +248,6 @@ export const ChatWidget: FC = () => {
     setNotifications(prev => prev.filter(n => n.id !== id))
   }, [])
 
-  // ── Handle open chat from notification ──
-  const handleNotificationOpenChat = useCallback(async (threadId: number) => {
-    try {
-      const thread = await api.get<Thread>(`/chat/threads/${threadId}`)
-      setOpen(true)
-      // Refresh threads list to get latest data
-      const refreshedThreads = await api.get<Thread[]>('/chat/threads')
-      setThreads(refreshedThreads)
-      openThread(thread)
-    } catch {}
-  }, [openThread])
-
   // ── Load thread members for @mentions ──
   const loadThreadMembers = useCallback(async (threadId: number) => {
     try {
@@ -366,6 +354,61 @@ export const ChatWidget: FC = () => {
     } catch {}
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }), 100)
   }, [loadMessages, loadThreadMembers])
+
+  // ── Handle open chat from notification ──
+  const handleNotificationOpenChat = useCallback(async (threadId: number) => {
+    try {
+      const thread = await api.get<Thread>(`/chat/threads/${threadId}`)
+      setOpen(true)
+      // Refresh threads list to get latest data
+      const refreshedThreads = await api.get<Thread[]>('/chat/threads')
+      setThreads(refreshedThreads)
+      openThread(thread)
+    } catch {}
+  }, [openThread])
+
+  // ── Start DM ──
+  const startDM = useCallback(async (targetUserId: number) => {
+    try {
+      const thread = await api.post<Thread>('/chat/threads/dm', { user_id: targetUserId })
+      setShowNewChat(false)
+      setSelectedUserIds([])
+      // Refresh threads list
+      const refreshedThreads = await api.get<Thread[]>('/chat/threads')
+      setThreads(refreshedThreads)
+      openThread(thread)
+    } catch {}
+  }, [openThread])
+
+  // ── Create group ──
+  const createGroup = useCallback(async () => {
+    if (!newGroupTitle.trim() || selectedUserIds.length === 0) return
+    try {
+      const thread = await api.post<Thread>('/chat/threads/group', {
+        title: newGroupTitle.trim(),
+        member_user_ids: selectedUserIds,
+      })
+      setShowNewChat(false)
+      setNewGroupTitle('')
+      setSelectedUserIds([])
+      // Refresh threads list
+      const refreshedThreads = await api.get<Thread[]>('/chat/threads')
+      setThreads(refreshedThreads)
+      openThread(thread)
+    } catch {}
+  }, [newGroupTitle, selectedUserIds, openThread])
+
+  // ── Open sales team thread ──
+  const openSalesTeam = useCallback(async () => {
+    try {
+      const thread = await api.get<Thread>('/chat/threads/sales-team')
+      setShowNewChat(false)
+      // Refresh threads list
+      const refreshedThreads = await api.get<Thread[]>('/chat/threads')
+      setThreads(refreshedThreads)
+      openThread(thread)
+    } catch {}
+  }, [openThread])
 
   // ── Send message ──
   const sendMessage = useCallback(async () => {
@@ -533,49 +576,6 @@ export const ChatWidget: FC = () => {
       setMessages(prev => prev.filter(m => m.id !== messageId))
     } catch { alert('שגיאה במחיקת הודעה') }
   }, [])
-
-  // ── Start DM ──
-  const startDM = useCallback(async (targetUserId: number) => {
-    try {
-      const thread = await api.post<Thread>('/chat/threads/dm', { user_id: targetUserId })
-      setShowNewChat(false)
-      setSelectedUserIds([])
-      // Refresh threads list
-      const refreshedThreads = await api.get<Thread[]>('/chat/threads')
-      setThreads(refreshedThreads)
-      openThread(thread)
-    } catch {}
-  }, [openThread])
-
-  // ── Create group ──
-  const createGroup = useCallback(async () => {
-    if (!newGroupTitle.trim() || selectedUserIds.length === 0) return
-    try {
-      const thread = await api.post<Thread>('/chat/threads/group', {
-        title: newGroupTitle.trim(),
-        member_user_ids: selectedUserIds,
-      })
-      setShowNewChat(false)
-      setNewGroupTitle('')
-      setSelectedUserIds([])
-      // Refresh threads list
-      const refreshedThreads = await api.get<Thread[]>('/chat/threads')
-      setThreads(refreshedThreads)
-      openThread(thread)
-    } catch {}
-  }, [newGroupTitle, selectedUserIds, openThread])
-
-  // ── Open sales team thread ──
-  const openSalesTeam = useCallback(async () => {
-    try {
-      const thread = await api.get<Thread>('/chat/threads/sales-team')
-      setShowNewChat(false)
-      // Refresh threads list
-      const refreshedThreads = await api.get<Thread[]>('/chat/threads')
-      setThreads(refreshedThreads)
-      openThread(thread)
-    } catch {}
-  }, [openThread])
 
   // ── Load available users ──
   useEffect(() => {
