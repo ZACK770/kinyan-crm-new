@@ -290,15 +290,31 @@ async def get_messages(
         )
         read_receipts = {mid for (mid,) in result.all()}
 
-    # Collect read counts for each message
+    # Collect read counts for each message (excluding sender)
     read_counts: dict[int, int] = {}
     if message_ids:
+        # Build a mapping of message_id -> sender_id
+        message_senders = {m.id: m.sender_user_id for m in messages}
         result = await db.execute(
             select(ChatMessageReadReceipt.message_id, func.count(ChatMessageReadReceipt.id))
             .where(ChatMessageReadReceipt.message_id.in_(message_ids))
             .group_by(ChatMessageReadReceipt.message_id)
         )
-        read_counts = {mid: count for mid, count in result.all()}
+        # Count only readers who are NOT the sender
+        for mid, count in result.all():
+            sender_id = message_senders.get(mid)
+            # Check if sender has read their own message
+            sender_read_result = await db.execute(
+                select(ChatMessageReadReceipt).where(
+                    ChatMessageReadReceipt.message_id == mid,
+                    ChatMessageReadReceipt.user_id == sender_id
+                )
+            )
+            sender_read = sender_read_result.scalar_one_or_none()
+            if sender_read:
+                read_counts[mid] = count - 1  # Exclude sender from count
+            else:
+                read_counts[mid] = count
 
     result_list = [
         _msg_to_dict(
@@ -307,7 +323,7 @@ async def get_messages(
             reply_previews.get(m.reply_to_message_id),
             m.id in read_receipts,
             read_counts.get(m.id, 0),
-            total_members
+            total_members - 1  # Exclude sender from total (they don't need to read their own message)
         )
         for m in messages
     ]
@@ -358,7 +374,7 @@ async def send_message(
     )
     total_members = members_result.scalar() or 0
 
-    msg_dict = _msg_to_dict(msg, sender_for_dict, reply_preview, False, 0, total_members)
+    msg_dict = _msg_to_dict(msg, sender_for_dict, reply_preview, False, 0, total_members - 1)  # Exclude sender from total
 
     # Broadcast via WebSocket to thread
     await manager.broadcast_to_thread(thread_id, {
