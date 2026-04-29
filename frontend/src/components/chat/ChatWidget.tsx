@@ -253,10 +253,12 @@ export const ChatWidget: FC = () => {
     try {
       const thread = await api.get<Thread>(`/chat/threads/${threadId}`)
       setOpen(true)
-      await loadThreads()
+      // Refresh threads list to get latest data
+      const refreshedThreads = await api.get<Thread[]>('/chat/threads')
+      setThreads(refreshedThreads)
       openThread(thread)
     } catch {}
-  }, [loadThreads, openThread])
+  }, [openThread])
 
   // ── Load thread members for @mentions ──
   const loadThreadMembers = useCallback(async (threadId: number) => {
