@@ -540,10 +540,12 @@ export const ChatWidget: FC = () => {
       const thread = await api.post<Thread>('/chat/threads/dm', { user_id: targetUserId })
       setShowNewChat(false)
       setSelectedUserIds([])
-      await loadThreads()
+      // Refresh threads list
+      const refreshedThreads = await api.get<Thread[]>('/chat/threads')
+      setThreads(refreshedThreads)
       openThread(thread)
     } catch {}
-  }, [loadThreads, openThread])
+  }, [openThread])
 
   // ── Create group ──
   const createGroup = useCallback(async () => {
@@ -556,20 +558,24 @@ export const ChatWidget: FC = () => {
       setShowNewChat(false)
       setNewGroupTitle('')
       setSelectedUserIds([])
-      await loadThreads()
+      // Refresh threads list
+      const refreshedThreads = await api.get<Thread[]>('/chat/threads')
+      setThreads(refreshedThreads)
       openThread(thread)
     } catch {}
-  }, [newGroupTitle, selectedUserIds, loadThreads, openThread])
+  }, [newGroupTitle, selectedUserIds, openThread])
 
   // ── Open sales team thread ──
   const openSalesTeam = useCallback(async () => {
     try {
       const thread = await api.get<Thread>('/chat/threads/sales-team')
       setShowNewChat(false)
-      await loadThreads()
+      // Refresh threads list
+      const refreshedThreads = await api.get<Thread[]>('/chat/threads')
+      setThreads(refreshedThreads)
       openThread(thread)
     } catch {}
-  }, [loadThreads, openThread])
+  }, [openThread])
 
   // ── Load available users ──
   useEffect(() => {
@@ -606,24 +612,24 @@ export const ChatWidget: FC = () => {
     if (!activeThread) return
     try {
       await api.post(`/chat/threads/${activeThread.id}/members`, { user_ids: [userId] })
-      await loadThreads()
       const refreshed = await api.get<Thread[]>('/chat/threads')
+      setThreads(refreshed)
       const updated = refreshed.find(t => t.id === activeThread.id)
       if (updated) setActiveThread(updated)
     } catch {}
-  }, [activeThread, loadThreads])
+  }, [activeThread])
 
   // ── Remove member ──
   const removeMember = useCallback(async (userId: number) => {
     if (!activeThread) return
     try {
       await api.delete(`/chat/threads/${activeThread.id}/members/${userId}`)
-      await loadThreads()
       const refreshed = await api.get<Thread[]>('/chat/threads')
+      setThreads(refreshed)
       const updated = refreshed.find(t => t.id === activeThread.id)
       if (updated) setActiveThread(updated)
     } catch {}
-  }, [activeThread, loadThreads])
+  }, [activeThread])
 
   // ── Double-click reply ──
   const handleDoubleClick = useCallback((msg: Message, e: React.MouseEvent) => {
