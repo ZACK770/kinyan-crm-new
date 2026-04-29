@@ -222,6 +222,23 @@ async def list_threads(
     return [await _thread_to_dict(db, t, user.id or 0) for t in threads]
 
 
+@router.get("/threads/{thread_id}")
+async def get_thread(
+    thread_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get a single thread by ID."""
+    if _is_dev_user(user):
+        result = await db.execute(select(ChatThread).where(ChatThread.id == thread_id))
+        thread = result.scalar_one_or_none()
+    else:
+        thread = await chat_svc.get_thread_for_user(db, user, thread_id)
+    if not thread:
+        raise HTTPException(404, "שרשור לא נמצא או אין לך גישה")
+    return await _thread_to_dict(db, thread, user.id or 0)
+
+
 @router.get("/threads/{thread_id}/messages")
 async def get_messages(
     thread_id: int,
@@ -343,12 +360,33 @@ async def send_message(
 
     msg_dict = _msg_to_dict(msg, sender_for_dict, reply_preview, False, 0, total_members)
 
-    # Broadcast via WebSocket
+    # Broadcast via WebSocket to thread
     await manager.broadcast_to_thread(thread_id, {
         "type": "new_message",
         "thread_id": thread_id,
         "message": msg_dict,
     })
+
+    # Send notification to all thread members (except sender)
+    members_data_result = await db.execute(
+        select(ChatThreadMember.user_id).where(ChatThreadMember.thread_id == thread_id)
+    )
+    member_ids = [uid for (uid,) in members_data_result.all() if uid != sender_id]
+
+    # Build thread title
+    thread_title = thread.title if thread.title else "צ'אט פרטי"
+
+    for member_id in member_ids:
+        await manager.notify_user(member_id, {
+            "type": "chat_notification",
+            "id": msg.id,
+            "thread_id": thread_id,
+            "thread_title": thread_title,
+            "sender_name": sender_for_dict.full_name,
+            "sender_avatar": sender_for_dict.avatar_url,
+            "content": msg.content[:100],  # Preview
+            "created_at": str(msg.created_at) if msg.created_at else None,
+        })
 
     return msg_dict
 
@@ -781,3 +819,49 @@ async def chat_websocket(ws: WebSocket, thread_id: int):
         pass
     finally:
         manager.disconnect(ws, user_id, thread_id)
+
+
+@router.websocket("/ws/notifications")
+async def notification_websocket(ws: WebSocket):
+    """
+    Global WebSocket for chat notifications.
+    Client sends token as first message for auth.
+    Then listens for all chat notifications.
+    """
+    # Wait for auth message
+    await ws.accept()
+    try:
+        auth_msg = await asyncio.wait_for(ws.receive_text(), timeout=10)
+    except (asyncio.TimeoutError, WebSocketDisconnect):
+        await ws.close(code=4001)
+        return
+
+    # Validate token
+    payload = decode_access_token(auth_msg)
+    if not payload:
+        await ws.send_json({"type": "error", "detail": "טוקן לא תקין"})
+        await ws.close(code=4001)
+        return
+
+    user_id = int(payload.get("sub", 0))
+
+    # Register user for global notifications
+    if user_id not in manager._user_connections:
+        manager._user_connections[user_id] = set()
+    manager._user_connections[user_id].add(ws)
+
+    await ws.send_json({"type": "connected", "user_id": user_id})
+
+    try:
+        while True:
+            # Keep connection alive; client can send pings
+            data = await ws.receive_text()
+            if data == "ping":
+                await ws.send_json({"type": "pong"})
+    except WebSocketDisconnect:
+        pass
+    finally:
+        if user_id in manager._user_connections:
+            manager._user_connections[user_id].discard(ws)
+            if not manager._user_connections[user_id]:
+                del manager._user_connections[user_id]

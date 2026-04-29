@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
 import styles from './ChatWidget.module.css'
 import clsx from 'clsx'
+import { ChatNotificationContainer } from './ChatNotificationToast'
 
 /* ── Types ── */
 interface ChatUser {
@@ -74,6 +75,16 @@ interface ReadReceipt {
   is_read: boolean
 }
 
+interface ChatNotification {
+  id: number
+  thread_id: number
+  thread_title: string
+  sender_name: string
+  sender_avatar?: string | null
+  content: string
+  created_at: string
+}
+
 const EMOJI_LIST = [
   '😀','😂','😍','🤩','😎','🤔','😅','👍','👏','🙏',
   '❤️','🔥','✅','⭐','💪','🎉','😊','🤝','💯','👋',
@@ -120,14 +131,17 @@ export const ChatWidget: FC = () => {
   const [newGroupTitle, setNewGroupTitle] = useState('')
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([])
   const [searchUsers, setSearchUsers] = useState('')
-  const [unreadCount] = useState(0)
+  const [unreadCount, setUnreadCount] = useState(0)
   const [contextMenu, setContextMenu] = useState<{ msg: Message; x: number; y: number } | null>(null)
   const [showEmoji, setShowEmoji] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [readReceiptsModal, setReadReceiptsModal] = useState<{ messageId: number; receipts: ReadReceipt[] } | null>(null)
+  const [notifications, setNotifications] = useState<ChatNotification[]>([])
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; filename: string } | null>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const wsRef = useRef<WebSocket | null>(null)
+  const notificationWsRef = useRef<WebSocket | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const seenMsgIds = useRef<Set<number>>(new Set())
@@ -152,12 +166,63 @@ export const ChatWidget: FC = () => {
     try {
       const data = await api.get<Thread[]>('/chat/threads')
       setThreads(data)
+      // Calculate total unread count
+      const totalUnread = data.reduce((sum, t) => sum + (t.unread_count || 0), 0)
+      setUnreadCount(totalUnread)
     } catch {}
   }, [])
 
   useEffect(() => {
     if (open && user) loadThreads()
   }, [open, user, loadThreads])
+
+  // ── Global notification WebSocket connection ──
+  useEffect(() => {
+    if (!user) return
+
+    const token = localStorage.getItem('kinyan_auth_token')
+    if (!token) return
+
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+    const wsUrl = `${proto}://${window.location.host}/api/chat/ws/notifications`
+    const ws = new WebSocket(wsUrl)
+
+    ws.onopen = () => {
+      ws.send(token)
+    }
+
+    ws.onmessage = (evt) => {
+      try {
+        const data = JSON.parse(evt.data)
+        if (data.type === 'chat_notification') {
+          // Add notification to list
+          setNotifications(prev => {
+            // Avoid duplicates
+            if (prev.some(n => n.id === data.id)) return prev
+            return [data, ...prev].slice(0, 5) // Keep max 5 notifications
+          })
+          // Increment unread count
+          setUnreadCount(prev => prev + 1)
+          playDing()
+        }
+      } catch {}
+    }
+
+    ws.onclose = () => {}
+
+    // Ping every 30s
+    const pingInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) ws.send('ping')
+    }, 30000)
+
+    notificationWsRef.current = ws
+
+    return () => {
+      clearInterval(pingInterval)
+      ws.close()
+      notificationWsRef.current = null
+    }
+  }, [user])
 
   // ── Load messages for active thread ──
   const loadMessages = useCallback(async (threadId: number) => {
@@ -177,6 +242,21 @@ export const ChatWidget: FC = () => {
       setReadReceiptsModal({ messageId, receipts: data.receipts })
     } catch {}
   }, [])
+
+  // ── Handle notification close ──
+  const handleCloseNotification = useCallback((id: number) => {
+    setNotifications(prev => prev.filter(n => n.id !== id))
+  }, [])
+
+  // ── Handle open chat from notification ──
+  const handleNotificationOpenChat = useCallback(async (threadId: number) => {
+    try {
+      const thread = await api.get<Thread>(`/chat/threads/${threadId}`)
+      setOpen(true)
+      await loadThreads()
+      openThread(thread)
+    } catch {}
+  }, [loadThreads, openThread])
 
   // ── Load thread members for @mentions ──
   const loadThreadMembers = useCallback(async (threadId: number) => {
@@ -273,15 +353,17 @@ export const ChatWidget: FC = () => {
     await loadMessages(thread.id)
     await loadThreadMembers(thread.id)
     // Mark all messages as read
-    if (thread.unread_count > 0) {
-      try {
-        await api.post(`/chat/threads/${thread.id}/mark-read`)
-        // Refresh threads to update unread counts
-        await loadThreads()
-      } catch {}
-    }
+    try {
+      await api.post(`/chat/threads/${thread.id}/mark-read`)
+      // Update local thread unread count
+      setThreads(prev => prev.map(t =>
+        t.id === thread.id ? { ...t, unread_count: 0 } : t
+      ))
+      // Update global unread count (subtract this thread's unread count)
+      setUnreadCount(prev => Math.max(0, prev - (thread.unread_count || 0)))
+    } catch {}
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }), 100)
-  }, [loadMessages, loadThreads, loadThreadMembers])
+  }, [loadMessages, loadThreadMembers])
 
   // ── Send message ──
   const sendMessage = useCallback(async () => {
@@ -376,6 +458,49 @@ export const ChatWidget: FC = () => {
     setShowMentionSuggestions(false)
     setMentionQuery('')
   }, [threadMembers.length])
+
+  // ── Handle paste event for images ──
+  const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.type.startsWith('image/')) {
+        e.preventDefault()
+        const file = item.getAsFile()
+        if (file && activeThread) {
+          setUploading(true)
+          try {
+            const formData = new FormData()
+            formData.append('file', file)
+            const uploadRes = await fetch(`/api/files/upload?entity_type=chat&entity_id=${activeThread.id}`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${localStorage.getItem('kinyan_auth_token')}` },
+              body: formData,
+            })
+            if (!uploadRes.ok) throw new Error('Upload failed')
+            const uploadData = await uploadRes.json()
+            // Send file message
+            const fileContent = `[file:${uploadData.id}|${file.name}|${file.size}|${file.type}]`
+            const res = await api.post<Message>(`/chat/threads/${activeThread.id}/messages`, {
+              content: fileContent,
+              reply_to_message_id: null,
+            })
+            if (res?.id) {
+              seenMsgIds.current.add(res.id)
+              setMessages(prev => prev.some(m => m.id === res.id) ? prev : [...prev, res])
+              setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+            }
+          } catch { alert('שגיאה בהעלאת התמונה') }
+          finally {
+            setUploading(false)
+          }
+        }
+        break
+      }
+    }
+  }, [activeThread])
 
   // ── Handle mention selection ──
   const handleSelectMention = useCallback((member: {id: number, name: string}) => {
@@ -823,6 +948,22 @@ export const ChatWidget: FC = () => {
                           const fileInfo = parseFileFromContent(m.content)
                           if (fileInfo) {
                             const isImage = fileInfo.content_type?.startsWith('image/')
+                            const imageUrl = `/api/files/${fileInfo.id}/download`
+                            if (isImage) {
+                              return (
+                                <div className={styles.imageAttachment}>
+                                  <img
+                                    src={imageUrl}
+                                    alt={fileInfo.filename}
+                                    className={styles.chatImage}
+                                    onClick={() => setLightboxImage({ url: imageUrl, filename: fileInfo.filename })}
+                                  />
+                                  <div className={styles.imageInfo}>
+                                    <span className={styles.fileName}>{fileInfo.filename}</span>
+                                  </div>
+                                </div>
+                              )
+                            }
                             return (
                               <div className={styles.fileAttachment}>
                                 <div className={styles.fileIcon}>
@@ -833,7 +974,7 @@ export const ChatWidget: FC = () => {
                                   <span className={styles.fileSize}>{formatFileSize(fileInfo.size_bytes)}</span>
                                 </div>
                                 <a
-                                  href={`/api/files/${fileInfo.id}/download`}
+                                  href={imageUrl}
                                   target="_blank"
                                   rel="noreferrer"
                                   className={styles.fileDownload}
@@ -903,6 +1044,7 @@ export const ChatWidget: FC = () => {
                 placeholder="הקלד הודעה... (@ לתיוג)"
                 value={input}
                 onChange={handleInputChange}
+                onPaste={handlePaste}
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault()
@@ -1014,14 +1156,43 @@ export const ChatWidget: FC = () => {
                       )}
                     </div>
                     {r.is_read ? (
-                      <div className={styles.receiptStatus read><CheckCheck size={16} /></div>
+                      <div className={clsx(styles.receiptStatus, 'read')}><CheckCheck size={16} /></div>
                     ) : (
-                      <div className={styles.receiptStatus unread}><Check size={16} opacity={0.3} /></div>
+                      <div className={clsx(styles.receiptStatus, 'unread')}><Check size={16} opacity={0.3} /></div>
                     )}
                   </div>
                 ))
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Notification Container ── */}
+      <ChatNotificationContainer
+        notifications={notifications}
+        onClose={handleCloseNotification}
+        onOpenChat={handleNotificationOpenChat}
+      />
+
+      {/* ── Image Lightbox ── */}
+      {lightboxImage && (
+        <div className={styles.lightboxOverlay} onClick={() => setLightboxImage(null)}>
+          <div className={styles.lightboxContent} onClick={e => e.stopPropagation()}>
+            <button className={styles.lightboxClose} onClick={() => setLightboxImage(null)}>
+              <X size={24} />
+            </button>
+            <img src={lightboxImage.url} alt={lightboxImage.filename} className={styles.lightboxImage} />
+            <div className={styles.lightboxFilename}>{lightboxImage.filename}</div>
+            <a
+              href={lightboxImage.url}
+              download={lightboxImage.filename}
+              className={styles.lightboxDownload}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Download size={20} /> הורד
+            </a>
           </div>
         </div>
       )}
