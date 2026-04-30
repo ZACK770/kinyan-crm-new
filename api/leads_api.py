@@ -9,10 +9,52 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db import get_db
 from services import leads as lead_svc
 from services import audit_logs
+import services.tasks as task_svc
 from .dependencies import require_entity_access
 from .schemas import LeadCreate, LeadUpdate, SalespersonResponse
 
 router = APIRouter(tags=["leads"])
+
+
+# ── Tasks Endpoints (delegated to tasks service) ─────────
+# Task schemas
+class TaskCreate(BaseModel):
+    title: str
+    description: str | None = None
+    due_date: datetime | None = None
+    status: str = "חדש"
+    priority: int = 0
+    task_type: str = "general"
+    salesperson_id: int | None = None
+    assigned_to_user_id: int | None = None
+    lead_id: int | None = None
+    student_id: int | None = None
+    send_reminder: bool = True
+
+
+@router.get("/tasks")
+async def list_lead_tasks(
+    user = Depends(require_entity_access("tasks", "view")),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all tasks (delegated to tasks service)"""
+    items = await task_svc.list_tasks(db, limit=200)
+    # Convert to dict using the same logic as tasks_api
+    from api.tasks_api import _task_to_dict
+    return [_task_to_dict(t) for t in items]
+
+
+@router.post("/tasks")
+async def create_lead_task(
+    data: TaskCreate,
+    request: Request,
+    user = Depends(require_entity_access("tasks", "edit")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a task (delegated to tasks service)"""
+    task = await task_svc.create_task(db, **data.model_dump())
+    from api.tasks_api import _task_to_dict
+    return _task_to_dict(task)
 
 
 # ── Local Schemas (not in shared schemas.py) ──────────

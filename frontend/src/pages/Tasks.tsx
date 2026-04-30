@@ -147,7 +147,7 @@ export function TasksPage() {
     {
       key: 'salesperson_id',
       header: 'איש מכירות',
-      render: r => salespersons.find(sp => sp.id === r.salesperson_id)?.name ?? '—',
+      render: r => (r as any).salesperson?.name ?? salespersons.find(sp => sp.id === r.salesperson_id)?.name ?? '—',
     },
     { key: 'due_date', header: 'יעד', render: r => formatDate(r.due_date), className: s.muted },
     { key: 'created_at', header: 'נוצר', render: r => formatDate(r.created_at), className: s.muted },
