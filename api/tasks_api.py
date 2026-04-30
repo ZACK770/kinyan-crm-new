@@ -70,6 +70,16 @@ def _task_to_dict(t) -> dict:
             "email": t.lead.email,
         }
 
+    # Extract salesperson details if available
+    salesperson_data = None
+    if hasattr(t, 'salesperson') and t.salesperson:
+        salesperson_data = {
+            "id": t.salesperson.id,
+            "name": t.salesperson.name,
+            "email": t.salesperson.email,
+            "phone": t.salesperson.phone,
+        }
+
     return {
         "id": t.id,
         "title": t.title,
@@ -89,6 +99,7 @@ def _task_to_dict(t) -> dict:
         "completed_at": str(t.completed_at) if t.completed_at else None,
         "reports": reports_data,
         "lead": lead_data,
+        "salesperson": salesperson_data,
     }
 
 

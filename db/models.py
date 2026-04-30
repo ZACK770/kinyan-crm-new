@@ -799,6 +799,7 @@ class SalesTask(Base):
     assigned_to_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))  # For class manager or other users
     auto_created: Mapped[bool] = mapped_column(Boolean, default=False)  # Auto-created by system
     parent_lead_conversion: Mapped[bool] = mapped_column(Boolean, default=False)  # Part of lead conversion process
+    send_reminder: Mapped[bool] = mapped_column(Boolean, default=False)  # Send reminder notification
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
@@ -812,6 +813,8 @@ class SalesTask(Base):
     )
 
     salesperson: Mapped[Optional["Salesperson"]] = relationship(back_populates="tasks")
+    lead: Mapped[Optional["Lead"]] = relationship(foreign_keys=[lead_id])
+    student: Mapped[Optional["Student"]] = relationship(foreign_keys=[student_id])
     assigned_to_user: Mapped[Optional["User"]] = relationship(foreign_keys=[assigned_to_user_id])
     reports: Mapped[List["TaskReport"]] = relationship(back_populates="task", cascade="all, delete-orphan")
 

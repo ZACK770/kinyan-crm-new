@@ -31,7 +31,8 @@ async def list_tasks(
     from db.models import Lead
     stmt = select(SalesTask).options(
         selectinload(SalesTask.reports),
-        selectinload(SalesTask.lead)
+        selectinload(SalesTask.lead),
+        selectinload(SalesTask.salesperson)
     )
 
     if status:
