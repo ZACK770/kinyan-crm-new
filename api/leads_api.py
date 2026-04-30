@@ -8,9 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_db
 from services import leads as lead_svc
-from services import google_drive_esign
 from services import audit_logs
-from .dependencies import require_entity_access, get_current_user
+from .dependencies import require_entity_access
 from .schemas import LeadCreate, LeadUpdate, SalespersonResponse
 
 router = APIRouter(tags=["leads"])
@@ -55,17 +54,6 @@ async def list_leads(
             "updated_at": str(l.updated_at) if l.updated_at else None,
             "last_edited_at": str(l.last_edited_at) if l.last_edited_at else None,
             "conversion_date": str(l.conversion_date) if l.conversion_date else None,
-            "interactions": [
-                {
-                    "id": i.id,
-                    "interaction_type": i.interaction_type,
-                    "call_status": i.call_status,
-                    "description": i.description,
-                    "interaction_date": str(i.interaction_date) if i.interaction_date else None,
-                    "created_at": str(i.created_at),
-                }
-                for i in (l.interactions or [])
-            ] if l.interactions else [],
         }
         for l in items
     ]
@@ -97,71 +85,16 @@ async def get_salespersons(
     ]
 
 
-@router.get("/recent-conversions")
-async def get_recent_conversions(
-    limit: str = Query(default="10"),
+@router.get("/analytics")
+async def get_analytics(
+    year: int | None = Query(None),
+    month: int | None = Query(None),
+    compare_previous: bool = Query(False),
     user = Depends(require_entity_access("leads", "view")),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    Get recent leads with completed payments (conversions).
-    Used for displaying celebration notifications.
-    """
-    # Convert limit to int with validation
-    try:
-        limit_int = int(limit)
-        if limit_int < 1 or limit_int > 50:
-            limit_int = 10
-    except (ValueError, TypeError):
-        limit_int = 10
-
-    from sqlalchemy import select
-    from db.models import Lead, Salesperson, Course
-    
-    # Query leads with payment_completed=True, ordered by payment_completed_date desc
-    stmt = (
-        select(Lead)
-        .where(Lead.payment_completed == True)
-        .order_by(Lead.payment_completed_date.desc())
-        .limit(limit_int)
-    )
-    result = await db.execute(stmt)
-    leads = result.scalars().all()
-    
-    # Build response with related data
-    conversions = []
-    for lead in leads:
-        # Get salesperson name
-        salesperson_name = None
-        if lead.salesperson_id:
-            sp_stmt = select(Salesperson).where(Salesperson.id == lead.salesperson_id)
-            sp_result = await db.execute(sp_stmt)
-            sp = sp_result.scalar_one_or_none()
-            salesperson_name = sp.name if sp else None
-        
-        # Get course name
-        course_name = None
-        if lead.selected_course_id:
-            c_stmt = select(Course).where(Course.id == lead.selected_course_id)
-            c_result = await db.execute(c_stmt)
-            c = c_result.scalar_one_or_none()
-            course_name = c.name if c else None
-        
-        conversions.append({
-            "id": lead.id,
-            "full_name": lead.full_name,
-            "family_name": lead.family_name,
-            "phone": lead.phone,
-            "payment_completed_date": str(lead.payment_completed_date) if lead.payment_completed_date else None,
-            "payment_completed_amount": float(lead.payment_completed_amount) if lead.payment_completed_amount else None,
-            "payment_completed_method": lead.payment_completed_method,
-            "payment_reference": lead.payment_reference,
-            "salesperson_name": salesperson_name,
-            "course_name": course_name,
-            "selected_price": float(lead.selected_price) if lead.selected_price else None,
-        })
-    
-    return conversions
+    """Get monthly analytics for leads."""
+    return await lead_svc.get_monthly_analytics(db, year=year, month=month, compare_previous=compare_previous)
 
 
 @router.get("/{lead_id}")
@@ -170,18 +103,9 @@ async def get_lead(
     user = Depends(require_entity_access("leads", "view")),
     db: AsyncSession = Depends(get_db)
 ):
-    print(f"[get_lead API] Starting for lead_id: {lead_id}")
-    
-    result = await lead_svc.get_lead_with_full_history(db, lead_id)
-    if not result:
-        print(f"[get_lead API] Lead not found: {lead_id}")
+    lead = await lead_svc.get_lead_with_history(db, lead_id)
+    if not lead:
         raise HTTPException(404, "Lead not found")
-    
-    lead = result["lead"]
-    timeline = result["timeline"]
-    
-    print(f"[get_lead API] Returning lead with {len(timeline)} timeline items")
-    
     return {
         "id": lead.id,
         "full_name": lead.full_name,
@@ -210,7 +134,17 @@ async def get_lead(
         "created_at": str(lead.created_at),
         "updated_at": str(lead.updated_at) if lead.updated_at else None,
         "created_by": lead.created_by,
-        "interactions": timeline,
+        "interactions": [
+            {
+                "id": i.id,
+                "interaction_type": i.interaction_type,
+                "description": i.description,
+                "call_status": i.call_status,
+                "user_name": i.user_name,
+                "created_at": str(i.created_at),
+            }
+            for i in (lead.interactions or [])
+        ],
     }
 
 
@@ -245,172 +179,57 @@ async def update_lead(
     user = Depends(require_entity_access("leads", "edit")),
     db: AsyncSession = Depends(get_db)
 ):
-    changes = data.model_dump(exclude_unset=True)
-    print(f"[API] update_lead call for lead_id={lead_id}")
-    print(f"[API] Changes: {changes}")
-
-    try:
-        print(f"[API] Executing update_lead with user={user.email}")
-        lead = await lead_svc.update_lead(db, lead_id, user_name=user.full_name, **changes)
-
-        if not lead:
-            print(f"[API] Lead {lead_id} not found")
-            raise HTTPException(404, "Lead not found")
-
-        print(f"[API] Committing changes to lead {lead_id}")
-        await db.commit()
-        print(f"[API] Transaction committed")
-
-        # Refresh from DB to get server-computed values
-        await db.refresh(lead)
-        print(f"[API] Lead refreshed. Current state in DB: status='{lead.status}', salesperson_id={lead.salesperson_id}")
-
-        # Log lead update
-        try:
-            print(f"[API] Logging audit update for lead {lead_id}")
-            await audit_logs.log_update(
-                db=db,
-                user=user,
-                entity_type="leads",
-                entity_id=lead_id,
-                description=f"עודכן ליד: {lead.full_name}",
-                changes=changes,
-                request=request,
-            )
-        except Exception as e:
-            print(f"[API] Audit log error (non-fatal): {e}")
-
-        # Return full lead object
-        resp_data = {
-            "id": lead.id,
-            "full_name": lead.full_name,
-            "family_name": lead.family_name,
-            "phone": lead.phone,
-            "phone2": lead.phone2,
-            "email": lead.email,
-            "city": lead.city,
-            "address": lead.address,
-            "id_number": lead.id_number,
-            "notes": lead.notes,
-            "source_type": lead.source_type,
-            "source_name": lead.source_name,
-            "campaign_name": lead.campaign_name,
-            "source_message": lead.source_message,
-            "source_details": lead.source_details,
-            "status": lead.status,
-            "salesperson_id": lead.salesperson_id,
-            "campaign_id": lead.campaign_id,
-            "course_id": lead.course_id,
-            "student_id": lead.student_id,
-            "conversion_date": str(lead.conversion_date) if lead.conversion_date else None,
-            "first_payment": lead.first_payment,
-            "first_lesson": lead.first_lesson,
-            "approved_terms": lead.approved_terms,
-            "created_at": str(lead.created_at),
-            "updated_at": str(lead.updated_at) if lead.updated_at else None,
-            "created_by": lead.created_by,
-            "last_edited_at": str(lead.last_edited_at) if lead.last_edited_at else None,
-        }
-        print(f"[API] Returning updated lead data: status='{resp_data['status']}', salesperson_id={resp_data['salesperson_id']}")
-        return resp_data
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"[API] CRITICAL ERROR in update_lead: {type(e).__name__}: {e}")
-        import traceback
-        traceback.print_exc()
-        await db.rollback()
-        raise HTTPException(500, f"Internal server error: {str(e)}")
-
-
-# ── Debug Endpoint ────────────────────────────────────────
-@router.get("/{lead_id}/debug")
-async def debug_lead(
-    lead_id: int,
-    user = Depends(require_entity_access("leads", "view")),
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Remote debug endpoint — returns raw DB values for every field of a lead.
-    Useful for diagnosing workspace save issues without server log access.
-    GET /api/leads/{id}/debug
-    """
-    from db.models import Salesperson, Course
-
-    stmt = select(Lead).where(Lead.id == lead_id)
-    result = await db.execute(stmt)
-    lead = result.scalar_one_or_none()
+    print(f"DEBUG API: lead_id={lead_id}, data={data.model_dump(exclude_unset=True)}")
+    if 'status' in data.model_dump(exclude_unset=True):
+        print(f"DEBUG API: status field present, value={data.status}")
+    lead = await lead_svc.update_lead(db, lead_id, **data.model_dump(exclude_unset=True))
     if not lead:
         raise HTTPException(404, "Lead not found")
+    await db.commit()
+    print(f"DEBUG API: after commit, lead.status={lead.status}")
 
-    # Resolve salesperson name
-    salesperson_name = None
-    salesperson_found = False
-    if lead.salesperson_id:
-        sp_stmt = select(Salesperson).where(Salesperson.id == lead.salesperson_id)
-        sp_result = await db.execute(sp_stmt)
-        sp = sp_result.scalar_one_or_none()
-        salesperson_name = sp.name if sp else None
-        salesperson_found = sp is not None
+    # Log lead update
+    changes = data.model_dump(exclude_unset=True)
+    await audit_logs.log_update(
+        db=db,
+        user=user,
+        entity_type="leads",
+        entity_id=lead_id,
+        description=f"עודכן ליד: {lead.full_name}",
+        changes=changes,
+        request=request,
+    )
 
-    # Resolve course name
-    course_name = None
-    course_found = False
-    if lead.course_id:
-        c_stmt = select(Course).where(Course.id == lead.course_id)
-        c_result = await db.execute(c_stmt)
-        c = c_result.scalar_one_or_none()
-        course_name = c.name if c else None
-        course_found = c is not None
-
+    # Return full lead object to prevent overwriting other fields in frontend
     return {
-        "lead_id": lead_id,
-        "debug_summary": {
-            "status": lead.status,
-            "salesperson_id": lead.salesperson_id,
-            "salesperson_name": salesperson_name,
-            "salesperson_id_valid": salesperson_found if lead.salesperson_id else None,
-            "course_id": lead.course_id,
-            "course_name": course_name,
-            "course_id_valid": course_found if lead.course_id else None,
-        },
-        "all_fields": {
-            "id": lead.id,
-            "full_name": lead.full_name,
-            "family_name": lead.family_name,
-            "phone": lead.phone,
-            "phone2": lead.phone2,
-            "email": lead.email,
-            "address": lead.address,
-            "city": lead.city,
-            "id_number": lead.id_number,
-            "notes": lead.notes,
-            "status": lead.status,
-            "source_type": lead.source_type,
-            "source_name": lead.source_name,
-            "campaign_name": lead.campaign_name,
-            "source_message": lead.source_message,
-            "source_details": lead.source_details,
-            "salesperson_id": lead.salesperson_id,
-            "campaign_id": lead.campaign_id,
-            "course_id": lead.course_id,
-            "requested_course": lead.requested_course,
-            "student_id": lead.student_id,
-            "first_payment": lead.first_payment,
-            "first_lesson": lead.first_lesson,
-            "approved_terms": lead.approved_terms,
-            "created_at": str(lead.created_at),
-            "updated_at": str(lead.updated_at) if lead.updated_at else None,
-            "last_edited_at": str(lead.last_edited_at) if lead.last_edited_at else None,
-            "created_by": lead.created_by,
-        },
-        "patch_test_instructions": {
-            "test_status_update": f"PATCH /api/leads/{lead_id} body: {{\"status\": \"ליד בתהליך\"}}",
-            "test_salesperson_update": f"PATCH /api/leads/{lead_id} body: {{\"salesperson_id\": 1}}",
-            "test_id_number_update": f"PATCH /api/leads/{lead_id} body: {{\"id_number\": \"000000000\"}}",
-            "swagger_ui": "/docs#/leads/update_lead_api_leads__lead_id__patch",
-        },
+        "id": lead.id,
+        "full_name": lead.full_name,
+        "family_name": lead.family_name,
+        "phone": lead.phone,
+        "phone2": lead.phone2,
+        "email": lead.email,
+        "city": lead.city,
+        "address": lead.address,
+        "id_number": lead.id_number,
+        "notes": lead.notes,
+        "source_type": lead.source_type,
+        "source_name": lead.source_name,
+        "campaign_name": lead.campaign_name,
+        "source_message": lead.source_message,
+        "source_details": lead.source_details,
+        "status": lead.status,
+        "salesperson_id": lead.salesperson_id,
+        "campaign_id": lead.campaign_id,
+        "course_id": lead.course_id,
+        "student_id": lead.student_id,
+        "conversion_date": str(lead.conversion_date) if lead.conversion_date else None,
+        "first_payment": lead.first_payment,
+        "first_lesson": lead.first_lesson,
+        "approved_terms": lead.approved_terms,
+        "created_at": str(lead.created_at),
+        "updated_at": str(lead.updated_at) if lead.updated_at else None,
+        "created_by": lead.created_by,
+        "last_edited_at": str(lead.last_edited_at) if lead.last_edited_at else None,
     }
 
 
@@ -454,12 +273,7 @@ async def add_interaction(
     user = Depends(require_entity_access("leads", "edit")),
     db: AsyncSession = Depends(get_db)
 ):
-    # Pass user_name from authenticated user if not provided
-    interaction_data = data.model_dump()
-    if not interaction_data.get("user_name") and user:
-        interaction_data["user_name"] = user.full_name
-    
-    interaction = await lead_svc.add_interaction(db, lead_id, **interaction_data)
+    interaction = await lead_svc.add_interaction(db, lead_id, **data.model_dump())
     await db.commit()
     return {"id": interaction.id}
 
@@ -764,10 +578,6 @@ class DirectChargeRequest(BaseModel):
     comments: str | None = Field(None, description="הערות")
 
 
-class BulkDeleteRequest(BaseModel):
-    ids: list[int] = Field(..., description="רשימת מזהי הלידים למחיקה")
-
-
 @router.post("/{lead_id}/charge-card-direct")
 async def charge_lead_card_direct(
     lead_id: int,
@@ -810,100 +620,4 @@ async def charge_lead_card_direct(
     except nedarim_debit_card.NedarimDebitCardError as e:
         raise HTTPException(400, f"סליקה נכשלה: {e.message}")
     except Exception as e:
-        raise HTTPException(500, str(e))
-
-
-@router.post("/{lead_id}/send-esignature")
-async def send_esignature(
-    lead_id: int,
-    template_id: str = Query(..., description="Google Drive Template File ID"),
-    user = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Send a Google Drive document for eSignature to the lead.
-    """
-    result = await google_drive_esign.send_document_for_signature(
-        db=db,
-        lead_id=lead_id,
-        template_file_id=template_id,
-        user_name=user.full_name
-    )
-    if not result.get("success"):
-        raise HTTPException(400, result.get("error"))
-    return result
-
-
-
-class BulkUpdateRequest(BaseModel):
-    ids: list[int]
-    field: str
-    value: str | int | float | bool | None = None
-
-
-@router.post("/bulk-update")
-async def bulk_update_leads(
-    data: BulkUpdateRequest,
-    request: Request,
-    user = Depends(require_entity_access("leads", "edit")),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Update multiple leads' fields at once.
-    """
-    try:
-        count = await lead_svc.bulk_update_leads(db, data.ids, data.field, data.value)
-        await db.commit()
-        
-        # Log bulk update
-        await audit_logs.log_update(
-            db=db,
-            user=user,
-            entity_type="leads",
-            entity_id=None,
-            description=f"עדכון גורף של {count} לידים: {data.field}={data.value}",
-            changes={"ids": data.ids, "field": data.field, "value": data.value},
-            request=request,
-        )
-        
-        return {"updated": count}
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(500, str(e))
-
-
-@router.post("/bulk-delete")
-async def bulk_delete_leads(
-    data: BulkDeleteRequest,
-    request: Request,
-    user = Depends(require_entity_access("leads", "delete")),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Delete multiple leads by their IDs.
-    Requires delete permission on leads entity.
-    """
-    try:
-        result = await lead_svc.bulk_delete_leads(db, data.ids)
-        
-        if not result["success"]:
-            raise HTTPException(400, result.get("error", "Bulk delete failed"))
-        
-        await db.commit()
-        
-        # Log bulk deletion
-        await audit_logs.log_delete(
-            db=db,
-            user=user,
-            entity_type="leads",
-            entity_id=None,  # Multiple entities
-            description=f"מחיקה קבוצתית של {result['deleted_count']} לידים: {data.ids}",
-            request=request,
-        )
-        
-        return result
-    except Exception as e:
-        await db.rollback()
         raise HTTPException(500, str(e))

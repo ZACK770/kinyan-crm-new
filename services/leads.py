@@ -2,7 +2,7 @@
 Lead management service.
 Replaces unified_make_module.js (575 lines JS → ~150 lines Python)
 """
-from sqlalchemy import select, or_, func
+from sqlalchemy import select, or_, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -792,3 +792,360 @@ async def bulk_update_leads(db: AsyncSession, lead_ids: list[int], field: str, v
         await db.flush()
         
     return updated_count
+
+
+# ============================================================
+# Analytics
+# ============================================================
+async def get_monthly_analytics(
+    db: AsyncSession,
+    year: int | None = None,
+    month: int | None = None,
+    compare_previous: bool = False
+) -> dict:
+    """
+    Get monthly analytics for leads.
+    
+    Args:
+        db: Database session
+        year: Year to analyze (default: current year)
+        month: Month to analyze (default: current month)
+        compare_previous: Whether to include comparison with previous month
+    
+    Returns:
+        dict with all analytics metrics
+    """
+    print(f"[SERVICE] get_monthly_analytics called with year={year}, month={month}, compare_previous={compare_previous}")
+    from datetime import datetime
+    from db.models import Course
+    
+    # Default to current month/year
+    now = datetime.now()
+    target_year = year if year is not None else now.year
+    target_month = month if month is not None else now.month
+    
+    # Helper: date filter for created_at
+    created_filter = func.extract('year', Lead.created_at) == target_year
+    created_filter &= func.extract('month', Lead.created_at) == target_month
+    
+    # Helper: date filter for closures (created OR updated to closed status in month)
+    closed_statuses = ['נסלק', 'תלמיד פעיל']
+    closure_filter = (
+        (func.extract('year', Lead.created_at) == target_year) & 
+        (func.extract('month', Lead.created_at) == target_month)
+    ) | (
+        (func.extract('year', Lead.updated_at) == target_year) & 
+        (func.extract('month', Lead.updated_at) == target_month) & 
+        (Lead.status.in_(closed_statuses))
+    )
+    
+    # 1. Sales (conversions count only - no amounts yet)
+    # Total conversions
+    stmt_conversions = select(func.count(Lead.id)).where(
+        Lead.status.in_(closed_statuses),
+        closure_filter
+    )
+    result = await db.execute(stmt_conversions)
+    total_conversions = result.scalar() or 0
+    
+    # Salespeople performance
+    stmt_salespeople = (
+        select(Salesperson.name, func.count(Lead.id).label('conversions'))
+        .join(Lead, Salesperson.id == Lead.salesperson_id)
+        .where(
+            Lead.status.in_(closed_statuses),
+            closure_filter,
+            Lead.salesperson_id.isnot(None)
+        )
+        .group_by(Salesperson.id, Salesperson.name)
+        .order_by(func.count(Lead.id).desc())
+        .limit(10)
+    )
+    result = await db.execute(stmt_salespeople)
+    salespeople = [
+        {"name": row.name, "conversions": row.conversions}
+        for row in result
+    ]
+    
+    # 2. Leads metrics
+    # Total leads created in month
+    stmt_total = select(func.count(Lead.id)).where(created_filter)
+    result = await db.execute(stmt_total)
+    total_leads = result.scalar() or 0
+    
+    # New leads (not treated)
+    stmt_new = select(func.count(Lead.id)).where(
+        Lead.status == 'ליד חדש',
+        created_filter
+    )
+    result = await db.execute(stmt_new)
+    new_leads = result.scalar() or 0
+    
+    # In process leads
+    in_process_statuses = ['ליד בתהליך', 'מתעניין', 'במעקב', 'ליד ישן', 'חיוג ראשון']
+    stmt_in_process = select(func.count(Lead.id)).where(
+        Lead.status.in_(in_process_statuses),
+        created_filter
+    )
+    result = await db.execute(stmt_in_process)
+    in_process_leads = result.scalar() or 0
+    
+    # Not relevant leads
+    stmt_not_relevant = select(func.count(Lead.id)).where(
+        Lead.status == 'לא רלוונטי',
+        created_filter
+    )
+    result = await db.execute(stmt_not_relevant)
+    not_relevant_leads = result.scalar() or 0
+    
+    # Total closures (same as conversions)
+    total_closures = total_conversions
+    
+    # 3. Sources
+    stmt_sources = (
+        select(
+            case(
+                (Lead.source_type == 'yemot', 'טלפוני'),
+                (Lead.source_type == 'elementor', 'אלמנטור'),
+                else_='אחר'
+            ).label('source_category'),
+            func.count(Lead.id).label('count')
+        )
+        .where(created_filter)
+        .group_by('source_category')
+    )
+    result = await db.execute(stmt_sources)
+    sources = {row.source_category: row.count for row in result}
+    
+    # Ensure all categories exist
+    sources.setdefault('טלפוני', 0)
+    sources.setdefault('אלמנטור', 0)
+    sources.setdefault('אחר', 0)
+    
+    # 4. Statuses
+    stmt_statuses = (
+        select(
+            case(
+                (Lead.status == 'ליד חדש', 'לא טופלו'),
+                (Lead.status == 'ליד בתהליך', 'בתהליך'),
+                (Lead.status.in_(['נסלק', 'תלמיד פעיל']), 'נסלק/סגור'),
+                else_=Lead.status
+            ).label('status_group'),
+            func.count(Lead.id).label('count')
+        )
+        .where(created_filter)
+        .group_by('status_group')
+    )
+    result = await db.execute(stmt_statuses)
+    statuses = {row.status_group: row.count for row in result}
+    
+    # 5. Conversions by source
+    stmt_conv_source = (
+        select(
+            case(
+                (Lead.source_type == 'yemot', 'טלפוני'),
+                (Lead.source_type == 'elementor', 'אלמנטור'),
+                else_='אחר'
+            ).label('source_category'),
+            func.count(Lead.id).label('conversions')
+        )
+        .where(
+            Lead.status.in_(closed_statuses),
+            closure_filter
+        )
+        .group_by('source_category')
+    )
+    result = await db.execute(stmt_conv_source)
+    conversions_by_source = {row.source_category: row.conversions for row in result}
+    
+    # Ensure all categories exist
+    conversions_by_source.setdefault('טלפוני', 0)
+    conversions_by_source.setdefault('אלמנטור', 0)
+    conversions_by_source.setdefault('אחר', 0)
+    
+    # 6. Courses analysis
+    # Leads by course and status
+    stmt_courses_status = (
+        select(
+            func.coalesce(Course.name, 'ללא קורס').label('course_name'),
+            case(
+                (Lead.status == 'ליד חדש', 'לא טופלו'),
+                (Lead.status == 'ליד בתהליך', 'בתהליך'),
+                (Lead.status.in_(['נסלק', 'תלמיד פעיל']), 'נסלק/סגור'),
+                (Lead.status == 'לא רלוונטי', 'לא רלוונטי'),
+                (Lead.status.in_(in_process_statuses), 'בתהליך'),
+                else_=Lead.status
+            ).label('status_group'),
+            func.count(Lead.id).label('count')
+        )
+        .outerjoin(Course, func.coalesce(Lead.selected_course_id, Lead.course_id) == Course.id)
+        .where(closure_filter)
+        .group_by('course_name', 'status_group')
+    )
+    result = await db.execute(stmt_courses_status)
+    courses_by_status = {}
+    for row in result:
+        if row.course_name not in courses_by_status:
+            courses_by_status[row.course_name] = {
+                'לא טופלו': 0,
+                'בתהליך': 0,
+                'נסלק/סגור': 0,
+                'לא רלוונטי': 0,
+                'total': 0
+            }
+        courses_by_status[row.course_name][row.status_group] = row.count
+        courses_by_status[row.course_name]['total'] += row.count
+    
+    # Conversion rates by course
+    stmt_course_rates = (
+        select(
+            func.coalesce(Course.name, 'ללא קורס').label('course_name'),
+            func.count(Lead.id).label('total_leads'),
+            func.sum(case(
+                (Lead.status.in_(closed_statuses), 1),
+                else_=0
+            )).label('conversions')
+        )
+        .outerjoin(Course, func.coalesce(Lead.selected_course_id, Lead.course_id) == Course.id)
+        .where(closure_filter)
+        .group_by('course_name')
+    )
+    result = await db.execute(stmt_course_rates)
+    course_conversion_rates = []
+    for row in result:
+        conversion_rate = round((row.conversions / row.total_leads * 100) if row.total_leads > 0 else 0, 1)
+        course_conversion_rates.append({
+            'course_name': row.course_name,
+            'total_leads': row.total_leads,
+            'conversions': row.conversions,
+            'conversion_rate': conversion_rate
+        })
+    course_conversion_rates.sort(key=lambda x: x['conversion_rate'], reverse=True)
+    
+    # 7. Generate insights
+    insights = []
+    
+    # Source comparison
+    phone_rate = (conversions_by_source['טלפוני'] / sources['טלפוני'] * 100) if sources['טלפוני'] > 0 else 0
+    web_rate = (conversions_by_source['אלמנטור'] / sources['אלמנטור'] * 100) if sources['אלמנטור'] > 0 else 0
+    
+    if phone_rate > web_rate * 1.5:
+        ratio = round(phone_rate / max(web_rate, 1), 1)
+        insights.append(f"המקור הטלפוני מניב פי {ratio} יותר המרות מהאתר. מומלץ להשקיע בשיווק טלפוני ולשפר את חוויית האתר.")
+    elif web_rate > phone_rate:
+        insights.append("האתר מניב יותר המרות מהטלפון. כדאי לשפר את תהליך הטיפול בלידים טלפוניים.")
+    
+    # Top salesperson
+    if salespeople:
+        top_sp = salespeople[0]
+        sp_percentage = round(top_sp['conversions'] / total_conversions * 100) if total_conversions > 0 else 0
+        insights.append(f"נציג השיא החודשי: {top_sp['name']} עם {top_sp['conversions']} סגירות ({sp_percentage}% מהסה\"כ).")
+    
+    # In process potential
+    if total_leads > 0:
+        in_process_ratio = round(in_process_leads / total_leads * 100)
+        if in_process_ratio > 50:
+            insights.append(f"למעלה מ-50% מהלידים ({in_process_ratio}%) עדיין בתהליך. יש פוטנציאל גדול להמרות עתידיות.")
+    
+    # Course insights
+    if course_conversion_rates:
+        top_course = course_conversion_rates[0]
+        insights.append(f"הקורס '{top_course['course_name']}' יש לו יחס המרה הכי גבוה: {top_course['conversion_rate']}%.")
+        
+        low_rate_courses = [c for c in course_conversion_rates if c['conversion_rate'] < 15 and c['course_name'] != 'ללא קורס']
+        if low_rate_courses:
+            insights.append(f"הקורסים {', '.join([c['course_name'] for c in low_rate_courses])} זקוקים לשיפור - יחס המרה נמוך.")
+    
+    # No course issue
+    no_course_rate = next((c['conversion_rate'] for c in course_conversion_rates if c['course_name'] == 'ללא קורס'), None)
+    if no_course_rate and no_course_rate < 15:
+        insights.append("לידים ללא קורס יש להם יחס המרה נמוך. מומלץ לשפר את זיהוי הקורס בכניסה.")
+    
+    # 8. Comparison with previous month (if requested)
+    comparison = None
+    if compare_previous:
+        # Calculate previous month
+        if target_month == 1:
+            prev_year = target_year - 1
+            prev_month = 12
+        else:
+            prev_year = target_year
+            prev_month = target_month - 1
+        
+        # Get previous month data
+        prev_created_filter = func.extract('year', Lead.created_at) == prev_year
+        prev_created_filter &= func.extract('month', Lead.created_at) == prev_month
+        
+        prev_closure_filter = (
+            (func.extract('year', Lead.created_at) == prev_year) & 
+            (func.extract('month', Lead.created_at) == prev_month)
+        ) | (
+            (func.extract('year', Lead.updated_at) == prev_year) & 
+            (func.extract('month', Lead.updated_at) == prev_month) & 
+            (Lead.status.in_(closed_statuses))
+        )
+        
+        # Previous conversions
+        stmt_prev_conv = select(func.count(Lead.id)).where(
+            Lead.status.in_(closed_statuses),
+            prev_closure_filter
+        )
+        result = await db.execute(stmt_prev_conv)
+        prev_conversions = result.scalar() or 0
+        
+        # Previous total leads
+        stmt_prev_total = select(func.count(Lead.id)).where(prev_created_filter)
+        result = await db.execute(stmt_prev_total)
+        prev_total = result.scalar() or 0
+        
+        # Calculate change percentages
+        conv_change = round(((total_conversions - prev_conversions) / prev_conversions * 100) if prev_conversions > 0 else 0)
+        leads_change = round(((total_leads - prev_total) / prev_total * 100) if prev_total > 0 else 0)
+        
+        prev_conversion_rate = round((prev_conversions / prev_total * 100) if prev_total > 0 else 0)
+        curr_conversion_rate = round((total_conversions / total_leads * 100) if total_leads > 0 else 0)
+        rate_change = curr_conversion_rate - prev_conversion_rate
+        
+        comparison = {
+            "previous_month": {
+                "total_conversions": prev_conversions,
+                "total_leads": prev_total,
+                "conversion_rate": prev_conversion_rate
+            },
+            "change": {
+                "conversions_percent": conv_change,
+                "leads_percent": leads_change,
+                "conversion_rate_percent": rate_change
+            }
+        }
+    
+    return {
+        "period": f"{target_year}-{target_month:02d}",
+        "updated_at": now.isoformat(),
+        "sales": {
+            "total_conversions": total_conversions,
+            "salespeople": salespeople
+        },
+        "leads": {
+            "total": total_leads,
+            "new": new_leads,
+            "in_process": in_process_leads,
+            "not_relevant": not_relevant_leads,
+            "total_closures": total_closures
+        },
+        "sources": sources,
+        "statuses": statuses,
+        "conversions_by_source": conversions_by_source,
+        "courses": {
+            "by_status": [
+                {
+                    "course_name": course,
+                    **data
+                }
+                for course, data in courses_by_status.items()
+            ],
+            "conversion_rates": course_conversion_rates
+        },
+        "insights": insights,
+        "comparison": comparison
+    }

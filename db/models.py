@@ -486,7 +486,7 @@ class Lead(Base):
 
     # Meta
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())  # עדכון אוטומטי בלבד (webhooks/scripts)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())  # עדכון אוטומטי בלבד (webhooks/scripts)
     last_edited_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))  # עריכה ידנית ע"י איש מכירות בלבד
     created_by: Mapped[Optional[str]] = mapped_column(String(200))
 
@@ -590,25 +590,6 @@ class LeadProduct(Base):
     track: Mapped[Optional["CourseTrack"]] = relationship()
     entry_module: Mapped[Optional["CourseModule"]] = relationship()
     entry_session: Mapped[Optional["CourseSession"]] = relationship()
-
-
-# ============================================================
-# TestLog (תיעוד ניסוי חסימות)
-# ============================================================
-class TestLog(Base):
-    __tablename__ = "test_logs"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    test_type: Mapped[str] = mapped_column(String(50), nullable=False)  # URL 1-4
-    user_id: Mapped[Optional[int]] = mapped_column(Integer)
-    ip_address: Mapped[Optional[str]] = mapped_column(String(100))
-    user_agent: Mapped[Optional[str]] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-    __table_args__ = (
-        Index("idx_test_logs_type", "test_type"),
-        Index("idx_test_logs_user", "user_id"),
-    )
 
 
 # ============================================================
@@ -818,7 +799,6 @@ class SalesTask(Base):
     assigned_to_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))  # For class manager or other users
     auto_created: Mapped[bool] = mapped_column(Boolean, default=False)  # Auto-created by system
     parent_lead_conversion: Mapped[bool] = mapped_column(Boolean, default=False)  # Part of lead conversion process
-    send_reminder: Mapped[bool] = mapped_column(Boolean, default=True)  # Send reminder email at due date
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
@@ -833,7 +813,6 @@ class SalesTask(Base):
 
     salesperson: Mapped[Optional["Salesperson"]] = relationship(back_populates="tasks")
     assigned_to_user: Mapped[Optional["User"]] = relationship(foreign_keys=[assigned_to_user_id])
-    lead: Mapped[Optional["Lead"]] = relationship(foreign_keys=[lead_id])
     reports: Mapped[List["TaskReport"]] = relationship(back_populates="task", cascade="all, delete-orphan")
 
 
@@ -1473,11 +1452,10 @@ class ChatMessage(Base):
     thread: Mapped["ChatThread"] = relationship(back_populates="messages")
     sender: Mapped["User"] = relationship(foreign_keys=[sender_user_id])
     reply_to: Mapped[Optional["ChatMessage"]] = relationship(remote_side="ChatMessage.id", foreign_keys=[reply_to_message_id])
-    read_receipts: Mapped[List["ChatMessageReadReceipt"]] = relationship(back_populates="message", cascade="all, delete-orphan")
 
 
 # ============================================================
-# ChatMessageReadReceipt (מעקב קריאת הודעות)
+# ChatMessageReadReceipt (אישורי קריאה להודעות צ'אט)
 # ============================================================
 class ChatMessageReadReceipt(Base):
     __tablename__ = "chat_message_read_receipts"
@@ -1488,14 +1466,13 @@ class ChatMessageReadReceipt(Base):
     read_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
-        UniqueConstraint("message_id", "user_id", name="uq_chat_msg_read_receipt"),
-        Index("idx_chat_read_msg", "message_id"),
-        Index("idx_chat_read_user", "user_id"),
-        Index("idx_chat_read_at", "read_at"),
+        Index("idx_chat_read_receipt_msg", "message_id"),
+        Index("idx_chat_read_receipt_user", "user_id"),
+        UniqueConstraint("message_id", "user_id", name="uq_chat_read_receipt_msg_user"),
     )
 
-    message: Mapped["ChatMessage"] = relationship(back_populates="read_receipts")
-    user: Mapped["User"] = relationship()
+    message: Mapped["ChatMessage"] = relationship(foreign_keys=[message_id])
+    user: Mapped["User"] = relationship(foreign_keys=[user_id])
 
 
 # ============================================================

@@ -17,8 +17,6 @@ from fastapi.responses import FileResponse, JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from db import init_db
-from services.scheduler import scheduler_service
-from services.tasks_scheduler import initialize_scheduled_tasks
 from api import leads_api, students_api, courses_api, dashboard_api, webhooks_api
 from api import inquiries_api, exams_api, payments_api, expenses_api, attendance_api, collections_api
 from api import auth_api, users_api, audit_logs_api, campaigns_api, files_api, sales_assignment_api
@@ -32,35 +30,9 @@ FRONTEND_DIR = Path(__file__).parent / "frontend" / "dist"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: create tables if needed and start scheduler."""
-    print("[lifespan] Starting application lifespan")
-    
+    """Startup: create tables if needed."""
     await init_db()
-    print("[lifespan] Database initialized")
-    
-    # Start the scheduler
-    print("[lifespan] Starting scheduler service")
-    scheduler_service.start()
-    print("[lifespan] Scheduler service started")
-    
-    # Initialize scheduled tasks
-    print("[lifespan] Initializing scheduled tasks")
-    try:
-        await initialize_scheduled_tasks()
-        print("[lifespan] Scheduled tasks initialized")
-    except Exception as e:
-        print(f"[lifespan] Error initializing scheduled tasks: {e}")
-        import traceback
-        traceback.print_exc()
-    
-    print("[lifespan] Application startup complete")
-    
     yield
-    
-    # Shutdown: stop scheduler
-    print("[lifespan] Shutting down scheduler")
-    scheduler_service.shutdown()
-    print("[lifespan] Scheduler shutdown complete")
 
 
 app = FastAPI(
@@ -222,12 +194,6 @@ if FRONTEND_DIR.exists():
         # API and webhook 404s stay as real 404s
         if path.startswith("/api/") or path.startswith("/webhooks/"):
             return JSONResponse(status_code=404, content={"detail": str(exc.detail)})
-        
-        # For /assets/ paths, return real 404 if file doesn't exist
-        # This prevents serving HTML for missing JS/CSS files
-        if path.startswith("/assets/"):
-            return JSONResponse(status_code=404, content={"detail": "Asset not found"})
-        
         # Check if a physical file exists (favicon.ico, manifest.json, etc.)
         file_path = FRONTEND_DIR / path.lstrip("/")
         if file_path.exists() and file_path.is_file():

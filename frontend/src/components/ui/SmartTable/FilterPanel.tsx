@@ -23,10 +23,9 @@ interface Props<T> {
   activeSavedFilterId: string | null
   onFiltersChange: (filters: Filter[]) => void
   onFilterModeChange: (mode: FilterMode) => void
-  onSaveFilter: (name: string, filters: Filter[], isGlobal?: boolean) => void
+  onSaveFilter: (name: string, filters: Filter[]) => void
   onLoadFilter: (savedFilter: SavedFilter) => void
   onDeleteSavedFilter: (id: string) => void
-  isAdmin?: boolean
 }
 
 export function FilterPanel<T>({
@@ -40,12 +39,10 @@ export function FilterPanel<T>({
   onSaveFilter,
   onLoadFilter,
   onDeleteSavedFilter,
-  isAdmin = false,
 }: Props<T>) {
   const [isOpen, setIsOpen] = useState(false)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [saveFilterName, setSaveFilterName] = useState('')
-  const [saveAsGlobal, setSaveAsGlobal] = useState(false)
   const [showSavedDropdown, setShowSavedDropdown] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -90,9 +87,8 @@ export function FilterPanel<T>({
 
   const handleSaveFilter = () => {
     if (!saveFilterName.trim()) return
-    onSaveFilter(saveFilterName.trim(), filters, saveAsGlobal)
+    onSaveFilter(saveFilterName.trim(), filters)
     setSaveFilterName('')
-    setSaveAsGlobal(false)
     setShowSaveDialog(false)
   }
 
@@ -152,7 +148,7 @@ export function FilterPanel<T>({
           {showSavedDropdown && (
             <div className={s.savedFiltersDropdown}>
               {savedFilters.map(sf => (
-                <div key={sf.id} className={`${s.savedFilterItem} ${sf.isGlobal ? s.globalFilter : ''}`}>
+                <div key={sf.id} className={s.savedFilterItem}>
                   <button
                     className={`${s.savedFilterBtn} ${sf.id === activeSavedFilterId ? s.active : ''}`}
                     onClick={() => {
@@ -160,23 +156,17 @@ export function FilterPanel<T>({
                       setShowSavedDropdown(false)
                     }}
                   >
-                    {sf.isGlobal && <span className={s.globalBadge}>גלובלי</span>}
                     {sf.name}
-                    {sf.isGlobal && sf.updatedBy && (
-                      <span className={s.globalMeta}>ע"י {sf.updatedBy}</span>
-                    )}
                   </button>
-                  {(!sf.isGlobal || isAdmin) && (
-                    <button
-                      className={s.savedFilterDelete}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onDeleteSavedFilter(sf.id)
-                      }}
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  )}
+                  <button
+                    className={s.savedFilterDelete}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onDeleteSavedFilter(sf.id)
+                    }}
+                  >
+                    <Trash2 size={12} />
+                  </button>
                 </div>
               ))}
             </div>
@@ -226,17 +216,6 @@ export function FilterPanel<T>({
                 onKeyDown={e => e.key === 'Enter' && handleSaveFilter()}
                 autoFocus
               />
-              {isAdmin && (
-                <label className={s.saveGlobalCheckbox}>
-                  <input
-                    type="checkbox"
-                    checked={saveAsGlobal}
-                    onChange={e => setSaveAsGlobal(e.target.checked)}
-                    className={s.filterModeCheckbox}
-                  />
-                  <span>שמור כגלובלי (לכולם)</span>
-                </label>
-              )}
               <button
                 className={`${shared.btn} ${shared['btn-primary']} ${shared['btn-sm']}`}
                 onClick={handleSaveFilter}

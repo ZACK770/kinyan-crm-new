@@ -40,9 +40,6 @@ export interface SavedFilter {
   columns: string[] // Visible column keys
   columnOrder: string[] // Column order
   createdAt: string
-  isGlobal?: boolean // true if this is a global filter (admin-managed)
-  updatedBy?: string // name of user who last updated (for global filters)
-  updatedAt?: string // last update timestamp (for global filters)
 }
 
 // Select option for dropdowns

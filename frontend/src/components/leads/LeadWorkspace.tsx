@@ -1,35 +1,22 @@
 import { useState, useCallback, useEffect, useMemo, type ReactNode, type FormEvent } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { useToast } from '@/components/ui/Toast'
 import {
-  Phone,
-  Mail,
-  MapPin,
-  User,
-  Calendar,
-  CreditCard,
-  History,
-  MessageCircle,
-  ListTodo,
-  X,
-  Check,
-  AlertTriangle,
-  ChevronDown,
-  ChevronUp,
-  Plus,
-  ArrowLeft,
-  Save,
-  UserCheck,
   MessageSquarePlus,
-  ShieldAlert,
+  UserCheck,
+  ArrowLeft,
+  CreditCard,
+  ListTodo,
+  MessageCircle,
+  History,
+  Save,
+  ChevronDown,
+  Mail,
+  Send,
   CheckCircle2,
-  CheckCircle,
   XCircle,
-  Clock,
-  Trash2,
   Upload,
   FileText,
-  Send,
+  X,
+  Paperclip,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, formatDateTime } from '@/lib/status'
@@ -43,7 +30,6 @@ import s from '@/styles/shared.module.css'
 
 /* ══════════════════════════════════════════════════════════════
    Lead Workspace — Full workspace view for lead management
-   VERSION: v1.3.2 - 2026-04-20 14:06 - EditableField fix for select stale state
    ═══════════════════════════════════════════════════════════════
    Supports both CREATE and EDIT modes:
    - CREATE: lead is null, shows form with fields
@@ -70,8 +56,6 @@ const STATUS_OPTIONS: SelectOption[] = [
   { value: 'נסלק', label: 'נסלק' },
   { value: 'תלמיד פעיל', label: 'תלמיד פעיל' },
   { value: 'לא רלוונטי', label: 'לא רלוונטי' },
-  { value: 'במעקב', label: 'במעקב' },
-  { value: 'מתעניין', label: 'מתעניין' },
 ]
 
 const SOURCE_OPTIONS: SelectOption[] = [
@@ -132,21 +116,6 @@ export function LeadWorkspace({
   const [activeTab, setActiveTab] = useState<TabId>('interactions')
   const [isSaving, setIsSaving] = useState(false)
   const { confirm } = useModal()
-  const [searchParams, setSearchParams] = useSearchParams()
-
-  // Auto-switch tab based on URL param
-  useEffect(() => {
-    const tabParam = searchParams.get('tab')
-    if (tabParam && ['interactions', 'tasks', 'payments', 'conversion', 'inquiries', 'emails'].includes(tabParam)) {
-      setActiveTab(tabParam as TabId)
-      setSearchParams({}, { replace: true })
-    }
-  }, [searchParams, setSearchParams])
-
-  // Local copy of lead — updated immediately from PATCH response
-  // Prevents stale display values while parent async-refreshes
-  const [localLead, setLocalLead] = useState<Lead | null | undefined>(lead)
-  useEffect(() => { setLocalLead(lead) }, [lead])
 
   // Form state for create mode
   const [form, setForm] = useState(INITIAL_FORM)
@@ -165,63 +134,12 @@ export function LeadWorkspace({
 
   // Inline save handler (edit mode)
   const saveField = async (field: string, value: string | number | null) => {
-    console.log(`🏢 [LeadWorkspace] saveField called`, {
-      leadId: lead?.id,
-      field: field,
-      value: value,
-      valueType: typeof value,
-      leadExists: !!lead,
-      timestamp: new Date().toISOString()
-    })
-
-    if (!lead) {
-      console.error(`❌ [LeadWorkspace] No lead object available for saveField`)
-      return
-    }
-
-    console.log(`📡 [LeadWorkspace] Preparing API call for lead ${lead.id}`, {
-      field,
-      value,
-      currentLocalStatus: localLead?.status,
-      currentPropStatus: lead.status
-    })
-
+    if (!lead) return
     try {
-      const startTime = performance.now()
-      console.log(`🌐 [LeadWorkspace] Sending PATCH request to /api/leads/${lead.id}`, { [field]: value })
-      const response = await api.patch<Lead>(`/leads/${lead.id}`, { [field]: value })
-      const endTime = performance.now()
-
-      console.log(`📥 [LeadWorkspace] Received response from API`, response)
-
-      // Update local copy immediately from API response
-      setLocalLead(prev => {
-        const next = prev ? { ...prev, ...response } : response
-        console.log(`🔄 [LeadWorkspace] Updated localLead state`, {
-          field,
-          oldValue: prev?.[field as keyof Lead],
-          newValue: next[field as keyof Lead]
-        })
-        return next
-      })
-
-      console.log(`✅ [LeadWorkspace] API call successful`, {
-        duration: `${(endTime - startTime).toFixed(2)}ms`,
-        field: field,
-        newValueInResponse: response[field as keyof Lead],
-      })
-
+      await api.patch(`/leads/${lead.id}`, { [field]: value })
       onUpdate()
     } catch (err) {
-      console.error(`❌ [LeadWorkspace] Failed to update field "${field}":`, err)
-      console.error(`❌ [LeadWorkspace] Error details:`, {
-        leadId: lead.id,
-        field: field,
-        value: value,
-        error: err,
-        errorMessage: err instanceof Error ? err.message : 'Unknown error',
-        errorStack: err instanceof Error ? err.stack : undefined
-      })
+      console.error('Failed to update field:', err)
       throw err
     }
   }
@@ -284,14 +202,11 @@ export function LeadWorkspace({
     label: c.name,
   }))
 
-  // effectiveLead: prefer localLead (updated from PATCH response) over prop
-  const effectiveLead = localLead ?? lead
-
-  const isConverted = effectiveLead ? (effectiveLead.status === 'converted' || !!effectiveLead.student_id) : false
+  const isConverted = lead ? (lead.status === 'converted' || !!lead.student_id) : false
 
   // Find related names for display (edit mode only)
-  const salesperson = effectiveLead ? salespersons.find(sp => sp.id === effectiveLead.salesperson_id) : null
-  const campaign = effectiveLead ? campaigns.find(c => c.id === effectiveLead.campaign_id) : null
+  const salesperson = lead ? salespersons.find(sp => sp.id === lead.salesperson_id) : null
+  const campaign = lead ? campaigns.find(c => c.id === lead.campaign_id) : null
 
   // Collapsible section with toggle
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
@@ -370,7 +285,7 @@ export function LeadWorkspace({
                 type="entity-select"
                 options={salespersonOptions}
                 onSave={v => { updateForm('salesperson_id', String(v ?? '')); return Promise.resolve() }}
-                entityCreatePath="/salespersons"
+                entityCreatePath="/leads"
               />
             </div>
           </CollapsibleSection>
@@ -459,8 +374,8 @@ export function LeadWorkspace({
         {/* Header */}
         <div className={s.workspace__header}>
           <div className={s.workspace__title}>
-            <span>{effectiveLead!.full_name} {effectiveLead!.family_name ?? ''}</span>
-            <Badge entity="leads" value={effectiveLead!.status} />
+            <span>{lead!.full_name} {lead!.family_name ?? ''}</span>
+            <Badge entity="leads" value={lead!.status} />
           </div>
           <button className={`${s.btn} ${s['btn-ghost']} ${s['btn-icon']}`} onClick={onClose} title="חזור">
             <ArrowLeft size={18} />
@@ -468,7 +383,7 @@ export function LeadWorkspace({
         </div>
 
         {/* Converted badge */}
-        {isConverted && effectiveLead!.student_id && (
+        {isConverted && lead!.student_id && (
           <div style={{
             background: 'var(--color-success-light, #f0fdf4)',
             padding: '10px 12px',
@@ -479,7 +394,7 @@ export function LeadWorkspace({
           }}>
             <UserCheck size={16} style={{ color: 'var(--color-success, #16a34a)' }} />
             <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-success, #16a34a)' }}>
-              הומר לתלמיד #{effectiveLead!.student_id}
+              הומר לתלמיד #{lead!.student_id}
             </span>
           </div>
         )}
@@ -496,30 +411,6 @@ export function LeadWorkspace({
               <MessageSquarePlus size={14} /> הוסף פעילות
             </button>
           )}
-          {effectiveLead!.email && (
-            <button 
-              className={`${s.btn} ${s['btn-secondary']} ${s['btn-sm']}`} 
-              style={{ background: '#fef3c7', color: '#92400e', borderColor: '#fcd34d' }}
-              onClick={async () => {
-                const confirmed = await confirm({
-                  title: 'שליחת מייל בדיקת חסימות',
-                  message: `האם לשלוח מייל בדיקת חסימות (נטפרי) לכתובת: ${effectiveLead!.email}?`,
-                  confirmLabel: 'שלח',
-                  cancelLabel: 'ביטול',
-                })
-                if (confirmed) {
-                  try {
-                    await api.post(`/test-netfree/send-test-email?user_id=${effectiveLead!.id}&email=${effectiveLead!.email}`)
-                    alert('מייל בדיקה נשלח בהצלחה!')
-                  } catch (err) {
-                    alert('שגיאה בשליחת המייל')
-                  }
-                }
-              }}
-            >
-              <ShieldAlert size={14} /> שלח טסט נטפרי
-            </button>
-          )}
         </div>
 
         {/* Contact Info */}
@@ -527,47 +418,47 @@ export function LeadWorkspace({
           <div className={s['field-grid']}>
             <EditableField
               label="שם פרטי"
-              value={effectiveLead!.full_name}
+              value={lead!.full_name}
               onSave={v => saveField('full_name', v)}
             />
             <EditableField
               label="שם משפחה"
-              value={effectiveLead!.family_name}
+              value={lead!.family_name}
               onSave={v => saveField('family_name', v)}
             />
             <EditableField
               label="טלפון"
-              value={effectiveLead!.phone}
+              value={lead!.phone}
               dir="ltr"
               onSave={v => saveField('phone', v)}
             />
             <EditableField
               label="טלפון נוסף"
-              value={effectiveLead!.phone2}
+              value={lead!.phone2}
               dir="ltr"
               onSave={v => saveField('phone2', v)}
             />
             <EditableField
               label="אימייל"
-              value={effectiveLead!.email}
+              value={lead!.email}
               dir="ltr"
               onSave={v => saveField('email', v)}
             />
             <EditableField
               label="עיר"
-              value={effectiveLead!.city}
+              value={lead!.city}
               onSave={v => saveField('city', v)}
             />
           </div>
           <div className={`${s['field-grid']} ${s['field-grid--single']}`}>
             <EditableField
               label="כתובת"
-              value={effectiveLead!.address}
+              value={lead!.address}
               onSave={v => saveField('address', v)}
             />
             <EditableField
               label="תעודת זהות"
-              value={effectiveLead!.id_number}
+              value={lead!.id_number}
               dir="ltr"
               onSave={v => saveField('id_number', v)}
             />
@@ -579,20 +470,21 @@ export function LeadWorkspace({
           <div className={`${s['field-grid']} ${s['field-grid--single']}`}>
             <EditableField
               label="סטטוס"
-              value={effectiveLead!.status}
-              displayValue={<Badge entity="leads" value={effectiveLead!.status} />}
+              value={lead!.status}
+              displayValue={<Badge entity="leads" value={lead!.status} />}
               type="select"
               options={STATUS_OPTIONS}
               onSave={v => saveField('status', v)}
+              disabled={!!isConverted}
             />
             <EditableField
               label="איש מכירות"
-              value={effectiveLead!.salesperson_id}
+              value={lead!.salesperson_id}
               displayValue={salesperson?.name}
               type="entity-select"
               options={salespersonOptions}
               onSave={v => saveField('salesperson_id', v)}
-              entityCreatePath="/salespersons"
+              entityCreatePath="/leads"
             />
           </div>
         </CollapsibleSection>
@@ -602,14 +494,14 @@ export function LeadWorkspace({
           <div className={`${s['field-grid']} ${s['field-grid--single']}`}>
             <EditableField
               label="מקור"
-              value={effectiveLead!.source_type}
+              value={lead!.source_type}
               type="select"
               options={SOURCE_OPTIONS}
               onSave={v => saveField('source_type', v)}
             />
             <EditableField
               label="קמפיין"
-              value={effectiveLead!.campaign_id}
+              value={lead!.campaign_id}
               displayValue={campaign?.name}
               type="entity-select"
               options={campaignOptions}
@@ -618,12 +510,12 @@ export function LeadWorkspace({
             />
             <EditableField
               label="שם מקור"
-              value={effectiveLead!.source_name}
+              value={lead!.source_name}
               onSave={v => saveField('source_name', v)}
             />
             <EditableField
               label="הודעה מהמקור"
-              value={effectiveLead!.source_message}
+              value={lead!.source_message}
               type="textarea"
               onSave={v => saveField('source_message', v)}
             />
@@ -635,8 +527,8 @@ export function LeadWorkspace({
           <div className={`${s['field-grid']} ${s['field-grid--single']}`}>
             <EditableField
               label="קורס מבוקש"
-              value={effectiveLead!.course_id}
-              displayValue={courses.find(c => c.id === effectiveLead!.course_id)?.name}
+              value={lead!.course_id}
+              displayValue={courses.find(c => c.id === lead!.course_id)?.name}
               type="entity-select"
               options={courseOptions}
               onSave={v => saveField('course_id', v)}
@@ -649,7 +541,7 @@ export function LeadWorkspace({
         <CollapsibleSection id="edit-notes" title="הערות" divider>
           <EditableField
             label="הערות"
-            value={effectiveLead!.notes}
+            value={lead!.notes}
             type="textarea"
             onSave={v => saveField('notes', v)}
           />
@@ -663,9 +555,9 @@ export function LeadWorkspace({
           fontSize: 11,
           color: 'var(--color-text-muted)',
         }}>
-          <div>נוצר: {formatDateTime(effectiveLead!.created_at)}</div>
-          {effectiveLead!.updated_at && <div>עודכן: {formatDateTime(effectiveLead!.updated_at)}</div>}
-          {effectiveLead!.conversion_date && <div>הומר: {formatDateTime(effectiveLead!.conversion_date)}</div>}
+          <div>נוצר: {formatDateTime(lead!.created_at)}</div>
+          {lead!.updated_at && <div>עודכן: {formatDateTime(lead!.updated_at)}</div>}
+          {lead!.conversion_date && <div>הומר: {formatDateTime(lead!.conversion_date)}</div>}
         </div>
       </div>
 
@@ -679,7 +571,7 @@ export function LeadWorkspace({
             onClick={() => setActiveTab('interactions')}
             icon={<History size={14} />}
             label="היסטוריה"
-            count={effectiveLead!.interactions?.length}
+            count={lead!.interactions?.length}
           />
           <TabButton
             id="tasks"
@@ -722,24 +614,24 @@ export function LeadWorkspace({
         <div className={s.workspace__section}>
           {activeTab === 'interactions' && (
             <InteractionsTab
-              interactions={effectiveLead!.interactions || []}
+              interactions={lead!.interactions || []}
               onAdd={onAddInteraction}
             />
           )}
           {activeTab === 'tasks' && (
-            <TasksTab leadId={effectiveLead!.id} />
+            <TasksTab leadId={lead!.id} />
           )}
           {activeTab === 'payments' && (
-            <PaymentsTab lead={effectiveLead!} courses={courses} onUpdate={onUpdate} />
+            <PaymentsTab lead={lead!} courses={courses} onUpdate={onUpdate} />
           )}
           {activeTab === 'conversion' && (
-            <LeadConversionChecklist lead={effectiveLead!} onUpdate={onUpdate} />
+            <LeadConversionChecklist lead={lead!} onUpdate={onUpdate} />
           )}
           {activeTab === 'inquiries' && (
-            <InquiriesTab leadId={effectiveLead!.id} />
+            <InquiriesTab leadId={lead!.id} />
           )}
           {activeTab === 'emails' && (
-            <EmailsTab lead={effectiveLead!} onUpdate={onUpdate} />
+            <EmailsTab lead={lead!} onUpdate={onUpdate} />
           )}
         </div>
       </div>
@@ -820,10 +712,7 @@ function InteractionsTab({
         {interactions.map(interaction => (
           <div key={interaction.id} className={s['timeline-item']}>
             <div className={s['timeline-dot']} style={{
-              background:
-                interaction.interaction_type === 'call' ? 'var(--color-primary)' :
-                interaction.interaction_type === 'note' ? 'var(--color-secondary)' :
-                'var(--color-border)'
+              background: interaction.interaction_type === 'call' ? 'var(--color-primary)' : 'var(--color-border)'
             }} />
             <div className={s['timeline-content']}>
               <div className={s['timeline-date']}>
@@ -851,126 +740,13 @@ function InteractionsTab({
   )
 }
 
-// Tasks Tab
-function TasksTab({ leadId }: { leadId: number }) {
-  const [tasks, setTasks] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const toast = useToast()
-
-  const fetchTasks = useCallback(async () => {
-    try {
-      setLoading(true)
-      const data = await api.get<any[]>(`/tasks/?lead_id=${leadId}`)
-      setTasks(data)
-    } catch (err) {
-      console.error('Failed to fetch tasks:', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [leadId])
-
-  useEffect(() => {
-    fetchTasks()
-  }, [fetchTasks])
-
-  const toggleTaskStatus = async (task: any) => {
-    try {
-      const newStatus = task.status === 'הושלם' ? 'חדש' : 'הושלם'
-      await api.patch(`/tasks/${task.id}`, { status: newStatus })
-      toast.success(newStatus === 'הושלם' ? 'משימה הושלמה' : 'משימה נפתחה מחדש')
-      fetchTasks()
-    } catch (err) {
-      toast.error('שגיאה בעדכון המשימה')
-    }
-  }
-
-  const deleteTask = async (taskId: number) => {
-    if (!window.confirm('האם למחוק את המשימה?')) return
-    try {
-      await api.delete(`/tasks/${taskId}`)
-      toast.success('משימה נמחקה')
-      fetchTasks()
-    } catch (err) {
-      toast.error('שגיאה במחיקת המשימה')
-    }
-  }
-
-  if (loading) return <div style={{ padding: 20, textAlign: 'center' }}>טוען משימות...</div>
-
-  if (tasks.length === 0) {
-    return (
-      <div className={s['empty-state']}>
-        <ListTodo size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
-        <div>אין משימות מקושרות</div>
-        <div style={{ fontSize: 12, marginTop: 4 }}>משימות שנוספו לליד יופיעו כאן</div>
-      </div>
-    )
-  }
-
+// Tasks Tab (placeholder - to be expanded)
+function TasksTab({ leadId: _leadId }: { leadId: number }) {
   return (
-    <div className={s.workspace__section_content}>
-      <div className={s.task_list} style={{ padding: 16 }}>
-        {tasks.map(task => (
-          <div key={task.id} className={s.task_item} style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: 12,
-            padding: '12px',
-            borderBottom: '1px solid var(--color-border-light)',
-            opacity: task.status === 'הושלם' ? 0.6 : 1
-          }}>
-            <button
-              onClick={() => toggleTaskStatus(task)}
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: 0,
-                cursor: 'pointer',
-                color: task.status === 'הושלם' ? 'var(--color-success)' : 'var(--color-text-muted)'
-              }}
-            >
-              {task.status === 'הושלם' ? <CheckCircle size={20} /> : <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid currentColor' }} />}
-            </button>
-            <div style={{ flex: 1 }}>
-              <div style={{
-                fontWeight: 600,
-                textDecoration: task.status === 'הושלם' ? 'line-through' : 'none',
-                fontSize: 14
-              }}>
-                {task.title}
-              </div>
-              {task.description && (
-                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>
-                  {task.description}
-                </div>
-              )}
-              {task.due_date && (
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  fontSize: 11,
-                  marginTop: 6,
-                  color: new Date(task.due_date) < new Date() && task.status !== 'הושלם' ? 'var(--color-error)' : 'var(--color-text-muted)'
-                }}>
-                  <Clock size={12} />
-                  תזכורת: {formatDateTime(task.due_date)}
-                  {new Date(task.due_date) < new Date() && task.status !== 'הושלם' && (
-                    <span style={{ fontWeight: 600 }}>(באיחור)</span>
-                  )}
-                </div>
-              )}
-            </div>
-            <button
-              onClick={() => deleteTask(task.id)}
-              className={s['btn-ghost']}
-              style={{ color: 'var(--color-error)', padding: 4 }}
-            >
-              <Trash2 size={14} />
-            </button>
-          </div>
-        ))}
-      </div>
+    <div className={s['empty-state']}>
+      <ListTodo size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
+      <div>אין משימות מקושרות</div>
+      <div style={{ fontSize: 12, marginTop: 4 }}>משימות מכירות קשורות לליד יופיעו כאן</div>
     </div>
   )
 }

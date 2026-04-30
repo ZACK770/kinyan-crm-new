@@ -28,7 +28,10 @@ services:
     branch: fitchers  # Deploy from fitchers branch
     
     # Build: Install Python deps, build frontend, run migrations
-    buildCommand: pip install -r requirements.txt && rm -rf frontend/dist && cd frontend && npm install && npm run build && cd .. && alembic upgrade head
+    buildCommand: |
+      pip install -r requirements.txt
+      cd frontend && npm install && npm run build && cd ..
+      alembic upgrade head
     
     # Start: uvicorn serves API + static frontend
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT

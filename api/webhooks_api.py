@@ -16,7 +16,6 @@ from webhooks.generic import handle_generic_webhook
 from webhooks.nedarim import handle_nedarim_webhook
 from webhooks.nedarim_debitcard import handle_nedarim_debitcard_webhook
 from webhooks.nedarim_keva import handle_nedarim_keva_webhook
-from webhooks.whatsapp import handle_whatsapp_webhook
 from webhooks.lead_unified import handle_unified_lead_webhook, detect_source
 from services.nedarim_plus import verify_webhook_signature
 from services.webhook_logger import log_webhook, WebhookTimer
@@ -302,67 +301,6 @@ async def unified_lead_webhook(request: Request):
                     db,
                     webhook_log.id,
                     "lead-unified",
-                    data,
-                    _get_client_ip(request),
-                    str(e),
-                )
-            await db.commit()
-
-        return {"success": False, "error": str(e)}
-
-
-@router.post("/whatsapp")
-async def whatsapp_webhook(request: Request):
-    """Handle WhatsApp messages from Green-API."""
-    timer = WebhookTimer()
-    data = None
-
-    try:
-        with timer:
-            data = await request.json()
-            data = _unwrap_array(data)
-            
-            # Extract basic info for logging
-            sender_name = data.get("senderData", {}).get("senderName", "Unknown")
-            sender_phone = data.get("senderData", {}).get("sender", "").split("@")[0]
-            logger.info(f"WhatsApp webhook received: name={sender_name}, phone={sender_phone}")
-            
-            result = await handle_whatsapp_webhook(data)
-            logger.info(f"WhatsApp webhook result: {result}")
-
-        async for db in get_db():
-            await log_webhook(
-                db,
-                webhook_type="whatsapp",
-                raw_payload=data,
-                source_ip=_get_client_ip(request),
-                success=result.get("success", False),
-                action=result.get("action"),
-                result_data=result,
-                entity_type="lead" if result.get("lead_id") else None,
-                entity_id=result.get("lead_id"),
-                processing_time_ms=timer.elapsed_ms,
-            )
-            await db.commit()
-
-        return result
-    except Exception as e:
-        logger.error(f"WhatsApp webhook error: {e}", exc_info=True)
-        async for db in get_db():
-            webhook_log = await log_webhook(
-                db,
-                webhook_type="whatsapp",
-                raw_payload=data,
-                source_ip=_get_client_ip(request),
-                success=False,
-                error_message=str(e),
-                processing_time_ms=timer.elapsed_ms,
-            )
-            if webhook_log:
-                await save_failed_webhook(
-                    db,
-                    webhook_log.id,
-                    "whatsapp",
                     data,
                     _get_client_ip(request),
                     str(e),

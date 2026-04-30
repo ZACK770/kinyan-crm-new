@@ -4,8 +4,7 @@ import s from '@/styles/shared.module.css'
 
 /* ══════════════════════════════════════════════════════════════
    EditableField — Click-to-edit inline field
-   VERSION: v1.3.2 - 2026-04-20 14:06 - Fixed select stale state via override value
-   ══════════════════════════════════════════════════════════════
+   ═══════════════════════════════════════════════════════════════
    UX Pattern: Auto-save on blur
    - Click to edit → field becomes input
    - Auto-save when: blur, Enter (text), Tab
@@ -93,71 +92,35 @@ export function EditableField({
     setIsEditing(false)
   }
 
-  const save = async (overrideEditValue?: string) => {
-    const currentEditValue = overrideEditValue ?? editValue
-    console.log(`🔧 [EditableField] save() triggered for "${label}"`, {
-      originalValue: value,
-      currentEditValue,
-      type,
-      isEditing,
-      timestamp: new Date().toISOString()
-    })
-
+  const save = async () => {
     // No changes? Just close
-    // For entity-select fields, compare as numbers; for others, compare as strings
-    let hasChanges = false
-    if (type === 'entity-select') {
-      // Compare as numbers (handle null/empty cases)
-      const originalNum = (value !== null && value !== undefined && value !== '') ? Number(value) : null
-      const editNum = (currentEditValue !== null && currentEditValue !== undefined && currentEditValue !== '') ? Number(currentEditValue) : null
-      hasChanges = originalNum !== editNum
-      console.log(`🔍 [EditableField] Entity-select comparison for "${label}":`, { originalNum, editNum, hasChanges })
-    } else {
-      // Compare as strings (default behavior)
-      const originalStr = String(value ?? '')
-      const editStr = String(currentEditValue ?? '')
-      hasChanges = editStr !== originalStr
-      console.log(`🔍 [EditableField] String comparison for "${label}":`, { originalStr, editStr, hasChanges })
-    }
-    
-    if (!hasChanges) {
-      console.log(`ℹ️ [EditableField] No changes detected for "${label}", closing editor`)
+    if (editValue === String(value ?? '')) {
       setIsEditing(false)
       return
     }
 
-    console.log(`💾 [EditableField] Proceeding with save for "${label}"`, { newValue: currentEditValue })
     setSaveStatus('saving')
-    
     try {
       // Convert to appropriate type
-      let finalValue: string | number | null = currentEditValue
-      if (currentEditValue === '' || currentEditValue === undefined || currentEditValue === null) {
+      let finalValue: string | number | null = editValue
+      if (editValue === '' || editValue === undefined) {
         finalValue = null
-        console.log(`🔄 [EditableField] "${label}" empty value → null`)
-      } else if (type === 'entity-select') {
-        finalValue = Number(currentEditValue)
-        console.log(`🔄 [EditableField] "${label}" entity-select → number: ${finalValue}`)
-      } else {
-        finalValue = String(currentEditValue)
-        console.log(`🔄 [EditableField] "${label}" default → string: "${finalValue}"`)
+      } else if (type === 'entity-select' && editValue) {
+        finalValue = Number(editValue)
       }
 
-      console.log(`📤 [EditableField] Calling onSave prop for "${label}" with:`, finalValue)
       await onSave(finalValue)
-      
-      console.log(`✅ [EditableField] onSave completed successfully for "${label}"`)
       setIsEditing(false)
 
       // Show saved indicator briefly
       setSaveStatus('saved')
       savedTimerRef.current = setTimeout(() => {
         setSaveStatus('idle')
-        console.log(`🔄 [EditableField] Status indicator reset for "${label}"`)
       }, 1500)
     } catch (err) {
-      console.error(`❌ [EditableField] Save failed for "${label}":`, err)
+      console.error('Failed to save:', err)
       setSaveStatus('idle')
+      // Keep editing open on error
     }
   }
 
@@ -184,14 +147,12 @@ export function EditableField({
   // For selects, save immediately on change (better UX)
   const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newValue = e.target.value
-    console.log(`🖱️ [EditableField] handleSelectChange for "${label}":`, newValue)
     setEditValue(newValue)
     // For selects, auto-save on selection (no need to blur)
-    // IMPORTANT: pass newValue to save() to avoid stale state reads
-    console.log(`⏱️ [EditableField] Scheduling immediate save for "${label}"`)
     setTimeout(() => {
-      save(newValue)
-    }, 0)
+      if (!isEditing) return
+      save()
+    }, 50)
   }
 
   // Displayed value (when not editing)

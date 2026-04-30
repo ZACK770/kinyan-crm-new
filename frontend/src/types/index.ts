@@ -185,8 +185,7 @@ export interface Salesperson {
 
 export interface SalesTask {
   id: number
-  salesperson_id?: number
-  assigned_to_user_id?: number
+  salesperson_id: number
   lead_id?: number
   student_id?: number
   title: string
@@ -194,18 +193,8 @@ export interface SalesTask {
   due_date?: string
   status: string
   priority: number
-  task_type?: string
-  auto_created?: boolean
-  parent_lead_conversion?: boolean
-  send_reminder?: boolean
   created_at: string
   completed_at?: string
-  lead?: {
-    id: number
-    full_name: string
-    phone: string
-    email?: string
-  }
 }
 
 export interface Payment {

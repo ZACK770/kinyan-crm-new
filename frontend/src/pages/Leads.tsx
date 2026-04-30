@@ -7,15 +7,14 @@ import {
   Pencil,
   MessageSquarePlus,
   UserCheck,
-  ListTodo,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getStatus, getSourceLabel, formatDate, formatDateTime } from '@/lib/status'
 import { useModal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
+import { SmartTable, type SmartColumn } from '@/components/ui/SmartTable'
+import { LeadWorkspace } from '@/components/leads'
 import type { Lead, LeadInteraction, Salesperson, Course, Campaign } from '@/types'
-import { type SmartColumn, SmartTable } from '@/components/ui/SmartTable'
-import { LeadWorkspace } from '@/components/leads/LeadWorkspace'
 import s from '@/styles/shared.module.css'
 
 /* ── status badge helper ── */
@@ -207,8 +206,6 @@ function LeadForm({
             <option value="נסלק">נסלק</option>
             <option value="תלמיד פעיל">תלמיד פעיל</option>
             <option value="לא רלוונטי">לא רלוונטי</option>
-            <option value="במעקב">במעקב</option>
-            <option value="מתעניין">מתעניין</option>
           </select>
         </div>
       </div>
@@ -230,10 +227,7 @@ function LeadForm({
 /* ══════════════════════════════════════════════════════════════
    Add Interaction Form
    ══════════════════════════════════════════════════════════════ */
-function InteractionForm({ onSubmit, onAddTask }: { 
-  onSubmit: (data: Record<string, unknown>) => void;
-  onAddTask?: (description: string) => void;
-}) {
+function InteractionForm({ onSubmit }: { onSubmit: (data: Record<string, unknown>) => void }) {
   const [form, setForm] = useState({
     interaction_type: 'call',
     call_status: '',
@@ -247,12 +241,6 @@ function InteractionForm({ onSubmit, onAddTask }: {
     const data: Record<string, unknown> = { ...form }
     Object.keys(data).forEach(k => { if (data[k] === '') delete data[k] })
     onSubmit(data)
-  }
-
-  const handleAddTask = (e: React.MouseEvent) => {
-    e.preventDefault()
-    if (!form.description.trim()) return
-    if (onAddTask) onAddTask(form.description)
   }
 
   return (
@@ -284,18 +272,7 @@ function InteractionForm({ onSubmit, onAddTask }: {
         <label className={s['form-label']}>תיאור</label>
         <textarea className={s.textarea} value={form.description} onChange={set('description')} rows={3} />
       </div>
-      <div style={{ display: 'flex', gap: 10 }}>
-        <button type="submit" className={`${s.btn} ${s['btn-primary']}`} style={{ flex: 1 }}>הוסף כפעילות</button>
-        <button 
-          type="button" 
-          className={`${s.btn} ${s['btn-secondary']}`} 
-          style={{ flex: 1 }}
-          onClick={handleAddTask}
-          disabled={!form.description.trim()}
-        >
-          <ListTodo size={16} /> הוסף כמשימה
-        </button>
-      </div>
+      <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>הוסף</button>
     </form>
   )
 }
@@ -491,28 +468,11 @@ export function LeadsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
 
   // Auto-open create form when ?create=true (from entity '+' button)
-  // Auto-open lead when ?id=X (from task click)
   useEffect(() => {
-    const createParam = searchParams.get('create')
-    const idParam = searchParams.get('id')
-    
-    if (createParam === 'true') {
+    if (searchParams.get('create') === 'true') {
       setViewMode('create')
       setSelectedLead(null)
       setSearchParams({}, { replace: true })
-    } else if (idParam) {
-      // Load and open the specific lead
-      const loadLead = async () => {
-        try {
-          const lead = await api.get<Lead>(`leads/${idParam}`)
-          setSelectedLead(lead)
-          setViewMode('list')  // Not 'create' — we have a selected lead
-          setSearchParams({}, { replace: true })
-        } catch {
-          toast.error('שגיאה בטעינת פרטי ליד')
-        }
-      }
-      loadLead()
     }
   }, [searchParams, setSearchParams])
 
@@ -732,75 +692,15 @@ export function LeadsPage() {
               await api.post(`leads/${leadId}/interactions`, data)
               toast.success('אינטראקציה נוספה')
               closeModal()
-              fetchLeads()
+              // Refresh and reopen detail
+              const fresh = await api.get<Lead>(`leads/${leadId}`)
+              showDetailModal(fresh)
             } catch (err: unknown) {
               toast.error((err as { message?: string }).message ?? 'שגיאה')
             }
           }}
-          onAddTask={(description) => {
-            closeModal()
-            openAddTask(leadId, description)
-          }}
         />
       ),
-    })
-  }
-
-  /* ── Add Task ── */
-  const openAddTask = (leadId: number, initialDescription: string = '') => {
-    openModal({
-      title: 'הוספת משימה',
-      size: 'md',
-      content: (
-        <form onSubmit={async (e) => {
-          e.preventDefault()
-          const form = e.target as HTMLFormElement
-          const title = (form.elements.namedItem('title') as HTMLInputElement).value
-          const dueDate = (form.elements.namedItem('due_date') as HTMLInputElement).value
-          const sendReminder = (form.elements.namedItem('send_reminder') as HTMLInputElement).checked
-          
-          if (!title || !dueDate) {
-            toast.error('נא למלא כותרת ותאריך תזכורת')
-            return
-          }
-
-          try {
-            await api.post('/tasks/', {
-              lead_id: leadId,
-              title: title,
-              due_date: new Date(dueDate).toISOString(),
-              task_type: 'sales',
-              send_reminder: sendReminder
-            })
-            toast.success('משימה נוספה')
-            closeModal()
-            fetchLeads()
-          } catch (err) {
-            toast.error('שגיאה בהוספת המשימה')
-          }
-        }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div className={s['form-group']}>
-            <label className={s['form-label']}>כותרת המשימה</label>
-            <input name="title" className={s.input} defaultValue={initialDescription} required />
-          </div>
-          <div className={s['form-group']}>
-            <label className={s['form-label']}>תאריך ושעת תזכורת</label>
-            <input name="due_date" type="datetime-local" className={s.input} required />
-          </div>
-          <div className={s['form-group']}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-              <input
-                name="send_reminder"
-                type="checkbox"
-                defaultChecked={true}
-                style={{ width: 18, height: 18 }}
-              />
-              <span className={s['form-label']} style={{ margin: 0 }}>שלח מייל תזכורת לשעת המשימה</span>
-            </label>
-          </div>
-          <button type="submit" className={`${s.btn} ${s['btn-primary']}`}>שמור משימה</button>
-        </form>
-      )
     })
   }
 
@@ -873,8 +773,6 @@ export function LeadsPage() {
         { value: 'נסלק', label: 'נסלק' },
         { value: 'תלמיד פעיל', label: 'תלמיד פעיל' },
         { value: 'לא רלוונטי', label: 'לא רלוונטי' },
-        { value: 'במעקב', label: 'במעקב' },
-        { value: 'מתעניין', label: 'מתעניין' },
       ],
     },
     {
@@ -926,43 +824,6 @@ export function LeadsPage() {
       editable: false,
       hiddenByDefault: true,
       renderView: r => r.arrival_date ? formatDate(r.arrival_date) : '—'
-    },
-    {
-      key: 'last_activity',
-      header: 'פעילות אחרונה',
-      type: 'text',
-      editable: false,
-      renderView: r => {
-        if (!r.interactions || r.interactions.length === 0) return '—'
-        const last = r.interactions[r.interactions.length - 1]
-
-        // Translate interaction types to Hebrew
-        const typeTranslations: Record<string, string> = {
-          'call': 'שיחה',
-          'ivr_call': 'שיחת IVR',
-          'website_form': 'טופס אתר',
-          'outbound_call': 'שיחה יוצאת',
-          'whatsapp': 'וואטסאפ',
-          'email': 'מייל',
-          'generic': 'פעילות',
-          'sms': 'SMS',
-        }
-
-        // If description exists, show it directly (manual interaction)
-        // Otherwise show the interaction type
-        const typeText = typeTranslations[last.interaction_type] || last.interaction_type
-
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {last.description ? (
-              <span style={{ fontSize: 12, fontWeight: 500 }}>{last.description}</span>
-            ) : (
-              <span style={{ fontSize: 12, fontWeight: 500 }}>{typeText}</span>
-            )}
-            <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{formatDateTime(last.interaction_date || last.created_at)}</span>
-          </div>
-        )
-      }
     },
     {
       key: 'created_at',
@@ -1019,7 +880,7 @@ export function LeadsPage() {
       header: 'הערות',
       type: 'text',
       hiddenByDefault: true,
-      editable: true,
+      editable: false,
     },
     {
       key: 'source_message',
@@ -1445,16 +1306,9 @@ export function LeadsPage() {
       key: '_actions',
       header: '',
       type: 'text',
-      width: 120,
+      width: 80,
       render: r => (
         <div style={{ display: 'flex', gap: 4 }}>
-          <button
-            className={`${s.btn} ${s['btn-ghost']} ${s['btn-xs']}`}
-            onClick={e => { e.stopPropagation(); openAddInteraction(r.id) }}
-            title="הוסף פעילות"
-          >
-            <MessageSquarePlus size={14} strokeWidth={1.5} />
-          </button>
           <button
             className={`${s.btn} ${s['btn-ghost']} ${s['btn-xs']}`}
             onClick={e => { e.stopPropagation(); openDetail(r) }}

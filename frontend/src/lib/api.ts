@@ -45,97 +45,32 @@ class ApiClient {
     const cleanPath = path.startsWith('/') ? path : `/${path}`
     const url = cleanPath.startsWith(BASE) ? cleanPath : `${BASE}${cleanPath}`
 
-    console.log(`🌐 [API] Starting request`, {
-      method: options?.method || 'GET',
-      url: url,
-      path: path,
-      cleanPath: cleanPath,
-      hasAuth: !!this.authToken,
-      headers: this.getHeaders(options?.headers)
+    const res = await fetch(url, {
+      headers: this.getHeaders(options?.headers),
+      ...options,
     })
 
-    if (options?.body) {
-      console.log(`📤 [API] Request body:`, options.body)
-    }
-
-    const startTime = performance.now()
-    
-    try {
-      const res = await fetch(url, {
-        headers: this.getHeaders(options?.headers),
-        ...options,
-      })
-
-      const endTime = performance.now()
-      const duration = `${(endTime - startTime).toFixed(2)}ms`
-
-      console.log(`📡 [API] Response received`, {
-        status: res.status,
-        statusText: res.statusText,
-        ok: res.ok,
-        duration: duration,
-        url: url,
-        headers: Object.fromEntries(res.headers.entries())
-      })
-
-      if (!res.ok) {
-        let message = `שגיאה ${res.status}`
-        let errorBody: any = null
-        
-        try {
-          errorBody = await res.json()
-          console.log(`❌ [API] Error response body:`, errorBody)
-          
-          // Handle Pydantic validation errors (FastAPI)
-          if (Array.isArray(errorBody.detail)) {
-            message = errorBody.detail.map((e: any) => e.msg || e.message).join(', ')
-          } else if (typeof errorBody.detail === 'string') {
-            message = errorBody.detail
-          } else if (errorBody.message) {
-            message = errorBody.message
-          }
-        } catch (parseErr) {
-          console.log(`⚠️ [API] Could not parse error response as JSON:`, parseErr)
+    if (!res.ok) {
+      let message = `שגיאה ${res.status}`
+      try {
+        const body = await res.json()
+        // Handle Pydantic validation errors (FastAPI)
+        if (Array.isArray(body.detail)) {
+          message = body.detail.map((e: any) => e.msg || e.message).join(', ')
+        } else if (typeof body.detail === 'string') {
+          message = body.detail
+        } else if (body.message) {
+          message = body.message
         }
-        
-        const err: ApiError = { status: res.status, message }
-        console.error(`❌ [API] Request failed:`, {
-          url: url,
-          status: res.status,
-          message: message,
-          errorBody: errorBody,
-          duration: duration
-        })
-        throw err
-      }
-
-      // Handle 204 No Content
-      if (res.status === 204) {
-        console.log(`✅ [API] Request successful (204 No Content)`, { url, duration })
-        return undefined as T
-      }
-
-      const responseData = await res.json()
-      console.log(`✅ [API] Request successful`, {
-        url: url,
-        status: res.status,
-        duration: duration,
-        responseData: responseData
-      })
-
-      return responseData
-    } catch (err) {
-      const endTime = performance.now()
-      const duration = `${(endTime - startTime).toFixed(2)}ms`
-      
-      console.error(`❌ [API] Network or parsing error:`, {
-        url: url,
-        error: err,
-        message: err instanceof Error ? err.message : 'Unknown error',
-        duration: duration
-      })
+      } catch { /* ignore */ }
+      const err: ApiError = { status: res.status, message }
       throw err
     }
+
+    // Handle 204 No Content
+    if (res.status === 204) return undefined as T
+
+    return res.json()
   }
 
   get<T>(path: string) {
@@ -203,37 +138,3 @@ class ApiClient {
 }
 
 export const api = new ApiClient()
-
-// ============================================================
-// Global Table Preferences API
-// ============================================================
-
-export interface GlobalTablePrefResponse {
-  storage_key: string
-  data: any
-}
-
-export interface GlobalTablePrefRequest {
-  data: any
-}
-
-/**
- * Get global table preferences by storage key
- */
-export async function getGlobalTablePrefs(storageKey: string): Promise<GlobalTablePrefResponse> {
-  return api.get<GlobalTablePrefResponse>(`/table-prefs/global?storage_key=${encodeURIComponent(storageKey)}`)
-}
-
-/**
- * Set global table preferences (admin only)
- */
-export async function setGlobalTablePrefs(storageKey: string, data: any): Promise<GlobalTablePrefResponse> {
-  return api.put<GlobalTablePrefResponse>(`/table-prefs/global?storage_key=${encodeURIComponent(storageKey)}`, { data })
-}
-
-/**
- * Delete global table preferences (admin only)
- */
-export async function deleteGlobalTablePrefs(storageKey: string): Promise<{ ok: boolean }> {
-  return api.delete<{ ok: boolean }>(`/table-prefs/global?storage_key=${encodeURIComponent(storageKey)}`)
-}
