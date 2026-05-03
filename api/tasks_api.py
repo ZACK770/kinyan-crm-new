@@ -94,7 +94,7 @@ def _task_to_dict(t) -> dict:
         "student_id": t.student_id,
         "auto_created": t.auto_created,
         "parent_lead_conversion": t.parent_lead_conversion,
-        "send_reminder": t.send_reminder,
+        "send_reminder": getattr(t, 'send_reminder', False),
         "created_at": str(t.created_at) if t.created_at else None,
         "completed_at": str(t.completed_at) if t.completed_at else None,
         "reports": reports_data,

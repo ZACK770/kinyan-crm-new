@@ -33,6 +33,7 @@ import { ExamsAdminPage } from '@/pages/ExamsAdmin'
 import { PopupManagePage } from '@/pages/PopupManage'
 import { EmailInboxPage } from '@/pages/EmailInbox'
 import { LandingPage } from '@/pages/LandingPage'
+import { AnalyticsPage } from '@/pages/Analytics'
 
 export function App() {
   return (
@@ -80,6 +81,7 @@ export function App() {
                 <Route path="/admin/courses/:courseId/topics" element={<ManagerRoute><CourseTopicsPage /></ManagerRoute>} />
                 <Route path="/admin/topics/:topicId/lessons" element={<ManagerRoute><TopicLessonsPage /></ManagerRoute>} />
                 <Route path="/admin/lessons/:lessonId" element={<ManagerRoute><LessonWorkspacePage /></ManagerRoute>} />
+                <Route path="/analytics" element={<ViewerRoute><AnalyticsPage /></ViewerRoute>} />
                 <Route path="/student-portal/:studentId/:courseId" element={<ViewerRoute><StudentPortalPage /></ViewerRoute>} />
                 <Route path="*" element={<PlaceholderPage title="הדף לא נמצא" />} />
               </Routes>

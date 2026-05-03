@@ -50,6 +50,7 @@ const NAV_SECTIONS: { items: NavItem[] }[] = [
     items: [
       { to: '/', label: 'דשבורד', icon: LayoutDashboard },
       { to: '/leads', label: 'לידים', icon: Users },
+      { to: '/analytics', label: 'אנליטיקס', icon: Activity },
       { to: '/students', label: 'תלמידים', icon: GraduationCap },
       { to: '/courses', label: 'קורסים', icon: BookOpen },
       { to: '/tracks', label: 'מסלולים', icon: Calendar },
